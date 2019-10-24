@@ -87,9 +87,12 @@ public class StreamRealSenseVisDepth {
 		ctx = LibRealSenseWrapper.INSTANCE.rs_create_context(11201, error);
 		if(LibRealSenseWrapper.INSTANCE.rs_get_device_count(ctx, error)<1)
 			ctx = LibRealSenseWrapper.INSTANCE.rs_create_context(4, error);
+		if(LibRealSenseWrapper.INSTANCE.rs_get_device_count(ctx, error)<1)
+			ctx = LibRealSenseWrapper.INSTANCE.rs_create_context(5, error);
 
 		if(LibRealSenseWrapper.INSTANCE.rs_get_device_count(ctx, error)<1) {
 			LibRealSenseWrapper.INSTANCE.rs_delete_context(ctx, error);
+			System.out.println(error.toString());
 			throw new IllegalArgumentException("No device found");
 		}
 		this.listeners = new ArrayList<Listener>();
