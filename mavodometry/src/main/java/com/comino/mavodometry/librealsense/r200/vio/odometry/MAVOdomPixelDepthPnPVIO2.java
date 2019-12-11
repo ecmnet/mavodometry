@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.comino.mavodometry.vio.odometry;
+package com.comino.mavodometry.librealsense.r200.vio.odometry;
 
 import java.util.ArrayList;
 import java.util.List;

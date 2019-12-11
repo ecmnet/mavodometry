@@ -1,4 +1,4 @@
-package com.comino.mavodometry.vio.odometry;
+package com.comino.mavodometry.librealsense.r200.vio.odometry;
 
 import boofcv.abst.sfm.d3.DepthVisualOdometry;
 import boofcv.struct.image.ImageBase;

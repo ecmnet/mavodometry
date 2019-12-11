@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.comino.mavodometry.vio.odometry;
+package com.comino.mavodometry.librealsense.r200.vio.odometry;
 
 import boofcv.abst.feature.tracker.PointTrack;
 import boofcv.abst.feature.tracker.PointTracker;

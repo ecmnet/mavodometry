@@ -16,13 +16,13 @@
  * limitations under the License.
  */
 
-package com.comino.mavodometry.vio;
+package com.comino.mavodometry.librealsense.r200.vio;
 
 import org.ddogleg.fitting.modelset.ModelMatcher;
 import org.ddogleg.fitting.modelset.ransac.Ransac;
 
-import com.comino.mavodometry.vio.odometry.MAVOdomPixelDepthPnPVIO;
-import com.comino.mavodometry.vio.odometry.MAVOdomPixelDepthPnP_to_DepthVisualOdometryVIO;
+import com.comino.mavodometry.librealsense.r200.vio.odometry.MAVOdomPixelDepthPnPVIO;
+import com.comino.mavodometry.librealsense.r200.vio.odometry.MAVOdomPixelDepthPnP_to_DepthVisualOdometryVIO;
 
 import boofcv.abst.feature.tracker.PointTrackerTwoPass;
 import boofcv.abst.geo.Estimate1ofPnP;

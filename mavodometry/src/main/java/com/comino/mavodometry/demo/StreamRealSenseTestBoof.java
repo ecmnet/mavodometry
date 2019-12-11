@@ -40,8 +40,8 @@ import java.awt.image.BufferedImage;
 import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth.Listener;
-import com.comino.mavodometry.vio.FactoryMAVOdometryVIO;
-import com.comino.mavodometry.vio.odometry.MAVDepthVisualOdometry;
+import com.comino.mavodometry.librealsense.r200.vio.FactoryMAVOdometryVIO;
+import com.comino.mavodometry.librealsense.r200.vio.odometry.MAVDepthVisualOdometry;
 
 import boofcv.abst.feature.detect.interest.ConfigGeneralDetector;
 import boofcv.abst.feature.tracker.PointTrackerTwoPass;

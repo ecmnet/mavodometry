@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.comino.mavodometry.vio.odometry;
+package com.comino.mavodometry.librealsense.r200.vio.odometry;
 
 
 import static boofcv.factory.distort.LensDistortionFactory.narrow;
