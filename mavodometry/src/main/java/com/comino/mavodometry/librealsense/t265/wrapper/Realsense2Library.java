@@ -21,7 +21,7 @@ import java.util.List;
  * For help, please visit <a href="http://nativelibs4java.googlecode.com/">NativeLibs4Java</a> , <a href="http://rococoa.dev.java.net/">Rococoa</a>, or <a href="http://jna.dev.java.net/">JNA</a>.
  */
 public interface Realsense2Library extends Library {
-	public static final String JNA_LIBRARY_NAME = "Realsense2";
+	public static final String JNA_LIBRARY_NAME = "realsense2";
 	public static final NativeLibrary JNA_NATIVE_LIB = NativeLibrary.getInstance(Realsense2Library.JNA_LIBRARY_NAME);
 	public static final Realsense2Library INSTANCE = (Realsense2Library)Native.loadLibrary(Realsense2Library.JNA_LIBRARY_NAME, Realsense2Library.class);
 	/** enum values */
