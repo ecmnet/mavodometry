@@ -32,7 +32,6 @@ import boofcv.abst.sfm.ImagePixelTo3D;
 import boofcv.alg.geo.DistanceFromModelMultiView;
 import boofcv.alg.geo.pose.PnPDistanceReprojectionSq;
 import boofcv.alg.sfm.DepthSparse3D;
-import boofcv.alg.sfm.d3.VisOdomPixelDepthPnP;
 import boofcv.factory.geo.EnumPNP;
 import boofcv.factory.geo.EstimatorToGenerator;
 import boofcv.factory.geo.FactoryMultiView;
@@ -40,7 +39,6 @@ import boofcv.struct.geo.Point2D3D;
 import boofcv.struct.image.ImageGray;
 import boofcv.struct.image.ImageType;
 import georegression.fitting.se.ModelManagerSe3_F64;
-import georegression.struct.point.Point3D_F64;
 import georegression.struct.se.Se3_F64;
 
 /**

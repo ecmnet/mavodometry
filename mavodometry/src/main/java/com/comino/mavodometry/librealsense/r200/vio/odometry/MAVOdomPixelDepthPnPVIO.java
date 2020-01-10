@@ -18,6 +18,11 @@
 
 package com.comino.mavodometry.librealsense.r200.vio.odometry;
 
+import java.util.ArrayList;
+import java.util.List;
+
+import org.ddogleg.fitting.modelset.ModelMatcher;
+
 import boofcv.abst.feature.tracker.PointTrack;
 import boofcv.abst.feature.tracker.PointTracker;
 import boofcv.abst.feature.tracker.PointTrackerTwoPass;
@@ -31,10 +36,6 @@ import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Point3D_F64;
 import georegression.struct.se.Se3_F64;
 import georegression.transform.se.SePointOps_F64;
-import org.ddogleg.fitting.modelset.ModelMatcher;
-
-import java.util.ArrayList;
-import java.util.List;
 
 /**
  * Full 6-DOF visual odometry where a ranging device is assumed for pixels in the primary view and the motion is estimated

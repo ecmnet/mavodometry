@@ -31,7 +31,7 @@
  *
  ****************************************************************************/
 
-package com.comino.mavodometry.demo;
+package com.comino.mavodometry.librealsense.r200.demo;
 
 import java.awt.Color;
 import java.awt.Graphics;
@@ -40,8 +40,6 @@ import java.awt.image.BufferedImage;
 import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth.Listener;
-import com.comino.mavodometry.librealsense.r200.vio.FactoryMAVOdometryVIO;
-import com.comino.mavodometry.librealsense.r200.vio.odometry.MAVDepthVisualOdometry;
 
 import boofcv.abst.feature.detect.interest.ConfigGeneralDetector;
 import boofcv.abst.feature.tracker.PointTrackerTwoPass;
@@ -60,7 +58,6 @@ import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.ConvertRotation3D_F64;
 import georegression.struct.EulerType;
-import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 import javafx.application.Application;

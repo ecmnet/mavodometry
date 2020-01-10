@@ -30,7 +30,6 @@ import boofcv.abst.geo.RefinePnP;
 import boofcv.abst.sfm.ImagePixelTo3D;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.geo.Point2D3D;
-import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.ImageBase;
 import boofcv.struct.sfm.Point2D3DTrack;
 import georegression.struct.point.Point2D_F64;

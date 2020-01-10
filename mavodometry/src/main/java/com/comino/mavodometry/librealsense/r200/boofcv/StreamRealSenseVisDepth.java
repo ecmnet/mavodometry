@@ -253,6 +253,9 @@ public class StreamRealSenseVisDepth {
 
 
 	public void bufferDepthToU16(Pointer input , GrayU16 output ) {
+
+	//	output.data = input.getShortArray(0, 678400);
+
 		short[] inp = input.getShortArray(0, output.width * output.height);
 	//	System.arraycopy(inp, 0, output.data, 0, output.width * output.height);
 
