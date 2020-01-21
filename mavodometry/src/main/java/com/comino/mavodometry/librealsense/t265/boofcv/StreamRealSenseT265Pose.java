@@ -17,7 +17,7 @@ import georegression.struct.se.Se3_F64;
 
 public class StreamRealSenseT265Pose {
 
-	private static final int CYCLE_MS = 33;
+	private static final int CYCLE_MS = 20;
 
 	private static final int WIDTH  = 848;
 	private static final int HEIGHT = 800;
