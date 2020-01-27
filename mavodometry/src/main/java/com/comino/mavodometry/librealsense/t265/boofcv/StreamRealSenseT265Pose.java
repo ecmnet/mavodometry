@@ -209,6 +209,8 @@ public class StreamRealSenseT265Pose {
 					Realsense2Library.INSTANCE.rs2_pose_frame_get_pose_data(frame, rawpose, error);
 				}
 				Realsense2Library.INSTANCE.rs2_release_frame(frame);
+
+
 				Realsense2Library.INSTANCE.rs2_release_frame(frames);
 
 				fps = (int)(1000.0f/(tms - tms0));
@@ -243,7 +245,7 @@ public class StreamRealSenseT265Pose {
 
 				if(reset_request) {
 					Realsense2Library.INSTANCE.rs2_pipeline_stop(pipeline, error);
-					try { Thread.sleep(50); } catch (InterruptedException e) { }
+					try { Thread.sleep(10); } catch (InterruptedException e) { }
 					Realsense2Library.INSTANCE.rs2_pipeline_start_with_config(pipeline, config, error);
 					reset_request = false;
 				}
