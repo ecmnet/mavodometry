@@ -80,7 +80,7 @@ public class StreamRealSenseTestPose extends Application  {
 		root.add(labelz, 3, 0);
 
 
-		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD,WIDTH,HEIGHT,(tms, raw, p , s, left, right) ->  {
+		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD,WIDTH,HEIGHT,(tms, raw, p , s, a, left, right) ->  {
 
 			ConvertBufferedImage.convertTo(left, leftb);
 

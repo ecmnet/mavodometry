@@ -119,7 +119,7 @@ public class StreamRealSenseTestBoof extends Application  {
 			return;
 		}
 
-		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD, 848,800,(tms, raw, p , s, left, right) ->  {
+		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD, 848,800,(tms, raw, p , s, a, left, right) ->  {
 
 			if(distorter_left == null) {
 

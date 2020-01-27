@@ -30,12 +30,13 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVT265PositionEstimator {
 
-	private static final int     MAX_ERRORS = 10;
+	private static final int     	 MAX_ERRORS = 10;
+	private static final float  	  MAX_SPEED = 1.0f;
 
 	// mounting offset in m
-	private static final double   OFFSET_X =  0.10;
-	private static final double   OFFSET_Y =  0.00;
-	private static final double   OFFSET_Z =  0.00;
+	private static final double   	   OFFSET_X =  0.10;
+	private static final double        OFFSET_Y =  0.00;
+	private static final double        OFFSET_Z =  0.00;
 
 	// Modes
 	public static final int  GROUNDTRUTH_MODE   = 1;
@@ -103,11 +104,11 @@ public class MAVT265PositionEstimator {
 				case MSP_CMD.MSP_CMD_VISION:
 					switch((int)cmd.param1) {
 					case MSP_COMPONENT_CTRL.ENABLE:
-						do_odometry = true; reset(); break;
+						do_odometry = true; init("enable"); break;
 					case MSP_COMPONENT_CTRL.DISABLE:
 						do_odometry = false; break;
 					case MSP_COMPONENT_CTRL.RESET:
-						reset(); break;
+						init("reset"); break;
 					}
 					break;
 				}
@@ -118,14 +119,14 @@ public class MAVT265PositionEstimator {
 		// reset vision when armed
 		control.getStatusManager().addListener( Status.MSP_ARMED, (n) -> {
 			if(n.isStatus(Status.MSP_ARMED)) {
-				reset();
+				init("armed");
 			}
 		});
 
 		//reset ned transformation when GPOS gets valid
 		control.getStatusManager().addListener(Status.MSP_GPOS_VALID, (n) -> {
 			//if((n.isStatus(Status.MSP_GPOS_VALID)))
-			reset();
+			init("start");
 		});
 
 		stream.registerOverlayListener(ctx -> {
@@ -133,7 +134,7 @@ public class MAVT265PositionEstimator {
 		});
 
 
-		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD,width,height,(tms, raw, p, s, left, right) ->  {
+		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD,width,height,(tms, raw, p, s, a, left, right) ->  {
 
 			if(raw.tracker_confidence == 0) {
 				error_count++;
@@ -146,10 +147,6 @@ public class MAVT265PositionEstimator {
 			else if(raw.tracker_confidence == 3)
 				quality = 1f;
 
-			if(error_count > MAX_ERRORS) {
-				reset();
-			}
-
 			if((System.currentTimeMillis() - tms_reset) < 100) {
 				error_count = 0; quality = 0;
 				to_body.setTranslation(-p.getX(), -p.getY(), -p.getZ());
@@ -159,15 +156,25 @@ public class MAVT265PositionEstimator {
 
 			tms_reset = 0;
 
+			// Valdidation
+
+			if(error_count > MAX_ERRORS) {
+				init("quality");
+				return;
+			}
+
+			if(s.T.norm()>MAX_SPEED) {
+				init("speed");
+				return;
+			}
+
+			// rotate to body
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 			p.concat(to_body, body);
 
 			// TODO: To be verified
 			// correct mounting offset in bodyframe
 			body.T.plusIP(offset);
-
-			// TODO: Validation
-
 
 			// rotate to ned
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
@@ -212,17 +219,17 @@ public class MAVT265PositionEstimator {
 				publishMSPVision(p,ned,tms);
 
 				break;
-
 			}
 		});
 
 	}
 
-	public void reset() {
+	public void init(String s) {
 		t265.reset();
-		this.control.writeLogMessage(new LogMessage("[vio] Pose estimation reset", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
+		this.control.writeLogMessage(new LogMessage("[vio] Estimation init ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
 		tms_reset = System.currentTimeMillis();
 	}
+
 
 	public void start() {
 		t265.start();

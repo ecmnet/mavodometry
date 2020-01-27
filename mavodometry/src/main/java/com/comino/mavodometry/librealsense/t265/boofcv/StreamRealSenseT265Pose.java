@@ -150,8 +150,9 @@ public class StreamRealSenseT265Pose {
 
 	private class CombineThread extends Thread {
 
-		private Se3_F64    current_pose  = new Se3_F64();
-		private Se3_F64    current_speed = new Se3_F64();
+		private Se3_F64    current_pose         = new Se3_F64();
+		private Se3_F64    current_speed        = new Se3_F64();
+		private Se3_F64    current_acceleration = new Se3_F64();
 
 		private Realsense2Library.rs2_frame  frame;
 
@@ -226,8 +227,11 @@ public class StreamRealSenseT265Pose {
 							-rawpose.rotation.z,
 							rawpose.rotation.x,
 							-rawpose.rotation.y, current_pose.getRotation());
+
 					current_speed.getTranslation().set(- rawpose.velocity.z, rawpose.velocity.x, - rawpose.velocity.y);
 					current_speed.getRotation().set(current_pose.getRotation());
+
+					current_acceleration.getTranslation().set(- rawpose.acceleration.z, rawpose.acceleration.x, - rawpose.acceleration.y);
 
 					break;
 				case POS_DOWNWARD:
@@ -238,7 +242,7 @@ public class StreamRealSenseT265Pose {
 				}
 
 				if(is_initialized)
-					callback.handle(tms, rawpose, current_pose,current_speed,
+					callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration,
 							left.subimage(x0, y0, x1, y1),
 							right.subimage(x0, y0, x1, y1));
 
