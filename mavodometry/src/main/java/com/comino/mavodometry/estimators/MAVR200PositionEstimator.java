@@ -31,7 +31,7 @@
  *
  ****************************************************************************/
 
-package com.comino.mavodometry.estimators.impl;
+package com.comino.mavodometry.estimators;
 
 
 import java.awt.Color;
@@ -53,8 +53,6 @@ import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.status.StatusManager;
-import com.comino.mavodometry.estimators.IMapper;
-import com.comino.mavodometry.estimators.IPositionEstimator;
 import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth.Listener;
@@ -80,7 +78,7 @@ import georegression.geometry.GeometryMath_F64;
 import georegression.struct.EulerType;
 import georegression.struct.se.Se3_F64;
 
-public class MAVVisualPositionEstimatorVIO implements IPositionEstimator {
+public class MAVR200PositionEstimator  {
 
 	private static final int   	PUBLISH_RATE_MSP	    = 50 - 5;
 	private static final int  	PUBLISH_RATE_PX4    	= 10 - 5;
@@ -169,7 +167,7 @@ public class MAVVisualPositionEstimatorVIO implements IPositionEstimator {
 	private final Color	bgColor = new Color(128,128,128,130);
 
 
-	public <T> MAVVisualPositionEstimatorVIO(RealSenseInfo info, IMAVMSPController control, MSPConfig config, IVisualStreamHandler<GrayU8> stream) {
+	public <T> MAVR200PositionEstimator(RealSenseInfo info, IMAVMSPController control, MSPConfig config, IVisualStreamHandler<GrayU8> stream) {
 
 		this.info    = info;
 		this.control = control;
@@ -496,7 +494,7 @@ public class MAVVisualPositionEstimatorVIO implements IPositionEstimator {
 
 	}
 
-	public MAVVisualPositionEstimatorVIO() {
+	public MAVR200PositionEstimator() {
 		this(new RealSenseInfo(320,240, RealSenseInfo.MODE_RGB), null, MSPConfig.getInstance(),null);
 	}
 
@@ -507,7 +505,6 @@ public class MAVVisualPositionEstimatorVIO implements IPositionEstimator {
 		}
 	}
 
-	@Override
 	public MAVDepthVisualOdometry<GrayU8, GrayU16> getOdometry() {
 		return visualOdometry;
 	}

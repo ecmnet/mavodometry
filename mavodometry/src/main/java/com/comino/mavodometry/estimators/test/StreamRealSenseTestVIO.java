@@ -31,7 +31,7 @@
  *
  ****************************************************************************/
 
-package com.comino.mavodometry.estimators;
+package com.comino.mavodometry.estimators.test;
 
 import java.awt.Color;
 import java.awt.Graphics;

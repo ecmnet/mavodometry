@@ -1,4 +1,4 @@
-package com.comino.mavodometry.estimators.impl;
+package com.comino.mavodometry.estimators;
 
 import java.awt.Color;
 import java.awt.Graphics;
@@ -29,6 +29,8 @@ import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
 public class MAVT265PositionEstimator {
+
+	private static final int     MAX_ERRORS = 10;
 
 	// mounting offset in m
 	private static final double   OFFSET_X =  0.10;
@@ -126,8 +128,6 @@ public class MAVT265PositionEstimator {
 			reset();
 		});
 
-		// reset after 10 seconds (Workaround for Compass ramp up)
-
 		stream.registerOverlayListener(ctx -> {
 			overlayFeatures(ctx);
 		});
@@ -146,6 +146,10 @@ public class MAVT265PositionEstimator {
 			else if(raw.tracker_confidence == 3)
 				quality = 1f;
 
+			if(error_count > MAX_ERRORS) {
+				reset();
+			}
+
 			if((System.currentTimeMillis() - tms_reset) < 100) {
 				error_count = 0; quality = 0;
 				to_body.setTranslation(-p.getX(), -p.getY(), -p.getZ());
@@ -160,7 +164,7 @@ public class MAVT265PositionEstimator {
 
 			// TODO: To be verified
 			// correct mounting offset in bodyframe
-			//	body.T.plusIP(offset);
+			body.T.plusIP(offset);
 
 			// TODO: Validation
 
