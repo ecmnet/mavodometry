@@ -3,6 +3,7 @@ package com.comino.mavodometry.estimators;
 import java.awt.Color;
 import java.awt.Graphics;
 
+import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
 import org.mavlink.messages.MAV_FRAME;
 import org.mavlink.messages.MAV_SEVERITY;
@@ -59,6 +60,9 @@ public class MAVT265PositionEstimator {
 
 	private Se3_F64          ned      = new Se3_F64();
 	private Se3_F64          body     = new Se3_F64();
+
+	private DMatrixRMaj   tmp         = CommonOps_DDRM.identity( 3 );
+	private DMatrixRMaj   initial_rot = CommonOps_DDRM.identity( 3 );
 
 	//private Quaternion_F64   qbody    = new Quaternion_F64();
 
@@ -126,7 +130,7 @@ public class MAVT265PositionEstimator {
 		//reset ned transformation when GPOS gets valid
 		control.getStatusManager().addListener(Status.MSP_GPOS_VALID, (n) -> {
 			//if((n.isStatus(Status.MSP_GPOS_VALID)))
-			init("start");
+			init("gpos");
 		});
 
 		stream.registerOverlayListener(ctx -> {
@@ -151,6 +155,10 @@ public class MAVT265PositionEstimator {
 				error_count = 0; quality = 0;
 				to_body.setTranslation(-p.getX(), -p.getY(), -p.getZ());
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
+
+				CommonOps_DDRM.transpose(p.R, tmp);
+				CommonOps_DDRM.mult( to_ned.R, tmp , initial_rot );
+				//System.out.println(initial_rot);
 				return;
 			}
 
@@ -168,17 +176,20 @@ public class MAVT265PositionEstimator {
 				return;
 			}
 
-			// rotate to body
+			// rotate to body => visual attitude = 0
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 			p.concat(to_body, body);
 
 			// TODO: To be verified
 			// correct mounting offset in bodyframe
-			body.T.plusIP(offset);
+			//body.T.plusIP(offset);
 
-			// rotate to ned
+			// rotate position to ned based on model attitude
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
 			body.concat(to_ned, ned);
+
+			// Set rotation to vision based rotation
+			CommonOps_DDRM.mult( initial_rot, p.R , ned.R );
 
 			// get euler angles
 			att.setFromMatrix(ned.R);
@@ -235,7 +246,7 @@ public class MAVT265PositionEstimator {
 		t265.start();
 		System.out.println("[vio] Starting T265....");
 		t265.printDeviceInfo();
-		tms_reset = System.currentTimeMillis();
+		tms_reset = System.currentTimeMillis()+1000;
 	}
 
 	public void stop() {
