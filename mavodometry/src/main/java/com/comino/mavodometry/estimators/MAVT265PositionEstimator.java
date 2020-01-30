@@ -1,5 +1,38 @@
 package com.comino.mavodometry.estimators;
 
+/****************************************************************************
+*
+*   Copyright (c) 2020 Eike Mansfeld ecm@gmx.de. All rights reserved.
+*
+* Redistribution and use in source and binary forms, with or without
+* modification, are permitted provided that the following conditions
+* are met:
+*
+* 1. Redistributions of source code must retain the above copyright
+*    notice, this list of conditions and the following disclaimer.
+* 2. Redistributions in binary form must reproduce the above copyright
+*    notice, this list of conditions and the following disclaimer in
+*    the documentation and/or other materials provided with the
+*    distribution.
+* 3. Neither the name of the copyright holder nor the names of its
+*    contributors may be used to endorse or promote products derived
+*    from this software without specific prior written permission.
+*
+* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+* COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+* AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+* ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+* POSSIBILITY OF SUCH DAMAGE.
+*
+****************************************************************************/
+
 import java.awt.Color;
 import java.awt.Graphics;
 
@@ -37,7 +70,7 @@ public class MAVT265PositionEstimator {
 	// mounting offset in m
 	private static final double   	   OFFSET_X =  0.10;
 	private static final double        OFFSET_Y =  0.00;
-	private static final double        OFFSET_Z =  0.02;
+	private static final double        OFFSET_Z =  0.00;
 
 	// Modes
 	public static final int  GROUNDTRUTH_MODE   = 1;
@@ -151,9 +184,10 @@ public class MAVT265PositionEstimator {
 			else if(raw.tracker_confidence == 3)
 				quality = 1f;
 
+			// Reset odometry
 			if((System.currentTimeMillis() - tms_reset) < 100) {
 				error_count = 0; quality = 0;
-				to_body.setTranslation(-p.getX() - offset.x, -p.getY() - offset.y, -p.getZ() - offset.z);
+				to_body.setTranslation(- offset.x, - offset.y, - offset.z);
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
 				CommonOps_DDRM.transpose(p.R, tmp);
@@ -164,7 +198,7 @@ public class MAVT265PositionEstimator {
 
 			tms_reset = 0;
 
-			// Valdidation
+			// Valdidations
 
 			if(error_count > MAX_ERRORS) {
 				init("quality");
@@ -187,6 +221,11 @@ public class MAVT265PositionEstimator {
 			// rotate position to ned based on model attitude
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
 			body.concat(to_ned, ned);
+
+//			System.out.println(to_ned.T);
+//			System.out.println(ned.T);
+//			System.out.println(body.T);
+//			System.out.println("----------");
 
 			// Set rotation to vision based rotation
 			CommonOps_DDRM.mult( initial_rot, p.R , ned.R );
@@ -258,6 +297,9 @@ public class MAVT265PositionEstimator {
 		ctx.setColor(bgColor);
 		ctx.fillRect(5, 5, width-10, 21);
 		ctx.setColor(Color.white);
+
+		ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
+		ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED))
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000), 20, 20);
