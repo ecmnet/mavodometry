@@ -37,7 +37,7 @@ public class MAVT265PositionEstimator {
 	// mounting offset in m
 	private static final double   	   OFFSET_X =  0.10;
 	private static final double        OFFSET_Y =  0.00;
-	private static final double        OFFSET_Z =  0.00;
+	private static final double        OFFSET_Z =  0.02;
 
 	// Modes
 	public static final int  GROUNDTRUTH_MODE   = 1;
@@ -153,7 +153,7 @@ public class MAVT265PositionEstimator {
 
 			if((System.currentTimeMillis() - tms_reset) < 100) {
 				error_count = 0; quality = 0;
-				to_body.setTranslation(-p.getX(), -p.getY(), -p.getZ());
+				to_body.setTranslation(-p.getX() - offset.x, -p.getY() - offset.y, -p.getZ() - offset.z);
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
 				CommonOps_DDRM.transpose(p.R, tmp);
@@ -182,7 +182,7 @@ public class MAVT265PositionEstimator {
 
 			// TODO: To be verified
 			// correct mounting offset in bodyframe
-			//body.T.plusIP(offset);
+			body.T.plusIP(offset);
 
 			// rotate position to ned based on model attitude
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
@@ -308,8 +308,7 @@ public class MAVT265PositionEstimator {
 		msg.gy =  (float) orig.T.y;
 		msg.gz =  (float) orig.T.z;
 
-		msg.h = att.getInDegree(Attitude3D_F64.YAW);
-
+		msg.h   = (float)att.getYaw();
 		msg.r   = (float)att.getRoll();
 		msg.p   = (float)att.getPitch();
 
