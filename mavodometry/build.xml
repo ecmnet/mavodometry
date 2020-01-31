@@ -1,0 +1,16 @@
+<project name="Odometry" basedir=".">
+
+	<property name="lib.dir" value="lib" />
+	<property name="dis.dir" value="target" />
+	<property name="props.dir" value="properties" />
+	<property name="deploy.dir" value="/Volumes/lquac" />
+
+
+	<target name="mvn">
+	    <exec dir="." executable="sh">
+	        <arg line="-c '/usr/local/Cellar/maven/3.6.3/bin/mvn clean install -amd'" />
+	    </exec>
+	</target>
+
+
+</project>
