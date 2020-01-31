@@ -59,6 +59,7 @@ import com.comino.mavodometry.struct.Attitude3D_F64;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 
 import boofcv.struct.image.GrayU8;
+import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
@@ -68,7 +69,7 @@ public class MAVT265PositionEstimator {
 	private static final float  	  MAX_SPEED = 1.0f;
 
 	// mounting offset in m
-	private static final double   	   OFFSET_X =  0.10;
+	private static final double   	   OFFSET_X =  0.00;
 	private static final double        OFFSET_Y =  0.00;
 	private static final double        OFFSET_Z =  0.00;
 
@@ -100,7 +101,9 @@ public class MAVT265PositionEstimator {
 	//private Quaternion_F64   qbody    = new Quaternion_F64();
 
 	// 3D helper structures
-	private Vector3D_F64     offset   = new Vector3D_F64();
+	private Vector3D_F64     offset     = new Vector3D_F64();
+	private Vector3D_F64     offset_r   = new Vector3D_F64();
+
 	private Attitude3D_F64   att      = new Attitude3D_F64();
 
 	private float             quality = 0;
@@ -184,15 +187,26 @@ public class MAVT265PositionEstimator {
 			else if(raw.tracker_confidence == 3)
 				quality = 1f;
 
-			// Reset odometry
-			if((System.currentTimeMillis() - tms_reset) < 100) {
+			// Initializing odometry
+			// Note: This takes 1.5sec for T265
+			if((System.currentTimeMillis() - tms_reset) < 1500) {
 				error_count = 0; quality = 0;
-				to_body.setTranslation(- offset.x, - offset.y, - offset.z);
+
+				// set initial T265 pose as origin
+				to_body.setTranslation(- p.T.x , - p.T.y , - p.T.z );
+
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
+
+				// Rotate offset to NED
+				GeometryMath_F64.mult(to_ned.R, offset, offset_r );
+
+				// Subtract offset from ned position
+				offset_r.scale(-1);
+				to_ned.T.plusIP(offset_r);
 
 				CommonOps_DDRM.transpose(p.R, tmp);
 				CommonOps_DDRM.mult( to_ned.R, tmp , initial_rot );
-				//System.out.println(initial_rot);
+
 				return;
 			}
 
@@ -214,17 +228,23 @@ public class MAVT265PositionEstimator {
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 			p.concat(to_body, body);
 
-			// TODO: To be verified
-			// correct mounting offset in bodyframe
-			body.T.plusIP(offset);
 
-			// rotate position to ned based on model attitude
+			// Get model attitude rotation
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
-			body.concat(to_ned, ned);
 
-//			System.out.println(to_ned.T);
-//			System.out.println(ned.T);
-//			System.out.println(body.T);
+			// rotate position and offset to ned
+			body.concat(to_ned, ned);
+			GeometryMath_F64.mult(to_ned.R, offset, offset_r );
+
+			// add rotated offset
+			ned.T.plusIP(offset_r);
+
+//			System.out.println("P=         "+p.T);
+//			System.out.println("ToBody=    "+to_body.T);
+//			System.out.println("Body=      "+body.T);
+//			System.out.println("ToNed=     "+to_ned.T);
+//			System.out.println("OffsetR=   "+offset_r);
+//			System.out.println("Ned=        "+ned.T);
 //			System.out.println("----------");
 
 			// Set rotation to vision based rotation

@@ -281,10 +281,12 @@ public class StreamRealSenseT265Pose {
 
 
 				if(reset_request) {
+					synchronized(this) {
 					Realsense2Library.INSTANCE.rs2_pipeline_stop(pipeline, error);
-					try { Thread.sleep(10); } catch (InterruptedException e) { }
+					try { Thread.sleep(50); } catch (InterruptedException e) { }
 					Realsense2Library.INSTANCE.rs2_pipeline_start_with_config(pipeline, config, error);
 					reset_request = false;
+					}
 				}
 
 			}
