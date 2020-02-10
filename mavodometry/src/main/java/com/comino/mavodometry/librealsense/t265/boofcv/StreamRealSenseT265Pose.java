@@ -116,7 +116,6 @@ public class StreamRealSenseT265Pose {
 		int dev_count = Realsense2Library.INSTANCE.rs2_get_device_count(device_list, error);
 		if(dev_count < 1) {
 			is_running = false;
-			System.out.println("No device found for Pose estimation");
 			return;
 		}
 
