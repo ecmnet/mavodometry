@@ -38,7 +38,7 @@ import com.comino.mavodometry.librealsense.r200.vio.odometry.MAVDepthVisualOdome
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 
-public interface IMapper {
+public interface IMAVDetector {
 
 	public void process(MAVDepthVisualOdometry<GrayU8,GrayU16> odometry, GrayU16 depth, GrayU8 gray);
 	public void reset(float x,float y, float z);
