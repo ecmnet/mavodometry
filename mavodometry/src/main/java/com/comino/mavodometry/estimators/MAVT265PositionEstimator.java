@@ -1,37 +1,37 @@
 package com.comino.mavodometry.estimators;
 
 /****************************************************************************
-*
-*   Copyright (c) 2020 Eike Mansfeld ecm@gmx.de. All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions
-* are met:
-*
-* 1. Redistributions of source code must retain the above copyright
-*    notice, this list of conditions and the following disclaimer.
-* 2. Redistributions in binary form must reproduce the above copyright
-*    notice, this list of conditions and the following disclaimer in
-*    the documentation and/or other materials provided with the
-*    distribution.
-* 3. Neither the name of the copyright holder nor the names of its
-*    contributors may be used to endorse or promote products derived
-*    from this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-* COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-* AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-* ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-* POSSIBILITY OF SUCH DAMAGE.
-*
-****************************************************************************/
+ *
+ *   Copyright (c) 2020 Eike Mansfeld ecm@gmx.de. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ ****************************************************************************/
 
 import java.awt.Color;
 import java.awt.Graphics;
@@ -59,6 +59,7 @@ import com.comino.mavodometry.struct.Attitude3D_F64;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 
 import boofcv.struct.image.GrayU8;
+import boofcv.struct.image.Planar;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
@@ -114,14 +115,19 @@ public class MAVT265PositionEstimator {
 
 	private int           error_count = 0;
 
+	private Planar<GrayU8>  img = null;
+
 	// Stream data
 	private int   width;
 	private int   height;
 
 	private final Color	bgColor = new Color(128,128,128,130);
 
+	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height,int mode) {
+		this(control,config,width,height,mode,null);
+	}
 
-	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height,int mode, IVisualStreamHandler<GrayU8> stream) {
+	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height,int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 
 		this.control = control;
@@ -129,12 +135,13 @@ public class MAVT265PositionEstimator {
 		this.height  = height;
 		this.model   = control.getCurrentModel();
 
+		this.img = new Planar<GrayU8>(GrayU8.class,width,height,1);
+
 		// read offsets from config
 		offset.x = -config.getFloatProperty("t265_offset_x", String.valueOf(OFFSET_X));
 		offset.y = -config.getFloatProperty("t265_offset_y", String.valueOf(OFFSET_Y));
 		offset.z = -config.getFloatProperty("t265_offset_z", String.valueOf(OFFSET_Z));
 
-		System.out.println("T265 controller initialized with mounting offset "+offset);
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
 			@Override
@@ -169,9 +176,11 @@ public class MAVT265PositionEstimator {
 			init("gpos");
 		});
 
-		stream.registerOverlayListener(ctx -> {
-			overlayFeatures(ctx);
-		});
+		if(stream!=null) {
+			stream.registerOverlayListener(ctx -> {
+				overlayFeatures(ctx);
+			});
+		}
 
 
 		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD,width,height,(tms, raw, p, s, a, left, right) ->  {
@@ -210,6 +219,7 @@ public class MAVT265PositionEstimator {
 				return;
 			}
 
+
 			tms_reset = 0;
 
 			// Valdidations
@@ -239,13 +249,13 @@ public class MAVT265PositionEstimator {
 			// add rotated offset
 			ned.T.plusIP(offset_r);
 
-//			System.out.println("P=         "+p.T);
-//			System.out.println("ToBody=    "+to_body.T);
-//			System.out.println("Body=      "+body.T);
-//			System.out.println("ToNed=     "+to_ned.T);
-//			System.out.println("OffsetR=   "+offset_r);
-//			System.out.println("Ned=        "+ned.T);
-//			System.out.println("----------");
+			//			System.out.println("P=         "+p.T);
+			//			System.out.println("ToBody=    "+to_body.T);
+			//			System.out.println("Body=      "+body.T);
+			//			System.out.println("ToNed=     "+to_ned.T);
+			//			System.out.println("OffsetR=   "+offset_r);
+			//			System.out.println("Ned=        "+ned.T);
+			//			System.out.println("----------");
 
 			// Set rotation to vision based rotation
 			CommonOps_DDRM.mult( initial_rot, p.R , ned.R );
@@ -267,9 +277,6 @@ public class MAVT265PositionEstimator {
 				// use msg_vision
 			case LPOS_MODE_NED:
 
-				// Add left camera to stream
-				stream.addToStream(left, model, tms);
-
 				// Publish position data NED
 				if(do_odometry)
 					publishPX4Vision(ned,tms);
@@ -280,9 +287,6 @@ public class MAVT265PositionEstimator {
 				// use msg_odometry
 			case LPOS_MODE_BODY:
 
-				// Add left camera to stream
-				stream.addToStream(left, model, tms);
-
 				// Publish position data body frame
 				if(do_odometry)
 					publishPX4Odometry(body,tms);
@@ -290,7 +294,15 @@ public class MAVT265PositionEstimator {
 
 				break;
 			}
+
+			// Add left camera to stream
+			if(stream!=null) {
+				img.bands[0] = left;
+				stream.addToStream(img, model, tms);
+			}
 		});
+
+	System.out.println("T265 controller initialized with mounting offset "+offset);
 
 	}
 
@@ -321,8 +333,9 @@ public class MAVT265PositionEstimator {
 		ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
 		ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
 
-		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED))
+		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000), 20, 20);
+		}
 
 		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000)
 			ctx.drawString(model.msg.text, 10, height-5);

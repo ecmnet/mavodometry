@@ -160,7 +160,7 @@ public class MAVR200PositionEstimator  {
 	private boolean do_covariances  = false;
 
 	private IMAVMSPController 							    control		= null;
-	private List<IMapper> 						            detectors 	= null;
+	private List<IMAVDetector> 						            detectors 	= null;
 	private List<IVisualStreamHandler<GrayU8>>	            streams 	= null;
 
 
@@ -171,7 +171,7 @@ public class MAVR200PositionEstimator  {
 
 		this.info    = info;
 		this.control = control;
-		this.detectors = new ArrayList<IMapper>();
+		this.detectors = new ArrayList<IMAVDetector>();
 		this.streams   = new ArrayList<IVisualStreamHandler<GrayU8>>();
 
 		System.out.println("Vision position estimator: "+this.getClass().getSimpleName());
@@ -445,7 +445,7 @@ public class MAVR200PositionEstimator  {
 						model.sys.setSensor(Status.MSP_SLAM_AVAILABILITY, true);
 
 					//	ExecutorService.submit(() -> {
-							for(IMapper d : detectors) {
+							for(IMAVDetector d : detectors) {
 								try {
 									d.process(visualOdometry, depth, gray);
 								} catch(Exception e) {
@@ -498,7 +498,7 @@ public class MAVR200PositionEstimator  {
 		this(new RealSenseInfo(320,240, RealSenseInfo.MODE_RGB), null, MSPConfig.getInstance(),null);
 	}
 
-	public void registerDetector(IMapper detector) {
+	public void registerDetector(IMAVDetector detector) {
 		if(detector_cycle_ms>0) {
 			System.out.println("[vis] Vision detector registered: "+detector.getClass().getSimpleName());
 			detectors.add(detector);
@@ -585,7 +585,7 @@ public class MAVR200PositionEstimator  {
 
 			if(detectors.size()>0) {
 				detector_tms = System.currentTimeMillis();
-				for(IMapper d : detectors)
+				for(IMAVDetector d : detectors)
 					d.reset(model.state.l_x, model.state.l_y, model.state.l_z);
 			}
 
