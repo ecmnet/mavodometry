@@ -80,7 +80,7 @@ public class MAVR200DepthEstimator {
 
 		realsense.registerListener(new Listener() {
 
-			final int BASE = height / 2; final int VIEW = 10;
+			final int BASE = height / 2; final int VIEW = 20;
 
 			int x; int y; int depth_z; int raw_z;
 
@@ -116,7 +116,7 @@ public class MAVR200DepthEstimator {
 
 					for( y  = BASE - VIEW; y < BASE + VIEW; y++ ) {
 						raw_z = depth.get(x, y);
-						if(raw_z > 0 && raw_z < depth_z) {
+						if(raw_z > 1 && raw_z < depth_z) {
 							depth_z = raw_z;
 						}
 					}
@@ -153,15 +153,15 @@ public class MAVR200DepthEstimator {
 
 							mapper.update(model.state.l_x, model.state.l_y,ned_pt);
 
-							// only set SLAM to valid if mapping is available
-							model.slam.tms = model.sys.getSynchronizedPX4Time_us();
-
 						}
 					}
 
 				}
 
 				model.slam.quality = quality * 100 / width;
+
+				if(model.slam.quality > 5)
+					model.slam.tms = model.sys.getSynchronizedPX4Time_us();
 
 				if(current_min_distance<COLLISION_WARNING_DISTANCE)
 					model.slam.dm = (float)current_min_distance;

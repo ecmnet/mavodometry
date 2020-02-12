@@ -275,6 +275,7 @@ public class StreamRealSenseVisDepth {
 
 	public void bufferRgbToMsU8( Pointer inp , Planar<GrayU8> output ) {
 
+
 		input = inp.getByteArray(0, output.width * output.height * 3);
 
 		// Upside down mounting
