@@ -159,9 +159,7 @@ public class MAVR200DepthEstimator {
 				}
 
 				model.slam.quality = quality * 100 / width;
-
-				if(model.slam.quality > 5)
-					model.slam.tms = model.sys.getSynchronizedPX4Time_us();
+				model.slam.tms = model.sys.getSynchronizedPX4Time_us();
 
 				if(current_min_distance<COLLISION_WARNING_DISTANCE)
 					model.slam.dm = (float)current_min_distance;
