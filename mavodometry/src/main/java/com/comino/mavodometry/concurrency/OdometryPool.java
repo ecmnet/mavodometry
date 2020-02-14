@@ -22,12 +22,11 @@ public class OdometryPool {
 
 	public static void submit(Thread task) {
 		if(pool.getRunningThreadCount() >= pool.getParallelism()) {
-			System.out.println("No mor threads available");
+			System.out.println("No more threads available");
 		}
 		pool.submit(task);
 
 	}
-
 
 	public static void close() {
 		pool.shutdownNow();
