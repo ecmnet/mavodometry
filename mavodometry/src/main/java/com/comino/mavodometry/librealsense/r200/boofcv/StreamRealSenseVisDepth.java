@@ -56,10 +56,7 @@ import boofcv.struct.image.Planar;
 
 public class StreamRealSenseVisDepth {
 
-	private static final long MAX_RATE = 20;
-
-	// time out used in some places
-	private long timeout=10000;
+	private static final long MAX_RATE = 50;
 
 
 	private List<Listener> listeners;
@@ -69,7 +66,6 @@ public class StreamRealSenseVisDepth {
 
 	private Planar<GrayU8> rgb	 = new Planar<GrayU8>(GrayU8.class,1,1,3);
 
-	private CombineThread thread;
 
 	private PointerByReference error= new PointerByReference();
 	private PointerByReference ctx;
@@ -148,7 +144,9 @@ public class StreamRealSenseVisDepth {
 	public void start() {
 		LibRealSenseWrapper.INSTANCE.rs_start_device(dev, error);
 
-		OdometryPool.submit(new CombineThread());
+		Thread t = new CombineThread();
+		t.setPriority(Thread.MIN_PRIORITY);
+		OdometryPool.submit(t);
 
 	}
 

@@ -101,6 +101,8 @@ public class MAVR200DepthEstimator {
 				// limit processing to 10Hz
 				if((System.currentTimeMillis() - tms) < CYCLE)
 					return;
+
+				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
 				tms = System.currentTimeMillis();
 
 				pixel2Body.setDepthImage(depth);
