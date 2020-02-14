@@ -53,7 +53,7 @@ public class MAVR200DepthEstimator {
 	}
 
 	public <T> MAVR200DepthEstimator(IMAVMSPController control, MSPConfig config, int width, int height,
-			 IMAVMapper mapper, IVisualStreamHandler<Planar<GrayU8>> stream) {
+			IMAVMapper mapper, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 
 		this.width   = width;
@@ -131,7 +131,7 @@ public class MAVR200DepthEstimator {
 						pixel2Body.getWorldPt();
 						raw_pt = pixel2Body.getWorldPt();
 
-					//	System.out.println(x+": "+raw_pt);
+						//	System.out.println(x+": "+raw_pt);
 
 						quality++;
 
@@ -162,11 +162,7 @@ public class MAVR200DepthEstimator {
 
 				model.slam.quality = quality * 100 / width;
 				model.slam.tms = model.sys.getSynchronizedPX4Time_us();
-
-				if(current_min_distance<COLLISION_WARNING_DISTANCE)
-					model.slam.dm = (float)current_min_distance;
-				else
-					model.slam.dm = Float.NaN;
+				model.slam.dm = (float)current_min_distance;
 
 			}
 
@@ -211,7 +207,7 @@ public class MAVR200DepthEstimator {
 		int value = 0;
 		for( int y = 0; y < in.height; y++ ) {
 			for( int x = 0; x < in.width; x++ ) {
-					value = in.get(x, y);
+				value = in.get(x, y);
 				output.bands[0].set(x, y, (byte)(value >> 0 & 0x00FF)  );
 				output.bands[1].set(x, y, (byte)(value >> 1 & 0x00FF)  );
 				output.bands[2].set(x, y, (byte)(value >> 2 & 0x00FF) );
