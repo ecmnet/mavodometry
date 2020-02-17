@@ -23,13 +23,18 @@ import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Point3D_F64;
+import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
 public class MAVR200DepthEstimator {
 
-	private static final float COLLISION_WARNING_DISTANCE  = 1f;
-	private static final float MAX_DISTANCE                = 10f;
-	private static final int   CYCLE                       = 100;
+
+	private static final float MAX_DISTANCE                = 5f;
+
+	// mounting offset in m
+	private static final double   	   OFFSET_X =  0.00;
+	private static final double        OFFSET_Y =  0.00;
+	private static final double        OFFSET_Z =  0.00;
 
 	private StreamRealSenseVisDepth 	realsense	= null;
 	private RealSenseInfo               info        = null;
@@ -45,6 +50,8 @@ public class MAVR200DepthEstimator {
 
 	private DepthSparse3D<GrayU16> pixel2Body = null;
 	private Se3_F64                to_ned     = new Se3_F64();
+
+	private Vector3D_F64     offset           = new Vector3D_F64();
 
 	private double     	current_min_distance  = 0.0f;
 
@@ -69,6 +76,11 @@ public class MAVR200DepthEstimator {
 		PointToPixelTransform_F32 visToDepth_pixel = new PointToPixelTransform_F32(new DoNothing2Transform2_F32());
 		this.pixel2Body.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel);
 
+		// read offsets from config
+		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
+		offset.y = -config.getFloatProperty("r200_offset_y", String.valueOf(OFFSET_Y));
+		offset.z = -config.getFloatProperty("r200_offset_z", String.valueOf(OFFSET_Z));
+
 
 
 		if(stream!=null) {
@@ -80,7 +92,7 @@ public class MAVR200DepthEstimator {
 
 		realsense.registerListener(new Listener() {
 
-			final int BASE = height / 2; final int VIEW = 20;
+			final int BASE = height / 2; final int VIEW = 80;
 
 			int x; int y; int depth_z; int raw_z;
 
@@ -98,8 +110,7 @@ public class MAVR200DepthEstimator {
 					stream.addToStream(rgb, model, timeDepth);
 				}
 
-				// limit processing to 10Hz
-				if((System.currentTimeMillis() - tms) < CYCLE)
+				if((System.currentTimeMillis() - tms ) < 100)
 					return;
 
 				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
@@ -116,10 +127,10 @@ public class MAVR200DepthEstimator {
 
 					depth_z = Integer.MAX_VALUE;
 
-					for( y  = BASE - VIEW; y < BASE + VIEW; y++ ) {
+					for( y  = BASE - VIEW ; y < BASE; y++ ) {
 						raw_z = depth.get(x, y);
-						if(raw_z > 1 && raw_z < depth_z) {
-							depth_z = raw_z;
+						if(raw_z > 20 && raw_z < depth_z && raw_z < 15000) {
+							depth_z =  raw_z;
 						}
 					}
 
@@ -140,21 +151,20 @@ public class MAVR200DepthEstimator {
 							continue;
 
 						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
+						body_pt.plusIP(offset);
 
 
 						// get min obstacle distance
 						if(body_pt.x < current_min_distance)
 							current_min_distance = body_pt.x;
 
+						// rotate in NED frame
+						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
+						ned_pt.plusIP(to_ned.T);
+
 						// put into map if map available
 						if(mapper!=null) {
-
-							// rotate in NED frame
-							GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
-							ned_pt.plusIP(to_ned.T);
-
 							mapper.update(model.state.l_x, model.state.l_y,ned_pt);
-
 						}
 					}
 
@@ -168,7 +178,7 @@ public class MAVR200DepthEstimator {
 
 		});
 
-		System.out.println("R200 depth estimator initialized");
+		System.out.println("R200 depth estimator initialized with offset:"+offset);
 	}
 
 	public void start() {
