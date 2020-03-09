@@ -204,8 +204,6 @@ public class MAVR200DepthEstimator {
 				}
 
 				model.slam.quality = quality * 100 / width;
-				model.slam.tms = model.sys.getSynchronizedPX4Time_us();
-				model.slam.dm = (float)current_min_distance;
 
 			}
 
