@@ -114,6 +114,7 @@ public class MAVT265PositionEstimator {
 	private boolean         do_odometry = true;
 
 	private int           error_count = 0;
+	private int           reset_count = 0;
 
 	private Planar<GrayU8>  img = null;
 
@@ -164,11 +165,12 @@ public class MAVT265PositionEstimator {
 
 
 		// reset vision when armed
-		control.getStatusManager().addListener( Status.MSP_ARMED, (n) -> {
-			if(n.isStatus(Status.MSP_ARMED)) {
-				init("armed");
-			}
-		});
+//		control.getStatusManager().addListener( Status.MSP_ARMED, (n) -> {
+//			if(n.isStatus(Status.MSP_ARMED)) {
+//				init("armed");
+//			}
+//		});
+
 
 		//reset ned transformation when GPOS gets valid
 		control.getStatusManager().addListener(Status.MSP_GPOS_VALID, (n) -> {
@@ -186,8 +188,7 @@ public class MAVT265PositionEstimator {
 		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD,width,height,(tms, raw, p, s, a, left, right) ->  {
 
 			if(raw.tracker_confidence == 0) {
-				error_count++;
-				quality = 0f;
+				quality = 0f; error_count++;
 			}
 			else if(raw.tracker_confidence == 1)
 				quality = 0.33f;
@@ -199,7 +200,7 @@ public class MAVT265PositionEstimator {
 			// Initializing odometry
 			// Note: This takes 1.5sec for T265
 			if((System.currentTimeMillis() - tms_reset) < 1500) {
-				error_count = 0; quality = 0;
+				quality = 0; error_count=0;
 
 				// set initial T265 pose as origin
 				to_body.setTranslation(- p.T.x , - p.T.y , - p.T.z );
@@ -307,6 +308,7 @@ public class MAVT265PositionEstimator {
 	}
 
 	public void init(String s) {
+		reset_count++;
 		t265.reset();
 		this.control.writeLogMessage(new LogMessage("[vio] Estimation init ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
 		tms_reset = System.currentTimeMillis();
@@ -342,6 +344,7 @@ public class MAVT265PositionEstimator {
 
 	}
 
+
 	private void publishPX4Vision(Se3_F64 pose, long tms) {
 
 
@@ -351,7 +354,7 @@ public class MAVT265PositionEstimator {
 		sms.y = (float) pose.T.y;
 		sms.z = (float) pose.T.z;
 
-		sms.reset_counter = error_count;
+		sms.reset_counter = reset_count;
 
 		sms.roll  = (float)att.getRoll();
 		sms.pitch = (float)att.getPitch();

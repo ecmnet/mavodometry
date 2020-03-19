@@ -3,8 +3,6 @@ package com.comino.mavodometry.librealsense.t265.boofcv;
 import com.comino.mavodometry.librealsense.t265.wrapper.Realsense2Library;
 
 import boofcv.struct.image.GrayU8;
-import georegression.struct.GeoTuple3D_F64;
-import georegression.struct.se.Se3_F32;
 import georegression.struct.se.Se3_F64;
 
 public interface IPoseCallback {

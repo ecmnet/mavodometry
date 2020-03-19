@@ -41,11 +41,7 @@ import com.sun.jna.ptr.PointerByReference;
 
 import boofcv.struct.calib.CameraUniversalOmni;
 import boofcv.struct.image.GrayU8;
-import georegression.geometry.ConvertRotation3D_F32;
 import georegression.geometry.ConvertRotation3D_F64;
-import georegression.struct.GeoTuple3D_F64;
-import georegression.struct.point.Vector3D_F64;
-import georegression.struct.se.Se3_F32;
 import georegression.struct.se.Se3_F64;
 
 public class StreamRealSenseT265Pose {
