@@ -43,10 +43,13 @@ import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
+import com.comino.mavodometry.libnano.detetction.NanoObjectDetection;
+import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth.Listener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.sun.jna.ptr.PointerByReference;
 
 import boofcv.alg.distort.PointToPixelTransform_F32;
 import boofcv.alg.sfm.DepthSparse3D;
@@ -88,6 +91,8 @@ public class MAVR200DepthEstimator {
 
 	private double     	current_min_distance  = 0.0f;
 
+	private NanoObjectDetection nano = null;
+
 	public <T> MAVR200DepthEstimator(IMAVMSPController control, MSPConfig config, int width, int height,  IMAVMapper mapper) {
 		this(control,config,width,height, mapper,null);
 	}
@@ -95,6 +100,7 @@ public class MAVR200DepthEstimator {
 	public <T> MAVR200DepthEstimator(IMAVMSPController control, MSPConfig config, int width, int height,
 			IMAVMapper mapper, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
+		this.nano = new NanoObjectDetection(width,height, stream);
 
 		this.width   = width;
 		this.height  = height;
@@ -143,8 +149,10 @@ public class MAVR200DepthEstimator {
 					stream.addToStream(rgb, model, timeDepth);
 				}
 
-				if((System.currentTimeMillis() - tms ) < 100)
+				if((System.currentTimeMillis() - tms ) < 50)
 					return;
+
+				nano.process(rgb, depth);
 
 				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
 				tms = System.currentTimeMillis();
@@ -230,6 +238,8 @@ public class MAVR200DepthEstimator {
 		ctx.setColor(bgColor);
 		ctx.fillRect(5, 5, width-10, 21);
 		ctx.setColor(Color.white);
+
+		ctx.drawString(String.format("%.1f fps",model.slam.fps), width-60, 20);
 
 		ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
 		ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
