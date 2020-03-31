@@ -149,16 +149,17 @@ public class MAVR200DepthEstimator {
 					stream.addToStream(rgb, model, timeDepth);
 				}
 
-				if((System.currentTimeMillis() - tms ) < 50)
+				if((System.currentTimeMillis() - tms ) < 100)
 					return;
 
-				nano.process(rgb, depth);
 
 				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
 				tms = System.currentTimeMillis();
 
 				pixel2Body.setDepthImage(depth);
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
+
+				nano.process(rgb, depth, to_ned);
 
 				current_min_distance = Double.MAX_VALUE;
 				quality = 0;
