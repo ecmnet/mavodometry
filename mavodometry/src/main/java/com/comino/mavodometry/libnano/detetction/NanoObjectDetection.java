@@ -3,6 +3,8 @@ package com.comino.mavodometry.libnano.detetction;
 import java.awt.Graphics;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -121,8 +123,12 @@ public class NanoObjectDetection {
 
 	}
 
-	public Map<Integer,ObjectIdentity> getObjects() {
-		return objects;
+	public Collection<ObjectIdentity> getObjects() {
+		return objects.values();
+	}
+
+	public ObjectIdentity getFirstObject() {
+		return objects.entrySet().iterator().next().getValue();
 	}
 
 	private void computeObjectPt(ObjectIdentity o, int x0, int y0, GrayU16 sub_depth, Se3_F64 to_ned) {
