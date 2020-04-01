@@ -1,37 +1,37 @@
 package com.comino.mavodometry.estimators;
 
 /****************************************************************************
-*
-*   Copyright (c) 2020 Eike Mansfeld ecm@gmx.de. All rights reserved.
-*
-* Redistribution and use in source and binary forms, with or without
-* modification, are permitted provided that the following conditions
-* are met:
-*
-* 1. Redistributions of source code must retain the above copyright
-*    notice, this list of conditions and the following disclaimer.
-* 2. Redistributions in binary form must reproduce the above copyright
-*    notice, this list of conditions and the following disclaimer in
-*    the documentation and/or other materials provided with the
-*    distribution.
-* 3. Neither the name of the copyright holder nor the names of its
-*    contributors may be used to endorse or promote products derived
-*    from this software without specific prior written permission.
-*
-* THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
-* "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
-* LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
-* FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
-* COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
-* INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
-* BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
-* OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
-* AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
-* LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
-* ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
-* POSSIBILITY OF SUCH DAMAGE.
-*
-****************************************************************************/
+ *
+ *   Copyright (c) 2020 Eike Mansfeld ecm@gmx.de. All rights reserved.
+ *
+ * Redistribution and use in source and binary forms, with or without
+ * modification, are permitted provided that the following conditions
+ * are met:
+ *
+ * 1. Redistributions of source code must retain the above copyright
+ *    notice, this list of conditions and the following disclaimer.
+ * 2. Redistributions in binary form must reproduce the above copyright
+ *    notice, this list of conditions and the following disclaimer in
+ *    the documentation and/or other materials provided with the
+ *    distribution.
+ * 3. Neither the name of the copyright holder nor the names of its
+ *    contributors may be used to endorse or promote products derived
+ *    from this software without specific prior written permission.
+ *
+ * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
+ * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
+ * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
+ * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
+ * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
+ * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
+ * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
+ * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
+ * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
+ * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
+ * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+ * POSSIBILITY OF SUCH DAMAGE.
+ *
+ ****************************************************************************/
 
 import static boofcv.factory.distort.LensDistortionFactory.narrow;
 
@@ -100,8 +100,6 @@ public class MAVR200DepthEstimator {
 	public <T> MAVR200DepthEstimator(IMAVMSPController control, MSPConfig config, int width, int height,
 			IMAVMapper mapper, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
-		this.nano = new NanoObjectDetection(width,height, stream);
-
 		this.width   = width;
 		this.height  = height;
 		this.model   = control.getCurrentModel();
@@ -114,6 +112,11 @@ public class MAVR200DepthEstimator {
 
 		PointToPixelTransform_F32 visToDepth_pixel = new PointToPixelTransform_F32(new DoNothing2Transform2_F32());
 		this.pixel2Body.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel);
+
+		this.nano = new NanoObjectDetection(width,height,stream);
+
+		// only persons set true
+		this.nano.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, true);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
@@ -149,7 +152,7 @@ public class MAVR200DepthEstimator {
 					stream.addToStream(rgb, model, timeDepth);
 				}
 
-				if((System.currentTimeMillis() - tms ) < 100)
+				if((System.currentTimeMillis() - tms ) < 70)
 					return;
 
 
@@ -181,7 +184,6 @@ public class MAVR200DepthEstimator {
 
 						// transform to world coordinates in body frame
 						pixel2Body.process(x, y);
-						pixel2Body.getWorldPt();
 						raw_pt = pixel2Body.getWorldPt();
 
 						//	System.out.println(x+": "+raw_pt);
@@ -201,8 +203,12 @@ public class MAVR200DepthEstimator {
 							current_min_distance = body_pt.x;
 
 						// rotate in NED frame
-						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
-						ned_pt.plusIP(to_ned.T);
+						if(!to_ned.T.isNaN()) {
+							GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
+							ned_pt.plusIP(to_ned.T);
+						} else {
+							ned_pt.set(body_pt);;
+						}
 
 						// put into map if map available
 						if(mapper!=null) {
@@ -233,14 +239,13 @@ public class MAVR200DepthEstimator {
 		}
 		isRunning=false;
 	}
-
 	private void overlayFeatures(Graphics ctx) {
 
 		ctx.setColor(bgColor);
 		ctx.fillRect(5, 5, width-10, 21);
 		ctx.setColor(Color.white);
 
-		ctx.drawString(String.format("%.1f fps",model.slam.fps), width-60, 20);
+		ctx.drawString(String.format("%2.1f fps (obs.)",model.slam.fps), width-95, 20);
 
 		ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
 		ctx.drawLine(width/2, height/2-10, width/2, height/2+10);

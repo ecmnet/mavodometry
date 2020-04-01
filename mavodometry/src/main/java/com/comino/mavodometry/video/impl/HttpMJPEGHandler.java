@@ -34,6 +34,7 @@
 
 package com.comino.mavodometry.video.impl;
 
+import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.BufferedOutputStream;
@@ -73,6 +74,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		this.listeners = new ArrayList<IOverlayListener>();
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		this.ctx = image.createGraphics();
+		this.ctx.setFont(new Font("Monospaced", Font.PLAIN, 10));
 
 		ImageIO.setUseCache(false);
 
@@ -88,6 +90,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		he.getResponseHeaders().add("content-type","multipart/x-mixed-replace; boundary=--BoundaryString");
 		he.sendResponseHeaders(200, 0);
 		OutputStream os = new BufferedOutputStream(he.getResponseBody());
+		
 		System.out.println("Start streaming vision data...");
 
 		while(is_running) {
