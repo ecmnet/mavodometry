@@ -114,7 +114,6 @@ public class MAVR200DepthEstimator {
 		this.pixel2Body.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel);
 
 		this.nano = new NanoObjectDetection(width,height,stream);
-
 		// only persons set true
 		this.nano.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, true);
 
