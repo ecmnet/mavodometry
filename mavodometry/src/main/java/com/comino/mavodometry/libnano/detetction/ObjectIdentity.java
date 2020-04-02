@@ -14,7 +14,7 @@ import georegression.struct.se.Se3_F64;
 
 public class ObjectIdentity {
 
-	private static final int EXPIRE_MS  = 250;
+	private static final int EXPIRE_MS  = 100;
 
 	private int               id         = 0;
 	private int               classid    = 0;					   // class of object
@@ -59,11 +59,15 @@ public class ObjectIdentity {
 	public void draw(Graphics ctx) {
 
 		ctx.setColor(color);
-        ctx.fillRect(x, y, width, height);
+		ctx.fillRect(x, y, width, height);
 		ctx.setColor(Color.WHITE);
-		ctx.drawString(name+":"+id, x, y+10);
-		if(pos_body.x < 10.0f)
-	           ctx.drawString(String.format("%.1fm", pos_body.x),x+width/2-15, y+height/2+5);
+		ctx.drawString(name, x, y+10);
+
+		if(pos_body.x < 12.0f) {
+			ctx.drawString(String.format("%.1fm", pos_body.x),x+width-25, y+10);
+			ctx.drawLine(x+width/2-10, y+height/2, x+width/2+10, y+height/2);
+			ctx.drawLine(x+width/2, y+height/2-10, x+width/2, y+height/2+10);
+		}
 
 	}
 
@@ -88,7 +92,7 @@ public class ObjectIdentity {
 	}
 
 	public float getConfidence() {
-	    return confidence;
+		return confidence;
 	}
 
 	public boolean equals(ObjectIdentity c) {

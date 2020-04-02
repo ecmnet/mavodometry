@@ -14,4 +14,5 @@ public interface IMAVMapper {
 
 	public boolean update(float lpos_x, float lpos_y, Point3D_F64 point);
 
+
 }

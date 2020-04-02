@@ -93,11 +93,11 @@ public class MAVR200DepthEstimator {
 
 	private NanoObjectDetection nano = null;
 
-	public <T> MAVR200DepthEstimator(IMAVMSPController control, MSPConfig config, int width, int height,  IMAVMapper mapper) {
-		this(control,config,width,height, mapper,null);
+	public <T> MAVR200DepthEstimator(IMAVMSPController control,ITargetListener targetListener, MSPConfig config, int width, int height,  IMAVMapper mapper) {
+		this(control,targetListener, config,width,height, mapper,null);
 	}
 
-	public <T> MAVR200DepthEstimator(IMAVMSPController control, MSPConfig config, int width, int height,
+	public <T> MAVR200DepthEstimator(IMAVMSPController control, ITargetListener targetListener, MSPConfig config, int width, int height,
 			IMAVMapper mapper, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		this.width   = width;
@@ -115,7 +115,7 @@ public class MAVR200DepthEstimator {
 
 		this.nano = new NanoObjectDetection(width,height,stream);
 		// only persons set true
-		this.nano.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, true);
+		this.nano.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_PERSON);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
@@ -161,7 +161,13 @@ public class MAVR200DepthEstimator {
 				pixel2Body.setDepthImage(depth);
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
+				// TODO: should not be here
 				nano.process(rgb, depth, to_ned);
+				if(nano.hasObjectsDetected()) {
+					targetListener.update(nano.getFirstObject().getPosNED());
+					if(mapper!=null)
+						mapper.update(model.state.l_x, model.state.l_y,nano.getFirstObject().getPosNED());
+				}
 
 				current_min_distance = Double.MAX_VALUE;
 				quality = 0;
@@ -216,8 +222,8 @@ public class MAVR200DepthEstimator {
 					}
 
 				}
-
 				model.slam.quality = quality * 100 / width;
+				model.slam.tms = model.sys.getSynchronizedPX4Time_us();
 
 			}
 
@@ -245,9 +251,6 @@ public class MAVR200DepthEstimator {
 		ctx.setColor(Color.white);
 
 		ctx.drawString(String.format("%2.1f fps (obs.)",model.slam.fps), width-95, 20);
-
-		ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
-		ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000), 20, 20);

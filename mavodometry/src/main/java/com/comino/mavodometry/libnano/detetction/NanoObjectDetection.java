@@ -4,11 +4,11 @@ import java.awt.Graphics;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
+import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.libnano.detetction.helper.DistanceDetermination;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
@@ -25,9 +25,14 @@ import boofcv.struct.image.Planar;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Point2D_F32;
 import georegression.struct.point.Point2D_F64;
+import georegression.struct.point.Point3D_F64;
 import georegression.struct.se.Se3_F64;
 
 public class NanoObjectDetection {
+
+	public static final int  CLASS_ALL    = 0;
+	public static final int  CLASS_PERSON = 1;
+	public static final int  CLASS_CAT    = 17;
 
 	private static final int MAX_OBJECTS = 100;
 
@@ -46,10 +51,10 @@ public class NanoObjectDetection {
 	private  Map<Integer,ObjectIdentity> objects = new ConcurrentHashMap<Integer,ObjectIdentity>();
 	private  List<Integer>               removes = new ArrayList<Integer>();
 
-	private boolean onlyPersons;
+	private int class_filter;
 
 
-	public NanoObjectDetection(int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream ) {
+	public NanoObjectDetection(int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		this.net = JetsonNanoLibrary.INSTANCE.instance(0,null, width, height);
 
@@ -65,9 +70,9 @@ public class NanoObjectDetection {
 		}
 	}
 
-	public void configure(LensDistortionNarrowFOV model , PixelTransform<Point2D_F32> visualToDepth, boolean onlyPersons ) {
+	public void configure(LensDistortionNarrowFOV model , PixelTransform<Point2D_F32> visualToDepth, int class_filter ) {
 		this.p2n = model.undistort_F64(true,false);
-		this.onlyPersons = onlyPersons;
+		this.class_filter = class_filter;
 	}
 
 
@@ -75,52 +80,56 @@ public class NanoObjectDetection {
 
 		convertToByteBuffer(img, buffer);
 
-//		ExecutorService.submit(() -> {
+		//		ExecutorService.submit(() -> {
 
-			ObjectIdentity  obj; int id;
+		ObjectIdentity  obj; int id;
 
-			result_length = JetsonNanoLibrary.INSTANCE.detect(net, buffer, results[0], 0);
+		result_length = JetsonNanoLibrary.INSTANCE.detect(net, buffer, results[0], 0);
 
-				removes.clear();
-				objects.forEach((k,o) -> { if(o.isExpired()) removes.add(k); });
-				removes.forEach((k) -> { objects.remove(k); });
+		removes.clear();
+		objects.forEach((k,o) -> { if(o.isExpired()) removes.add(k); });
+		removes.forEach((k) -> { objects.remove(k); });
 
-				for(int i=0;i<result_length;i++) {
+		for(int i=0;i<result_length;i++) {
 
-					if(onlyPersons && results[i].ClassID != 1)
-						continue;
+			if(class_filter!=0 && results[i].ClassID != class_filter)
+				continue;
 
-					Pointer p = JetsonNanoLibrary.INSTANCE.getClassDescription(net, results[i].ClassID);
+			Pointer p = JetsonNanoLibrary.INSTANCE.getClassDescription(net, results[i].ClassID);
 
-					id = results[i].Instance;
-					if(!objects.containsKey(id)) {
-						obj = new ObjectIdentity(id,
-								results[i].ClassID,results[i].Confidence, p.getString(0),
-								(int)results[i].Left, (int)results[i].Top,
-								(int)results[i].Right - (int)results[i].Left,
-								(int)results[i].Bottom - (int)results[i].Top);
-						computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
-								depth.subimage((int)results[i].Left, (int)results[i].Top,
-										(int)results[i].Right, (int)results[i].Bottom, sub_depth),
-								to_ned);
-						objects.put(id,obj);
-					}
-					else {
-						obj = objects.get(id);
-						obj.update(results[i].ClassID,results[i].Confidence, p.getString(0),
-								(int)results[i].Left, (int)results[i].Top,
-								(int)results[i].Right - (int)results[i].Left,
-								(int)results[i].Bottom - (int)results[i].Top);
+			id = results[i].Instance*100+results[i].ClassID;
+			if(!objects.containsKey(id)) {
+				obj = new ObjectIdentity(id,
+						results[i].ClassID,results[i].Confidence, p.getString(0),
+						(int)results[i].Left, (int)results[i].Top,
+						(int)results[i].Right - (int)results[i].Left,
+						(int)results[i].Bottom - (int)results[i].Top);
+				computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
+						depth.subimage((int)results[i].Left, (int)results[i].Top,
+								(int)results[i].Right, (int)results[i].Bottom, sub_depth),
+						to_ned);
+				objects.put(id,obj);
+			}
+			else {
+				obj = objects.get(id);
+				obj.update(results[i].ClassID,results[i].Confidence, p.getString(0),
+						(int)results[i].Left, (int)results[i].Top,
+						(int)results[i].Right - (int)results[i].Left,
+						(int)results[i].Bottom - (int)results[i].Top);
 
-						computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
-								depth.subimage((int)results[i].Left, (int)results[i].Top,
-										(int)results[i].Right, (int)results[i].Bottom, sub_depth),
-								to_ned);
-					}
-				}
+				computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
+						depth.subimage((int)results[i].Left, (int)results[i].Top,
+								(int)results[i].Right, (int)results[i].Bottom, sub_depth),
+						to_ned);
+			}
+		}
 
-//		});
+		//		});
 
+	}
+
+	public boolean hasObjectsDetected() {
+		return !objects.isEmpty();
 	}
 
 	public Collection<ObjectIdentity> getObjects() {
@@ -148,22 +157,22 @@ public class NanoObjectDetection {
 		o.getPosBODY().z = o.getPosBODY().x*norm.y;
 
 		// Rotate to NED if available
-		if(!to_ned.T.isNaN()) {
-			GeometryMath_F64.mult(to_ned.R, o.getPosBODY(), o.getPosNED() );
-			o.getPosNED().plusIP(to_ned.T);
-		}
-		else {
+//		if(!to_ned.T.isNaN()) {
+//			GeometryMath_F64.mult(to_ned.R, o.getPosBODY(), o.getPosNED() );
+//			o.getPosNED().plusIP(to_ned.T);
+//		}
+//		else {
 			o.getPosNED().set(o.getPosBODY());
-		}
+//		}
 
 		//		// Now update depth
 		//		// Todo: should be done in sorted order by distance
-		//		for(int x = 0; x< sub_depth.width; x++) {
-		//			for(int y = 0; y < sub_depth.height; y++) {
-		//				if( sub_depth.get(x, y) == 0 || sub_depth.get(x, y) > 15000)
-		//					sub_depth.set(x, y, distance_mm);
-		//			}
-		//		}
+//		for(int x = 0; x< sub_depth.width; x++) {
+//			for(int y = 0; y < sub_depth.height; y++) {
+//				if( sub_depth.get(x, y) == 0 || sub_depth.get(x, y) > 15000)
+//					sub_depth.set(x, y, distance_mm);
+//			}
+//		}
 	}
 
 
