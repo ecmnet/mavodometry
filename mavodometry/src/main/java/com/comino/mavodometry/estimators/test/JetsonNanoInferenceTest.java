@@ -5,6 +5,7 @@ import java.nio.ByteBuffer;
 
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
+import com.comino.mavutils.jna.NativeString;
 import com.sun.jna.Pointer;
 import com.sun.jna.Structure;
 import com.sun.jna.ptr.PointerByReference;
@@ -17,12 +18,20 @@ import boofcv.struct.image.Planar;
 
 public class JetsonNanoInferenceTest {
 
-	private static final PointerByReference net = JetsonNanoLibrary.INSTANCE.instance(0,null, 481,640);
+	private PointerByReference net = null;
 
 	public JetsonNanoInferenceTest() {
+		String path = "/home/ecm/jetson-inference/data/";
+		NativeString  proto = new NativeString(path+"networks/TrailNet_SResNet18/TrailNet_SResNet-18.prototxt", false);
+		NativeString  model = new NativeString(path+"networks/TrailNet_SResNet18/TrailNet_SResNet-18.caffemodel", false);
+		NativeString  label = new NativeString(path+"networks/TrailNet_SResNet18/label_map.txt", false);
+		NativeString  outl  = new NativeString(path+"out", false);
+		net = JetsonNanoLibrary.INSTANCE.instanceCustom(proto.getPointer(), model.getPointer(), label.getPointer(),outl.getPointer(), 0.6f, 481,640);
 		performTest();
 		System.out.println("JetsonNanoInferenceTest finalized. Exiting....");
 		System.exit(0);
+
+
 	}
 
 	private void performTest() {
@@ -62,6 +71,10 @@ public class JetsonNanoInferenceTest {
 
 		}
 
+	}
+
+	public static void main(String[] args)  {
+		new JetsonNanoInferenceTest();
 	}
 
 }

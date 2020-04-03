@@ -44,6 +44,8 @@ import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.libnano.detetction.NanoObjectDetection;
+import com.comino.mavodometry.libnano.trail.NanoTrailDetection;
+import com.comino.mavodometry.libnano.utils.ImageConversionUtil;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
@@ -91,7 +93,8 @@ public class MAVR200DepthEstimator {
 
 	private double     	current_min_distance  = 0.0f;
 
-	private NanoObjectDetection nano = null;
+	private NanoObjectDetection detect  = null;
+	private NanoTrailDetection  trail   = null;
 
 	public <T> MAVR200DepthEstimator(IMAVMSPController control,ITargetListener targetListener, MSPConfig config, int width, int height,  IMAVMapper mapper) {
 		this(control,targetListener, config,width,height, mapper,null);
@@ -113,9 +116,10 @@ public class MAVR200DepthEstimator {
 		PointToPixelTransform_F32 visToDepth_pixel = new PointToPixelTransform_F32(new DoNothing2Transform2_F32());
 		this.pixel2Body.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel);
 
-		this.nano = new NanoObjectDetection(width,height,stream);
-		// only persons set true
-		this.nano.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_PERSON);
+    	this.detect = new NanoObjectDetection(width,height,stream);
+		this.detect.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_PERSON);
+
+		this.trail = new NanoTrailDetection(width,height,stream);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
@@ -129,6 +133,9 @@ public class MAVR200DepthEstimator {
 				overlayFeatures(ctx);
 			});
 		}
+
+
+		ImageConversionUtil.getInstance(width, height);
 
 
 		realsense.registerListener(new Listener() {
@@ -161,13 +168,17 @@ public class MAVR200DepthEstimator {
 				pixel2Body.setDepthImage(depth);
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
+				ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
+
 				// TODO: should not be here
-				nano.process(rgb, depth, to_ned);
-				if(nano.hasObjectsDetected()) {
-					targetListener.update(nano.getFirstObject().getPosNED());
+				detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				if(detect.hasObjectsDetected()) {
+					targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
 					if(mapper!=null)
-						mapper.update(model.state.l_x, model.state.l_y,nano.getFirstObject().getPosNED());
+						mapper.update(model.state.l_x, model.state.l_y,detect.getFirstObject().getPosNED());
 				}
+
+				trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
 
 				current_min_distance = Double.MAX_VALUE;
 				quality = 0;

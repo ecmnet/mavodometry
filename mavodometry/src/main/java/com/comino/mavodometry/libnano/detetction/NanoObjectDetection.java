@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.libnano.detetction.helper.DistanceDetermination;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
@@ -22,25 +21,21 @@ import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
-import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Point2D_F32;
 import georegression.struct.point.Point2D_F64;
-import georegression.struct.point.Point3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class NanoObjectDetection {
+public class NanoObjectDetection  {
 
 	public static final int  CLASS_ALL    = 0;
 	public static final int  CLASS_PERSON = 1;
 	public static final int  CLASS_CAT    = 17;
 
-	private static final int MAX_OBJECTS = 100;
+	private static final int MAX_OBJECTS = 20;
 
 	private final PointerByReference net;
 	private final Result[] results;
 	private int result_length;
-
-	private final ByteBuffer buffer;
 
 	private final GrayU16 sub_depth   = new GrayU16(-1,-1);
 	private final Point2D_F64 norm    = new Point2D_F64();
@@ -56,12 +51,10 @@ public class NanoObjectDetection {
 
 	public NanoObjectDetection(int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
-		this.net = JetsonNanoLibrary.INSTANCE.instance(0,null, width, height);
+		this.net = JetsonNanoLibrary.INSTANCE.instance(JetsonNanoLibrary.NETWORK_TYPE_INCEPTION_V2,0.4f, width, height);
 
 		Result result = new Result();
 		this.results =  ((Result[])result.toArray(MAX_OBJECTS));
-
-		this.buffer = ByteBuffer.allocate(width*height*3);
 
 		if(stream!=null) {
 			stream.registerOverlayListener(ctx -> {
@@ -70,27 +63,27 @@ public class NanoObjectDetection {
 		}
 	}
 
+
 	public void configure(LensDistortionNarrowFOV model , PixelTransform<Point2D_F32> visualToDepth, int class_filter ) {
 		this.p2n = model.undistort_F64(true,false);
 		this.class_filter = class_filter;
 	}
 
 
-	public void process(Planar<GrayU8> img, GrayU16 depth, Se3_F64 to_ned) {
 
-		convertToByteBuffer(img, buffer);
+	public void process(ByteBuffer img, GrayU16 depth, Se3_F64 to_ned) {
 
 		//		ExecutorService.submit(() -> {
 
 		ObjectIdentity  obj; int id;
 
-		result_length = JetsonNanoLibrary.INSTANCE.detect(net, buffer, results[0], 0);
+		result_length = JetsonNanoLibrary.INSTANCE.detect(net, img, results[0], 0);
 
 		removes.clear();
 		objects.forEach((k,o) -> { if(o.isExpired()) removes.add(k); });
 		removes.forEach((k) -> { objects.remove(k); });
 
-		for(int i=0;i<result_length;i++) {
+		for(int i=0;i<result_length && i < results.length;i++) {
 
 			if(class_filter!=0 && results[i].ClassID != class_filter)
 				continue;

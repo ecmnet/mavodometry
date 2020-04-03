@@ -11,6 +11,23 @@ import java.util.Arrays;
 import java.util.List;
 
 public interface JetsonNanoLibrary extends Library {
+
+
+	public static final int		NETWORK_TYPE_CUSTOM 			= 0;
+	public static final int		NETWORK_TYPE_COCO_AIRPLANE 	  	= 1;
+	public static final int		NETWORK_TYPE_COCO_BOTTLE 	  	= 2;
+	public static final int		NETWORK_TYPE_COCO_CHAIR 	  	= 3;
+	public static final int		NETWORK_TYPE_COCO_DOG	  		= 4;
+	public static final int		NETWORK_TYPE_FACENET	  		= 5;
+	public static final int		NETWORK_TYPE_PEDNET		  		= 6;
+	public static final int		NETWORK_TYPE_PEDNET_MULTI	  	= 7;
+
+	public static final int		NETWORK_TYPE_MOBILENET_V1 		= 8;
+	public static final int		NETWORK_TYPE_MOBILENET_V2 		= 9;
+	public static final int		NETWORK_TYPE_INCEPTION_V2 		= 10;
+
+
+
 	public static final String JNA_LIBRARY_NAME = "jetsonNano";
 	public static final NativeLibrary JNA_NATIVE_LIB = NativeLibrary.getInstance(JetsonNanoLibrary.JNA_LIBRARY_NAME);
 	public static final JetsonNanoLibrary INSTANCE = (JetsonNanoLibrary)Native.loadLibrary(JetsonNanoLibrary.JNA_LIBRARY_NAME, JetsonNanoLibrary.class);
@@ -48,26 +65,19 @@ public interface JetsonNanoLibrary extends Library {
 
 		};
 	};
-	/**
-	 * Original signature : <code>detectNet* instance(int, char**)</code><br>
-	 * <i>native declaration : line 59</i>
-	 */
-	PointerByReference instance(int argc, PointerByReference argv, int width, int height);
 
-	/**
-	 * Original signature : <code>char* getClassDescription(detectNet*, uint32_t)</code><br>
-	 * <i>native declaration : line 63</i>
-	 */
+	PointerByReference instance(int model_type, float threshold, int width, int height);
+
+	PointerByReference instanceCustom(Pointer prototxt_path, Pointer model_path, Pointer class_labels, Pointer out_layer_name,
+			                          float threshold, int width, int height);
+
+
 	Pointer getClassDescription(PointerByReference det, int ClassID);
-	/**
-	 * Original signature : <code>int detect(detectNet*, char*, uint32_t, uint32_t, Result*, uint32_t)</code><br>
-	 * <i>native declaration : line 65</i>
-	 */
+
+
 	int detect(PointerByReference det, ByteBuffer img, JetsonNanoLibrary.Result result, int overlay);
-	/**
-	 * Original signature : <code>int detect(detectNet*, char*, uint32_t, uint32_t, Result*, uint32_t)</code><br>
-	 * <i>native declaration : line 65</i>
-	 */
+
+
 	int detect(PointerByReference det, Pointer img, JetsonNanoLibrary.Result result, int overlay);
 	public static class detectNet extends PointerType {
 		public detectNet(Pointer address) {
