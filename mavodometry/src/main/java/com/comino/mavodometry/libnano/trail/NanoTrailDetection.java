@@ -10,7 +10,7 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.comino.mavodometry.estimators.ITargetListener;
-import com.comino.mavodometry.libnano.detetction.helper.DistanceDetermination;
+import com.comino.mavodometry.libnano.detetction.helper.NanoObjectUtils;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
 import com.comino.mavodometry.video.IVisualStreamHandler;
@@ -56,7 +56,7 @@ public class NanoTrailDetection  {
 		NativeString  label = new NativeString("networks/TrailNet_SResNet18/label_map.txt", false);
 		NativeString  outl  = new NativeString("out", false);
 
-		net = JetsonNanoLibrary.INSTANCE.instanceCustom(proto.getPointer(), model.getPointer(), label.getPointer(),outl.getPointer(), 0.0f, width, height);
+		net = JetsonNanoLibrary.INSTANCE.createDetectNetCustom(proto.getPointer(), model.getPointer(), label.getPointer(),outl.getPointer(), 0.0f, width, height);
 
 		Result result = new Result();
 		this.results =  ((Result[])result.toArray(6));

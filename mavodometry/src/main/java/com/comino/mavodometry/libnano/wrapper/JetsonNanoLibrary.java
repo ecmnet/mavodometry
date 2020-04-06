@@ -26,6 +26,11 @@ public interface JetsonNanoLibrary extends Library {
 	public static final int		NETWORK_TYPE_MOBILENET_V2 		= 9;
 	public static final int		NETWORK_TYPE_INCEPTION_V2 		= 10;
 
+	public static final int     FCN_RESNET18_CITYSCAPES_512x256 = 0;
+	public static final int     FCN_RESNET18_DEEPSCENE_576x320  = 3;
+	public static final int     FCN_RESNET18_DEEPSCENE_864x480  = 4;
+	public static final int     FCN_ALEXNET_AERIAL_FPV_720p     = 17;
+
 
 
 	public static final String JNA_LIBRARY_NAME = "jetsonNano";
@@ -66,10 +71,19 @@ public interface JetsonNanoLibrary extends Library {
 		};
 	};
 
-	PointerByReference instance(int model_type, float threshold, int width, int height);
+	// SegNet
 
-	PointerByReference instanceCustom(Pointer prototxt_path, Pointer model_path, Pointer class_labels, Pointer out_layer_name,
-			                          float threshold, int width, int height);
+	PointerByReference createSegNet(int model_type, int width, int height);
+
+	int segmenting(PointerByReference seg, ByteBuffer img);
+
+
+	// DetectNet
+
+	PointerByReference createDetectNet(int model_type, float threshold, int width, int height);
+
+	PointerByReference createDetectNetCustom(Pointer prototxt_path, Pointer model_path, Pointer class_labels, Pointer out_layer_name,
+			                              float threshold, int width, int height);
 
 
 	Pointer getClassDescription(PointerByReference det, int ClassID);

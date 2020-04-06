@@ -4,11 +4,12 @@ import java.awt.Graphics;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.Iterator;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.comino.mavodometry.libnano.detetction.helper.DistanceDetermination;
+import com.comino.mavodometry.libnano.detetction.helper.NanoObjectUtils;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
 import com.comino.mavodometry.video.IVisualStreamHandler;
@@ -43,7 +44,7 @@ public class NanoObjectDetection  {
 	private Point2Transform2_F64 p2n;
 
 
-	private  Map<Integer,ObjectIdentity> objects = new ConcurrentHashMap<Integer,ObjectIdentity>();
+	private  Map<Integer,NanoObjectIdentity> objects = new ConcurrentHashMap<Integer,NanoObjectIdentity>();
 	private  List<Integer>               removes = new ArrayList<Integer>();
 
 	private int class_filter;
@@ -51,7 +52,7 @@ public class NanoObjectDetection  {
 
 	public NanoObjectDetection(int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
-		this.net = JetsonNanoLibrary.INSTANCE.instance(JetsonNanoLibrary.NETWORK_TYPE_INCEPTION_V2,0.4f, width, height);
+		this.net = JetsonNanoLibrary.INSTANCE.createDetectNet(JetsonNanoLibrary.NETWORK_TYPE_MOBILENET_V2,0.4f, width, height);
 
 		Result result = new Result();
 		this.results =  ((Result[])result.toArray(MAX_OBJECTS));
@@ -75,7 +76,7 @@ public class NanoObjectDetection  {
 
 		//		ExecutorService.submit(() -> {
 
-		ObjectIdentity  obj; int id;
+		NanoObjectIdentity  obj; int id; boolean overlap = false;
 
 		result_length = JetsonNanoLibrary.INSTANCE.detect(net, img, results[0], 0);
 
@@ -92,28 +93,42 @@ public class NanoObjectDetection  {
 
 			id = results[i].Instance*100+results[i].ClassID;
 			if(!objects.containsKey(id)) {
-				obj = new ObjectIdentity(id,
+
+
+				obj = new NanoObjectIdentity(id,
 						results[i].ClassID,results[i].Confidence, p.getString(0),
-						(int)results[i].Left, (int)results[i].Top,
-						(int)results[i].Right - (int)results[i].Left,
-						(int)results[i].Bottom - (int)results[i].Top);
-				computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
-						depth.subimage((int)results[i].Left, (int)results[i].Top,
-								(int)results[i].Right, (int)results[i].Bottom, sub_depth),
-						to_ned);
-				objects.put(id,obj);
-			}
-			else {
-				obj = objects.get(id);
-				obj.update(results[i].ClassID,results[i].Confidence, p.getString(0),
-						(int)results[i].Left, (int)results[i].Top,
-						(int)results[i].Right - (int)results[i].Left,
-						(int)results[i].Bottom - (int)results[i].Top);
+						(int)results[i].Left, (int)results[i].Top, (int)results[i].Right, (int)results[i].Bottom );
+
+				// search for overlaps
+				overlap = false;
+				for(NanoObjectIdentity o : objects.values())
+					if(obj.overlap(o)) {
+						overlap = true;
+					}
+				if(overlap)
+					continue;
 
 				computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
 						depth.subimage((int)results[i].Left, (int)results[i].Top,
 								(int)results[i].Right, (int)results[i].Bottom, sub_depth),
 						to_ned);
+
+				// require a certain depth info for a detection
+				if(obj.getPosBODY().x > 0.1f)
+				   objects.put(id,obj);
+			}
+			else {
+				obj = objects.get(id);
+				obj.update(results[i].ClassID,results[i].Confidence, p.getString(0),
+						(int)results[i].Left, (int)results[i].Top, (int)results[i].Right, (int)results[i].Bottom);
+
+				computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
+						depth.subimage((int)results[i].Left, (int)results[i].Top,
+								(int)results[i].Right, (int)results[i].Bottom, sub_depth),
+						to_ned);
+
+				if(obj.getPosBODY().x <= 0.1f)
+					 objects.remove(id);
 			}
 		}
 
@@ -125,18 +140,18 @@ public class NanoObjectDetection  {
 		return !objects.isEmpty();
 	}
 
-	public Collection<ObjectIdentity> getObjects() {
+	public Collection<NanoObjectIdentity> getObjects() {
 		return objects.values();
 	}
 
-	public ObjectIdentity getFirstObject() {
+	public NanoObjectIdentity getFirstObject() {
 		return objects.entrySet().iterator().next().getValue();
 	}
 
-	private void computeObjectPt(ObjectIdentity o, int x0, int y0, GrayU16 sub_depth, Se3_F64 to_ned) {
+	private void computeObjectPt(NanoObjectIdentity o, int x0, int y0, GrayU16 sub_depth, Se3_F64 to_ned) {
 
 		// find appropriate distance
-		int distance_mm = DistanceDetermination.process(sub_depth);
+		int distance_mm = NanoObjectUtils.process(sub_depth);
 
 		if(distance_mm == Integer.MAX_VALUE)
 			return;
@@ -158,14 +173,6 @@ public class NanoObjectDetection  {
 			o.getPosNED().set(o.getPosBODY());
 //		}
 
-		//		// Now update depth
-		//		// Todo: should be done in sorted order by distance
-//		for(int x = 0; x< sub_depth.width; x++) {
-//			for(int y = 0; y < sub_depth.height; y++) {
-//				if( sub_depth.get(x, y) == 0 || sub_depth.get(x, y) > 15000)
-//					sub_depth.set(x, y, distance_mm);
-//			}
-//		}
 	}
 
 
@@ -175,17 +182,5 @@ public class NanoObjectDetection  {
 		});
 	}
 
-	private void convertToByteBuffer(Planar<GrayU8> img,ByteBuffer buffer) {
-		int i = 0;
-		for (int y = 0; y < img.height; y++) {
-			for (int x = 0; x < img.width; x++) {
-				buffer.array()[i++] = img.bands[0].data[y * img.width + x];
-				buffer.array()[i++] = img.bands[1].data[y * img.width + x];
-				buffer.array()[i++] = img.bands[2].data[y * img.width + x];
-			}
-
-		}
-
-	}
 
 }

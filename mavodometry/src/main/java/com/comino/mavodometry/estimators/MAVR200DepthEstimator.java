@@ -44,6 +44,7 @@ import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.libnano.detetction.NanoObjectDetection;
+import com.comino.mavodometry.libnano.segmentation.NanoSegmentation;
 import com.comino.mavodometry.libnano.trail.NanoTrailDetection;
 import com.comino.mavodometry.libnano.utils.ImageConversionUtil;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
@@ -93,8 +94,9 @@ public class MAVR200DepthEstimator {
 
 	private double     	current_min_distance  = 0.0f;
 
-	private NanoObjectDetection detect  = null;
-	private NanoTrailDetection  trail   = null;
+	private NanoObjectDetection detect    = null;
+	private NanoTrailDetection  trail     = null;
+	private NanoSegmentation    segment   = null;
 
 	public <T> MAVR200DepthEstimator(IMAVMSPController control,ITargetListener targetListener, MSPConfig config, int width, int height,  IMAVMapper mapper) {
 		this(control,targetListener, config,width,height, mapper,null);
@@ -117,9 +119,11 @@ public class MAVR200DepthEstimator {
 		this.pixel2Body.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel);
 
     	this.detect = new NanoObjectDetection(width,height,stream);
-		this.detect.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_PERSON);
+		this.detect.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_ALL);
 
-		this.trail = new NanoTrailDetection(width,height,stream);
+	//	this.trail = new NanoTrailDetection(width,height,stream);
+
+		this.segment = new NanoSegmentation(width,height,stream);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
@@ -153,13 +157,9 @@ public class MAVR200DepthEstimator {
 			@Override
 			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
 
-				// Add rgb image to stream
-				if(stream!=null) {
-					stream.addToStream(rgb, model, timeDepth);
-				}
 
-				if((System.currentTimeMillis() - tms ) < 70)
-					return;
+//				if((System.currentTimeMillis() - tms ) < 70)
+//					return;
 
 
 				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
@@ -170,15 +170,21 @@ public class MAVR200DepthEstimator {
 
 				ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
 
-				// TODO: should not be here
+//				// TODO: should not be here
 				detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
 				if(detect.hasObjectsDetected()) {
 					targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
-					if(mapper!=null)
-						mapper.update(model.state.l_x, model.state.l_y,detect.getFirstObject().getPosNED());
 				}
 
-				trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+//				trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+
+				segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+
+				// Add rgb image to stream
+				if(stream!=null) {
+					ImageConversionUtil.getInstance().convertToPlanar(rgb);
+					stream.addToStream(rgb, model, timeDepth);
+				}
 
 				current_min_distance = Double.MAX_VALUE;
 				quality = 0;

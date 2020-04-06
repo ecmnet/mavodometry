@@ -3,18 +3,20 @@ package com.comino.mavodometry.libnano.detetction;
 import java.awt.Color;
 import java.awt.Graphics;
 
-import com.comino.mavodometry.libnano.detetction.helper.DistanceDetermination;
+import com.comino.mavodometry.libnano.detetction.helper.NanoObjectUtils;
 
 import boofcv.alg.distort.LensDistortionNarrowFOV;
 import boofcv.alg.sfm.DepthSparse3D;
+import boofcv.struct.ImageRectangle;
 import boofcv.struct.image.GrayU16;
+import georegression.metric.Intersection2D_I32;
 import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class ObjectIdentity {
+public class NanoObjectIdentity {
 
-	private static final int EXPIRE_MS  = 100;
+	private static final int EXPIRE_MS  = 200;
 
 	private int               id         = 0;
 	private int               classid    = 0;					   // class of object
@@ -23,50 +25,49 @@ public class ObjectIdentity {
 	private Point3D_F64       pos_ned    = new Point3D_F64();      // local position NED
 	private Point3D_F64       pos_body   = new Point3D_F64();      // local position
 
-	private int x;
-	private int y;
-	private int width;
-	private int height;
+	public ImageRectangle     r          = new ImageRectangle();   // 2D rectangle of detected area
 
 	private long tms = 0;
 
-	private final Color color = new Color(0.8f,0.5f,0.5f,0.5f);
+	private static final Color color = new Color(0.8f,0.5f,0.5f,0.5f);
 
-	public ObjectIdentity() {
+	public NanoObjectIdentity() {
 
 	};
 
-	public ObjectIdentity(int id, int classid, float confidence, String name, int x, int y, int w, int h) {
+	public NanoObjectIdentity(int id, int classid, float confidence, String name, int x0, int y0, int x1, int y1) {
 		this.id = id;
-		this.update(classid, confidence, name, x, y, w, h);
+		this.update(classid, confidence, name, x0,y0,x1,y1);
 	};
 
-	public void update(int classid, float confidence, String name, int x, int y, int w, int h) {
+	public void update(int classid, float confidence, String name, int x0, int y0, int x1, int y1) {
 		this.classid    = classid;
 		this.name       = name;
 		this.confidence = confidence;
-		this.x          = x;
-		this.y          = y;
-		this.width      = w;
-		this.height     = h;
 		this.tms        = System.currentTimeMillis();
+
+		this.r.set(x0, y0, x1, y1);
 	};
 
 	public void update() {
 		this.tms        = System.currentTimeMillis();
 	};
 
+	public boolean overlap(NanoObjectIdentity o) {
+		 return Intersection2D_I32.intersects(r, o.r);
+	}
+
 	public void draw(Graphics ctx) {
 
 		ctx.setColor(color);
-		ctx.fillRect(x, y, width, height);
+		ctx.fillRect(r.x0, r.y0, r.getWidth(), r.getHeight());
 		ctx.setColor(Color.WHITE);
-		ctx.drawString(name, x, y+10);
+		ctx.drawString(name, r.x0+5, r.y0+r.getHeight()-3);
 
 		if(pos_body.x < 12.0f) {
-			ctx.drawString(String.format("%.1fm", pos_body.x),x+width-25, y+10);
-			ctx.drawLine(x+width/2-10, y+height/2, x+width/2+10, y+height/2);
-			ctx.drawLine(x+width/2, y+height/2-10, x+width/2, y+height/2+10);
+			ctx.drawString(String.format("%.1fm", pos_body.x),r.x0+5, r.y0+10);
+			ctx.drawLine(r.x0+r.getWidth()/2-10, r.y0+r.getHeight()/2, r.x0+r.getWidth()/2+10, r.y0+r.getHeight()/2);
+			ctx.drawLine(r.x0+r.getWidth()/2, r.y0+r.getHeight()/2-10, r.x0+r.getWidth()/2, r.y0+r.getHeight()/2+10);
 		}
 
 	}
@@ -93,10 +94,6 @@ public class ObjectIdentity {
 
 	public float getConfidence() {
 		return confidence;
-	}
-
-	public boolean equals(ObjectIdentity c) {
-		return false;
 	}
 
 }

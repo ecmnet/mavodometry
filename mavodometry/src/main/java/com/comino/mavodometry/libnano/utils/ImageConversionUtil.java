@@ -25,13 +25,31 @@ public class ImageConversionUtil {
 		this.buffer = ByteBuffer.allocate(width*height*3);
 	}
 
-	public  void convertToByteBuffer(Planar<GrayU8> img) {
-		int i = 0;
+	public  ByteBuffer convertToByteBuffer(Planar<GrayU8> img) {
+		int i = 0; int j=0; int k=0;
 		for (int y = 0; y < img.height; y++) {
+			j = y * img.width;
 			for (int x = 0; x < img.width; x++) {
-				buffer.array()[i++] = img.bands[0].data[y * img.width + x];
-				buffer.array()[i++] = img.bands[1].data[y * img.width + x];
-				buffer.array()[i++] = img.bands[2].data[y * img.width + x];
+				k = j + x;
+				buffer.array()[i++] = img.bands[0].data[k];
+				buffer.array()[i++] = img.bands[1].data[k];
+				buffer.array()[i++] = img.bands[2].data[k];
+			}
+
+		}
+		return buffer;
+	}
+
+
+	public  void convertToPlanar(Planar<GrayU8> img) {
+		int i = 0; int j= 0; int k=0;
+		for (int y = 0; y < img.height; y++) {
+			j = y * img.width;
+			for (int x = 0; x < img.width; x++) {
+				k = j + x;
+				img.bands[0].data[k] = buffer.array()[i++];
+				img.bands[1].data[k] = buffer.array()[i++];
+				img.bands[2].data[k] = buffer.array()[i++];
 			}
 
 		}
