@@ -10,7 +10,7 @@ int main( int argc, char** argv )
   int imgHeight = 0;
   int imgChannels = 0;
 
-  unsigned char* img = stbi_load("/home/ecm/test.jpg", &imgWidth, &imgHeight, &imgChannels, 0);
+  unsigned char* img = stbi_load("/home/ecm/IMG2.jpg", &imgWidth, &imgHeight, &imgChannels, 0);
   if(!img) {
      printf("..load failed\n");
     return 0;
@@ -18,7 +18,11 @@ int main( int argc, char** argv )
 
 
   printf("..load ok; %i channels\n", imgChannels);
-  struct detectNet* net = instance(0,NULL,481,640);	
+  struct detectNet* net = createDetectNetCustom("networks/TrailNet_SResNet18/TrailNet_SResNet-18.prototxt",
+                                         "networks/TrailNet_SResNet18/TrailNet_SResNet-18.caffemodel",
+                                         "networks/TrailNet_SResNet18/label_map.txt",
+                                         "out",
+                                         0.5f,481,640);	
 
 
   printf("..initializing ok\n");

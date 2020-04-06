@@ -10,6 +10,7 @@ extern "C" {
 
 
 typedef struct detectNet detectNet;	
+typedef struct segNet segNet;	
 
 
 typedef struct
@@ -27,10 +28,16 @@ typedef struct
 } Result;	
 
 
-detectNet*   instance(int argc, char** argv, uint32_t w, uint32_t h);
+detectNet*  craeteDetectNet(int network, float threshold, uint32_t w, uint32_t h);
+
+detectNet*  createDetectNetCustom(const char* prototxt_path, const char* model_path,  const char* class_labels, const char* out_layer_name, float threshold, uint32_t w, uint32_t h);
 
 const char*  getClassDescription(detectNet* det, uint32_t ClassID);
 int          detect(detectNet* det, char* img, Result* result,uint32_t overlay );
+
+segNet* createSegNet(int network,  uint32_t w, uint32_t h);
+
+int          segmenting(segNet* net, char* img);
 
 #ifdef __cplusplus
 }
