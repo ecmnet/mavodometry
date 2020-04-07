@@ -89,6 +89,7 @@ public class MAVR200DepthEstimator {
 
 	private DepthSparse3D<GrayU16> pixel2Body = null;
 	private Se3_F64                to_ned     = new Se3_F64();
+	private Planar<GrayU8>         seg        = new Planar<GrayU8>(GrayU8.class,1,1,3);
 
 	private Vector3D_F64     offset           = new Vector3D_F64();
 
@@ -111,6 +112,7 @@ public class MAVR200DepthEstimator {
 		this.model   = control.getCurrentModel();
 
 		this.pixel2Body = new DepthSparse3D.I<GrayU16>(1e-3);
+		this.seg.reshape(width, height);
 
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
@@ -119,12 +121,12 @@ public class MAVR200DepthEstimator {
 		PointToPixelTransform_F32 visToDepth_pixel = new PointToPixelTransform_F32(new DoNothing2Transform2_F32());
 		this.pixel2Body.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel);
 
-    	this.detect = new NanoObjectDetection(width,height,stream);
-		this.detect.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_PERSON);
+//    	this.detect = new NanoObjectDetection(width,height,stream);
+//		this.detect.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_PERSON);
 
-	//	this.trail = new NanoTrailDetection(width,height,stream);
+//		this.trail = new NanoTrailDetection(width,height,stream);
 
-	//	this.segment = new NanoSegmentation(width,height,stream);
+//		this.segment = new NanoSegmentation(width,height,stream);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
@@ -140,7 +142,7 @@ public class MAVR200DepthEstimator {
 		}
 
 
-		ImageConversionUtil.getInstance(width, height);
+//		ImageConversionUtil.getInstance(width, height);
 
 
 		realsense.registerListener(new Listener() {
@@ -158,23 +160,19 @@ public class MAVR200DepthEstimator {
 			@Override
 			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
 
-
-//				if((System.currentTimeMillis() - tms ) < 200)
-//					return;
-
 				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
 				tms = System.currentTimeMillis();
 
 				pixel2Body.setDepthImage(depth);
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
-				ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
+//				ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
 
-//				// TODO: should not be here
-				detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-				if(detect.hasObjectsDetected()) {
-					targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
-				}
+			// TODO: should not be here
+//				detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+//				if(detect.hasObjectsDetected()) {
+//					targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
+//				}
 
 //				trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
 
@@ -182,7 +180,7 @@ public class MAVR200DepthEstimator {
 
 				// Add rgb image to stream
 				if(stream!=null) {
-//					ImageConversionUtil.getInstance().convertToPlanar(rgb);
+//					ImageConversionUtil.getInstance().convertToPlanar(seg);
 					stream.addToStream(rgb, model, timeDepth);
 				}
 
