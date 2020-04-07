@@ -1,5 +1,6 @@
 package com.comino.mavodometry.libnano.detetction.helper;
 
+import boofcv.struct.ImageRectangle;
 import boofcv.struct.image.GrayU16;
 
 // Histogram based distance determination of surrounding box
@@ -8,8 +9,6 @@ import boofcv.struct.image.GrayU16;
 public class NanoObjectUtils {
 
 	public static int[] dist_classes  = new int[100];
-
-//	private static ImageRectangle overlap;
 
 	public static int process(GrayU16 sub_depth) {
 

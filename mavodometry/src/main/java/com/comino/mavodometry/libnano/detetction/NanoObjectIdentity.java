@@ -16,7 +16,7 @@ import georegression.struct.se.Se3_F64;
 
 public class NanoObjectIdentity {
 
-	private static final int EXPIRE_MS  = 200;
+	private static final int EXPIRE_MS  = 500;
 
 	private int               id         = 0;
 	private int               classid    = 0;					   // class of object
@@ -49,27 +49,31 @@ public class NanoObjectIdentity {
 		this.r.set(x0, y0, x1, y1);
 	};
 
-	public void update() {
-		this.tms        = System.currentTimeMillis();
-	};
-
-	public boolean overlap(NanoObjectIdentity o) {
-		 return Intersection2D_I32.intersects(r, o.r);
-	}
 
 	public void draw(Graphics ctx) {
+
+		if(!isValid())
+			return;
 
 		ctx.setColor(color);
 		ctx.fillRect(r.x0, r.y0, r.getWidth(), r.getHeight());
 		ctx.setColor(Color.WHITE);
-		ctx.drawString(name, r.x0+5, r.y0+r.getHeight()-3);
+	//	ctx.drawString(name, r.x0+5, r.y0+r.getHeight()-3);
+		ctx.drawString(String.format("%.2f", confidence), r.x0+5, r.y0+r.getHeight()-3);
 
 		if(pos_body.x < 12.0f) {
 			ctx.drawString(String.format("%.1fm", pos_body.x),r.x0+5, r.y0+10);
 			ctx.drawLine(r.x0+r.getWidth()/2-10, r.y0+r.getHeight()/2, r.x0+r.getWidth()/2+10, r.y0+r.getHeight()/2);
 			ctx.drawLine(r.x0+r.getWidth()/2, r.y0+r.getHeight()/2-10, r.x0+r.getWidth()/2, r.y0+r.getHeight()/2+10);
 		}
+	}
 
+	public void clear() {
+		this.classid = 0;
+	}
+
+	public boolean isValid() {
+		return this.classid > 0;
 	}
 
 	public boolean isExpired() {
@@ -94,6 +98,10 @@ public class NanoObjectIdentity {
 
 	public float getConfidence() {
 		return confidence;
+	}
+
+	public String toString() {
+		return id+": "+pos_ned.toString();
 	}
 
 }

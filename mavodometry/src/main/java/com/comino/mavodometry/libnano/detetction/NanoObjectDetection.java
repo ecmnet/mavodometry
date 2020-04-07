@@ -43,16 +43,14 @@ public class NanoObjectDetection  {
 
 	private Point2Transform2_F64 p2n;
 
-
-	private  Map<Integer,NanoObjectIdentity> objects = new ConcurrentHashMap<Integer,NanoObjectIdentity>();
-	private  List<Integer>               removes = new ArrayList<Integer>();
+	private NanoObjectIdentity obj = new NanoObjectIdentity();
 
 	private int class_filter;
 
 
 	public NanoObjectDetection(int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
-		this.net = JetsonNanoLibrary.INSTANCE.createDetectNet(JetsonNanoLibrary.NETWORK_TYPE_MOBILENET_V2,0.4f, width, height);
+		this.net = JetsonNanoLibrary.INSTANCE.createDetectNet(JetsonNanoLibrary.NETWORK_TYPE_MOBILENET_V2,0.6f, width, height);
 
 		Result result = new Result();
 		this.results =  ((Result[])result.toArray(MAX_OBJECTS));
@@ -74,15 +72,11 @@ public class NanoObjectDetection  {
 
 	public void process(ByteBuffer img, GrayU16 depth, Se3_F64 to_ned) {
 
-		//		ExecutorService.submit(() -> {
+		for(int i =0;i<results.length;i++)
+			results[i].clear();
 
-		NanoObjectIdentity  obj; int id; boolean overlap = false;
-
+		obj.clear();
 		result_length = JetsonNanoLibrary.INSTANCE.detect(net, img, results[0], 0);
-
-		removes.clear();
-		objects.forEach((k,o) -> { if(o.isExpired()) removes.add(k); });
-		removes.forEach((k) -> { objects.remove(k); });
 
 		for(int i=0;i<result_length && i < results.length;i++) {
 
@@ -91,61 +85,25 @@ public class NanoObjectDetection  {
 
 			Pointer p = JetsonNanoLibrary.INSTANCE.getClassDescription(net, results[i].ClassID);
 
-			id = results[i].Instance*100+results[i].ClassID;
-			if(!objects.containsKey(id)) {
+			obj.update(results[i].ClassID,results[i].Confidence, p.getString(0),
+					   (int)results[i].Left, (int)results[i].Top, (int)results[i].Right, (int)results[i].Bottom);
 
-
-				obj = new NanoObjectIdentity(id,
-						results[i].ClassID,results[i].Confidence, p.getString(0),
-						(int)results[i].Left, (int)results[i].Top, (int)results[i].Right, (int)results[i].Bottom );
-
-				// search for overlaps
-				overlap = false;
-				for(NanoObjectIdentity o : objects.values())
-					if(obj.overlap(o)) {
-						overlap = true;
-					}
-				if(overlap)
-					continue;
-
-				computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
+			computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
 						depth.subimage((int)results[i].Left, (int)results[i].Top,
 								(int)results[i].Right, (int)results[i].Bottom, sub_depth),
 						to_ned);
+			break;
 
-				// require a certain depth info for a detection
-				if(obj.getPosBODY().x > 0.1f)
-				   objects.put(id,obj);
-			}
-			else {
-				obj = objects.get(id);
-				obj.update(results[i].ClassID,results[i].Confidence, p.getString(0),
-						(int)results[i].Left, (int)results[i].Top, (int)results[i].Right, (int)results[i].Bottom);
-
-				computeObjectPt(obj, (int)results[i].Left, (int)results[i].Top,
-						depth.subimage((int)results[i].Left, (int)results[i].Top,
-								(int)results[i].Right, (int)results[i].Bottom, sub_depth),
-						to_ned);
-
-				if(obj.getPosBODY().x <= 0.1f)
-					 objects.remove(id);
-			}
 		}
-
-		//		});
-
 	}
 
 	public boolean hasObjectsDetected() {
-		return !objects.isEmpty();
+		return obj.isValid();
 	}
 
-	public Collection<NanoObjectIdentity> getObjects() {
-		return objects.values();
-	}
 
 	public NanoObjectIdentity getFirstObject() {
-		return objects.entrySet().iterator().next().getValue();
+		return obj;
 	}
 
 	private void computeObjectPt(NanoObjectIdentity o, int x0, int y0, GrayU16 sub_depth, Se3_F64 to_ned) {
@@ -175,11 +133,8 @@ public class NanoObjectDetection  {
 
 	}
 
-
 	private void overlayFeatures(Graphics ctx) {
-		objects.forEach((i,o)->{
-			o.draw(ctx);
-		});
+		obj.draw(ctx);
 	}
 
 

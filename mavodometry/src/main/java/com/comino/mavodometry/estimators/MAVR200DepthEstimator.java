@@ -98,6 +98,7 @@ public class MAVR200DepthEstimator {
 	private NanoTrailDetection  trail     = null;
 	private NanoSegmentation    segment   = null;
 
+
 	public <T> MAVR200DepthEstimator(IMAVMSPController control,ITargetListener targetListener, MSPConfig config, int width, int height,  IMAVMapper mapper) {
 		this(control,targetListener, config,width,height, mapper,null);
 	}
@@ -119,11 +120,11 @@ public class MAVR200DepthEstimator {
 		this.pixel2Body.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel);
 
     	this.detect = new NanoObjectDetection(width,height,stream);
-		this.detect.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_ALL);
+		this.detect.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_PERSON);
 
 	//	this.trail = new NanoTrailDetection(width,height,stream);
 
-		this.segment = new NanoSegmentation(width,height,stream);
+	//	this.segment = new NanoSegmentation(width,height,stream);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
@@ -158,9 +159,8 @@ public class MAVR200DepthEstimator {
 			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
 
 
-//				if((System.currentTimeMillis() - tms ) < 70)
+//				if((System.currentTimeMillis() - tms ) < 200)
 //					return;
-
 
 				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
 				tms = System.currentTimeMillis();
@@ -178,11 +178,11 @@ public class MAVR200DepthEstimator {
 
 //				trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
 
-				segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+//				segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
 
 				// Add rgb image to stream
 				if(stream!=null) {
-					ImageConversionUtil.getInstance().convertToPlanar(rgb);
+//					ImageConversionUtil.getInstance().convertToPlanar(rgb);
 					stream.addToStream(rgb, model, timeDepth);
 				}
 
