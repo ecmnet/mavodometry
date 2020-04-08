@@ -1,4 +1,4 @@
-package com.comino.mavodometry.libnano.detetction.helper;
+package com.comino.mavodometry.utils;
 
 import boofcv.struct.ImageRectangle;
 import boofcv.struct.image.GrayU16;
@@ -6,9 +6,10 @@ import boofcv.struct.image.GrayU16;
 // Histogram based distance determination of surrounding box
 // 100 classes (0.3 to 9.9m)
 
-public class NanoObjectUtils {
+public class DepthUtils {
 
-	public static int[] dist_classes  = new int[100];
+	private static final int[] dist_classes  = new int[200];
+	private static final int   dist_div      = 10000 / dist_classes.length;
 
 	public static int process(GrayU16 sub_depth) {
 
@@ -27,8 +28,8 @@ public class NanoObjectUtils {
 
 		for(int x = x0; x < x1; x++) {
 			for(int y = y0; y < y1; y++) {
-				raw_z = sub_depth.get(x, y) / 100 - 3;
-				if(raw_z >= 0 && raw_z < 100) {
+				raw_z = sub_depth.get(x, y) / dist_div - 3;
+				if(raw_z >= 0 && raw_z < dist_classes.length) {
 					dist_classes[raw_z]++;
 				}
 			}
@@ -43,8 +44,8 @@ public class NanoObjectUtils {
 		}
 
 		if(max_class != -1)
-			return ( max_class + 2 ) * 100;
-		return Integer.MAX_VALUE;
+			return ( max_class + 2 ) * dist_div;
+		return 20000;
 
 	}
 

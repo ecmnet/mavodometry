@@ -3,7 +3,7 @@ package com.comino.mavodometry.libnano.detetction;
 import java.awt.Color;
 import java.awt.Graphics;
 
-import com.comino.mavodometry.libnano.detetction.helper.NanoObjectUtils;
+import com.comino.mavodometry.utils.DepthUtils;
 
 import boofcv.alg.distort.LensDistortionNarrowFOV;
 import boofcv.alg.sfm.DepthSparse3D;

@@ -51,16 +51,19 @@ import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth.Listener;
+import com.comino.mavodometry.utils.DepthUtils;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.sun.jna.ptr.PointerByReference;
 
 import boofcv.alg.distort.PointToPixelTransform_F32;
 import boofcv.alg.sfm.DepthSparse3D;
 import boofcv.struct.distort.DoNothing2Transform2_F32;
+import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.GeometryMath_F64;
+import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
@@ -69,6 +72,7 @@ public class MAVR200DepthEstimator {
 
 
 	private static final float MAX_DISTANCE                = 5f;
+	private static final float INFINITE_DISTANCE           = 20f;
 
 	// mounting offset in m
 	private static final double   	   OFFSET_X =  0.00;
@@ -89,11 +93,9 @@ public class MAVR200DepthEstimator {
 
 	private DepthSparse3D<GrayU16> pixel2Body = null;
 	private Se3_F64                to_ned     = new Se3_F64();
-	private Planar<GrayU8>         seg        = new Planar<GrayU8>(GrayU8.class,1,1,3);
 
 	private Vector3D_F64     offset           = new Vector3D_F64();
 
-	private double     	current_min_distance  = 0.0f;
 
 	private NanoObjectDetection detect    = null;
 	private NanoTrailDetection  trail     = null;
@@ -112,7 +114,6 @@ public class MAVR200DepthEstimator {
 		this.model   = control.getCurrentModel();
 
 		this.pixel2Body = new DepthSparse3D.I<GrayU16>(1e-3);
-		this.seg.reshape(width, height);
 
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
@@ -121,12 +122,12 @@ public class MAVR200DepthEstimator {
 		PointToPixelTransform_F32 visToDepth_pixel = new PointToPixelTransform_F32(new DoNothing2Transform2_F32());
 		this.pixel2Body.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel);
 
-//    	this.detect = new NanoObjectDetection(width,height,stream);
-//		this.detect.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_PERSON);
+		//    	this.detect = new NanoObjectDetection(width,height,stream);
+		//		this.detect.configure(narrow(realsense.getIntrinsics()),visToDepth_pixel, NanoObjectDetection.CLASS_PERSON);
 
-//		this.trail = new NanoTrailDetection(width,height,stream);
+		//		this.trail = new NanoTrailDetection(width,height,stream);
 
-//		this.segment = new NanoSegmentation(width,height,stream);
+		//		this.segment = new NanoSegmentation(width,height,stream);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
@@ -142,14 +143,15 @@ public class MAVR200DepthEstimator {
 		}
 
 
-//		ImageConversionUtil.getInstance(width, height);
+		//		ImageConversionUtil.getInstance(width, height);
 
 
 		realsense.registerListener(new Listener() {
 
-			final int BASE = height / 2; final int VIEW = 80;
+			final int BASE = height / 2; final int VIEW = 30; int y0=0;
 
 			int x; int y; int depth_z; int raw_z;
+
 
 			Point3D_F64 raw_pt  =  null;
 			Point3D_F64 body_pt =  new Point3D_F64();
@@ -160,87 +162,76 @@ public class MAVR200DepthEstimator {
 			@Override
 			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
 
+				quality = 0;
 				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
 				tms = System.currentTimeMillis();
 
-				pixel2Body.setDepthImage(depth);
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
-//				ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
+				//				ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
 
-			// TODO: should not be here
-//				detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-//				if(detect.hasObjectsDetected()) {
-//					targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
-//				}
+				// TODO: should not be here
+				//				detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				//				if(detect.hasObjectsDetected()) {
+				//					targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
+				//				}
 
-//				trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				//				trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
 
-//				segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				//				segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
 
 				// Add rgb image to stream
 				if(stream!=null) {
-//					ImageConversionUtil.getInstance().convertToPlanar(seg);
+					//					ImageConversionUtil.getInstance().convertToPlanar(seg);
 					stream.addToStream(rgb, model, timeDepth);
 				}
 
-				current_min_distance = Double.MAX_VALUE;
-				quality = 0;
+
+				pixel2Body.setDepthImage(depth);
 
 				// Read minimum depth in a band around BASE
 				for( x = 0; x < depth.width; x++ ) {
-
 					depth_z = Integer.MAX_VALUE;
-
 					for( y  = BASE - VIEW ; y < BASE; y++ ) {
 						raw_z = depth.get(x, y);
 						if(raw_z > 20 && raw_z < depth_z && raw_z < 15000) {
-							depth_z =  raw_z;
+							depth_z =  raw_z; y0 = y;
 						}
 					}
 
-					// valid depth found, transform and put into map
-					if(depth_z < Integer.MAX_VALUE) {
+					if(depth_z == Integer.MAX_VALUE)
+						continue;
 
-						// transform to world coordinates in body frame
-						pixel2Body.process(x, y);
-						raw_pt = pixel2Body.getWorldPt();
+					pixel2Body.process(x, y0);
 
-						//	System.out.println(x+": "+raw_pt);
+					quality++;
 
-						quality++;
+					raw_pt = pixel2Body.getWorldPt();
 
-						// Maximum distance handled
-						if(raw_pt.z > MAX_DISTANCE)
-							continue;
+					if(raw_pt.z > MAX_DISTANCE)
+						raw_pt.z = 20;
 
-						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
-						body_pt.plusIP(offset);
+					body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
+					body_pt.plusIP(offset);
 
-
-						// get min obstacle distance
-						if(body_pt.x < current_min_distance)
-							current_min_distance = body_pt.x;
-
-						// rotate in NED frame
-						if(!to_ned.T.isNaN()) {
-							GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
-							ned_pt.plusIP(to_ned.T);
-						} else {
-							ned_pt.set(body_pt);;
-						}
-
-						// put into map if map available
-						if(mapper!=null) {
-							mapper.update(model.state.l_x, model.state.l_y,ned_pt);
-						}
+					// rotate in NED frame if NED available
+					if(!to_ned.T.isNaN()) {
+						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
+						ned_pt.plusIP(to_ned.T);
+					} else {
+						ned_pt.set(body_pt);;
 					}
 
+					// put into map if map available
+					if(mapper!=null) {
+						mapper.update(model.state.l_x, model.state.l_y,ned_pt);
+					}
 				}
 				model.slam.quality = quality * 100 / width;
 				model.slam.tms = model.sys.getSynchronizedPX4Time_us();
 
 			}
+
 
 		});
 
@@ -275,18 +266,6 @@ public class MAVR200DepthEstimator {
 		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000)
 			ctx.drawString(model.msg.text, 10, height-5);
 
-	}
-
-	private void convert(GrayU16 in, Planar<GrayU8> output) {
-		int value = 0;
-		for( int y = 0; y < in.height; y++ ) {
-			for( int x = 0; x < in.width; x++ ) {
-				value = in.get(x, y);
-				output.bands[0].set(x, y, (byte)(value >> 0 & 0x00FF)  );
-				output.bands[1].set(x, y, (byte)(value >> 1 & 0x00FF)  );
-				output.bands[2].set(x, y, (byte)(value >> 2 & 0x00FF) );
-			}
-		}
 	}
 
 }

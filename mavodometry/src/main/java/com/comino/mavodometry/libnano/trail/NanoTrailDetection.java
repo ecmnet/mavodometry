@@ -10,9 +10,9 @@ import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
 import com.comino.mavodometry.estimators.ITargetListener;
-import com.comino.mavodometry.libnano.detetction.helper.NanoObjectUtils;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
+import com.comino.mavodometry.utils.DepthUtils;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.jna.NativeString;
 import com.sun.jna.Pointer;

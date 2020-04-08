@@ -9,9 +9,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
-import com.comino.mavodometry.libnano.detetction.helper.NanoObjectUtils;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
+import com.comino.mavodometry.utils.DepthUtils;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
@@ -109,7 +109,7 @@ public class NanoObjectDetection  {
 	private void computeObjectPt(NanoObjectIdentity o, int x0, int y0, GrayU16 sub_depth, Se3_F64 to_ned) {
 
 		// find appropriate distance
-		int distance_mm = NanoObjectUtils.process(sub_depth);
+		int distance_mm = DepthUtils.process(sub_depth);
 
 		if(distance_mm == Integer.MAX_VALUE)
 			return;
