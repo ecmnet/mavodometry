@@ -63,7 +63,7 @@ public class NanoObjectDetection  {
 	}
 
 
-	public void configure(LensDistortionNarrowFOV model , PixelTransform<Point2D_F32> visualToDepth, int class_filter ) {
+	public void configure(LensDistortionNarrowFOV model , int class_filter ) {
 		this.p2n = model.undistort_F64(true,false);
 		this.class_filter = class_filter;
 	}

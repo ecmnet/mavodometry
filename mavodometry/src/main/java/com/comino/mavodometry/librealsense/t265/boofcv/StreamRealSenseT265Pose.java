@@ -90,6 +90,7 @@ public class StreamRealSenseT265Pose {
 
 	private int x0,y0,x1,y1;
 	private int mount;
+	private int dev_count = 0;
 
 
 	public StreamRealSenseT265Pose(int mount, IPoseCallback callback) {
@@ -109,7 +110,7 @@ public class StreamRealSenseT265Pose {
 		ctx = Realsense2Library.INSTANCE.rs2_create_context(Realsense2Library.RS2_API_VERSION, error);
 
 		device_list = Realsense2Library.INSTANCE.rs2_query_devices(ctx,error);
-		int dev_count = Realsense2Library.INSTANCE.rs2_get_device_count(device_list, error);
+		dev_count = Realsense2Library.INSTANCE.rs2_get_device_count(device_list, error);
 		if(dev_count < 1) {
 			is_running = false;
 			return;
@@ -128,6 +129,9 @@ public class StreamRealSenseT265Pose {
 	}
 
 	public void start() {
+		if(dev_count < 1)
+			return;
+		System.out.println("T265 pose estimation started"+device_list);
 		is_running = true;
 		OdometryPool.submit(new CombineThread());
 	}
