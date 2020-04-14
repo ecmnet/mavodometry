@@ -37,6 +37,9 @@ import static boofcv.factory.distort.LensDistortionFactory.narrow;
 
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Image;
+import java.awt.image.BufferedImage;
+import java.awt.image.WritableRaster;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
@@ -57,12 +60,14 @@ import com.comino.mavutils.hw.HardwareAbstraction;
 import com.sun.jna.ptr.PointerByReference;
 
 import boofcv.alg.distort.PointToPixelTransform_F32;
+import boofcv.alg.filter.blur.GBlurImageOps;
 import boofcv.alg.sfm.DepthSparse3D;
 import boofcv.struct.distort.DoNothing2Transform2_F32;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
+import edu.mines.jtk.awt.ColorMap;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Point3D_F64;
@@ -71,16 +76,16 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVR200DepthEstimator {
 
-	private static final boolean DO_AI = false;
+	private static final boolean DO_AI              = false;
+	private static final boolean DO_DEPTH_OVERLAY   = true;
 
-
-	private static final float MAX_DISTANCE                = 7f;
+	private static final float MAX_DISTANCE         = 10.0f;
 
 
 	// mounting offset in m
-	private static final double   	   OFFSET_X =  0.00;
-	private static final double        OFFSET_Y =  0.00;
-	private static final double        OFFSET_Z =  0.00;
+	private static final double   	   OFFSET_X     =  0.00;
+	private static final double        OFFSET_Y     =  0.00;
+	private static final double        OFFSET_Z     =  0.00;
 
 	private StreamRealSenseVisDepth 	realsense	= null;
 	private RealSenseInfo               info        = null;
@@ -96,26 +101,27 @@ public class MAVR200DepthEstimator {
 	private int   base = 0;
 	private int   top  = 40;
 
-	private final Color	bgColor    = new Color(128,128,128,130);
-	private final Color	depthColor = new Color(33, 100, 122,80);
+	private final Color	bgColor           = new Color(128,128,128,130);
+	private final Color	depthColor        = new Color(33, 100, 122,80);
 
-	private Se3_F64                to_ned     = new Se3_F64();
-
-	private Vector3D_F64     offset           = new Vector3D_F64();
-
+	private Se3_F64       to_ned          = new Se3_F64();
+	private Vector3D_F64  offset          = new Vector3D_F64();
 
 	private NanoObjectDetection detect    = null;
 	private NanoTrailDetection  trail     = null;
 	private NanoSegmentation    segment   = null;
 
-	private final Point2D_F64    norm    = new Point2D_F64();
-	private Point2Transform2_F64 p2n;
+	private final Point2D_F64    norm     = new Point2D_F64();
+	private Point2Transform2_F64 p2n      = null;
+
+	private BufferedImage img = null;
 
 
 	public <T> MAVR200DepthEstimator(IMAVMSPController control,ITargetListener targetListener, MSPConfig config, int width, int height,  IMAVMapper mapper) {
 		this(control,targetListener, config,width,height, mapper,null);
 	}
 
+	@SuppressWarnings("unused")
 	public <T> MAVR200DepthEstimator(IMAVMSPController control, ITargetListener targetListener, MSPConfig config, int width, int height,
 			IMAVMapper mapper, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
@@ -126,6 +132,8 @@ public class MAVR200DepthEstimator {
 		// Vertical window for obstacle detection
 		this.base    = height * 2 / 3 - 70;
 		this.top     = height * 2 / 3 + 10;
+
+		this.img = new BufferedImage(width, top-base, BufferedImage.TYPE_BYTE_INDEXED, ColorMap.setAlpha(ColorMap.JET,0.4));
 
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
@@ -151,9 +159,12 @@ public class MAVR200DepthEstimator {
 
 
 
+
 		if(stream!=null) {
 			stream.registerOverlayListener(ctx -> {
 				overlayFeatures(ctx);
+				if(DO_DEPTH_OVERLAY)
+					ctx.drawImage(img, 0, base, null);
 			});
 		}
 
@@ -172,11 +183,22 @@ public class MAVR200DepthEstimator {
 			@Override
 			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
 
+				// Idea: make depth window y-alignment dependent on flight hight to avoid ground detected as
+				// obstacle
+
 				quality = 0;
 				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
 				tms = System.currentTimeMillis();
 
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
+
+				// Switch to upper window if altitude < 0.5m
+				determineDepthWindow(-0.5f);
+
+
+				if(DO_DEPTH_OVERLAY)
+					overlayDepth(depth.subimage(0, base, width, top), img);
+
 
 				if(detect!=null) {
 					ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
@@ -196,9 +218,7 @@ public class MAVR200DepthEstimator {
 				}
 
 
-				//				System.out.println();
-
-				// Read minimum depth in a band around BASE
+				// Read minimum depth in a band
 				for( x = 0; x < width; x++ ) {
 					depth_z = Integer.MAX_VALUE;
 					for( y = base; y < top; y++ ) {
@@ -209,17 +229,14 @@ public class MAVR200DepthEstimator {
 					}
 
 					if(depth_z == Integer.MAX_VALUE) {
-						//						System.out.println(x+":");
 						continue;
 					}
 
 
 					p2n.compute(x,y0,norm);
-					raw_pt.z = depth_z*1e-3f;
-					raw_pt.x = raw_pt.z*norm.x;
-					raw_pt.y = raw_pt.z*norm.y;
-
-					//					System.out.println(x+":"+raw_pt.x+" -> "+depth_z/1000f);
+					raw_pt.z =  depth_z*1e-3f;
+					raw_pt.x =  raw_pt.z*norm.x;
+					raw_pt.y = -raw_pt.z*norm.y;
 
 					quality++;
 
@@ -231,7 +248,10 @@ public class MAVR200DepthEstimator {
 					body_pt.plusIP(offset);
 
 					// rotate in NED frame if NED available
-					if(!to_ned.T.isNaN()) {
+					if(!to_ned.T.isNaN() &&  !control.isSimulation()) {
+
+						// TODO: check for ground estimates and exclude them
+
 						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
 						ned_pt.plusIP(to_ned.T);
 					} else {
@@ -240,7 +260,7 @@ public class MAVR200DepthEstimator {
 
 					// put into map if map available
 					if(mapper!=null) {
-						mapper.update(model.state.l_x, model.state.l_y,ned_pt);
+						mapper.update(model.state.l_x, model.state.l_y, ned_pt);
 					}
 				}
 				model.slam.quality = quality * 100 / width;
@@ -271,8 +291,10 @@ public class MAVR200DepthEstimator {
 		ctx.setColor(bgColor);
 		ctx.fillRect(5, 5, width-10, 21);
 
-		ctx.setColor(depthColor);
-		ctx.fillRect(0, base, width, top-base);
+		if(!DO_DEPTH_OVERLAY) {
+			ctx.setColor(depthColor);
+			ctx.fillRect(0, base, width, top-base);
+		}
 
 		ctx.setColor(Color.white);
 
@@ -285,6 +307,29 @@ public class MAVR200DepthEstimator {
 		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000)
 			ctx.drawString(model.msg.text, 10, height-5);
 
+	}
+
+	private void determineDepthWindow(float z_pos) {
+
+		if(model.state.l_z < z_pos) {
+			base    = height * 2 / 3 - 70;
+			top     = height * 2 / 3 + 10;
+		} else {
+			base    = 0;
+			top     = 80;
+		}
+	}
+
+
+	private BufferedImage overlayDepth(GrayU16 depth_area, BufferedImage image) {
+		WritableRaster raster = image.getRaster(); int[] pixel = new int[1];
+		for(int x=0;x<depth_area.width;x++) {
+			for(int y=0;y<depth_area.height;y++) {
+				pixel[0] = depth_area.get(x, y)/50;
+				raster.setPixel(x,y,pixel);
+			}
+		}
+		return image;
 	}
 
 }
