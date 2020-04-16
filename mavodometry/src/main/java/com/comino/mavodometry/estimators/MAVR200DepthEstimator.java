@@ -315,8 +315,8 @@ public class MAVR200DepthEstimator {
 			base    = height * 2 / 3 - 70;
 			top     = height * 2 / 3 + 10;
 		} else {
-			base    = 0;
-			top     = 80;
+			base    = height / 5 ;
+			top     = height / 5 + 80;
 		}
 	}
 
