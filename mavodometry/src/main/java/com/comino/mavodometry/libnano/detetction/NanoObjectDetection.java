@@ -13,6 +13,7 @@ import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
 import com.comino.mavodometry.utils.DepthUtils;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.comino.mavutils.jna.NativeString;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
@@ -51,6 +52,15 @@ public class NanoObjectDetection  {
 	public NanoObjectDetection(int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		this.net = JetsonNanoLibrary.INSTANCE.createDetectNet(JetsonNanoLibrary.NETWORK_TYPE_MOBILENET_V2,0.6f, width, height);
+
+
+//      For output and labelling of YOLO: https://github.com/NVIDIA-AI-IOT/redtail/wiki/ROS-Nodes#trailnet
+//		NativeString  proto = new NativeString("networks/Yolo_Relu/yolo-relu.prototxt", false);
+//		NativeString  model = new NativeString("networks/Yolo_Relu/yolo-relu.caffemodel", false);
+//		NativeString  outl  = new NativeString("fc25", false);
+//
+//		net = JetsonNanoLibrary.INSTANCE.createDetectNetCustom(proto.getPointer(), model.getPointer(), null,outl.getPointer(), 0.0f, width, height);
+
 
 		Result result = new Result();
 		this.results =  ((Result[])result.toArray(MAX_OBJECTS));

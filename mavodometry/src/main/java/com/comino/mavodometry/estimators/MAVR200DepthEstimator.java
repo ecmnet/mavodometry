@@ -76,7 +76,10 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVR200DepthEstimator {
 
-	private static final boolean DO_AI              = false;
+	private static final boolean DO_DETECT          = false;
+	private static final boolean DO_TRAIL           = false;
+	private static final boolean DO_SEGMENT         = false;
+
 	private static final boolean DO_DEPTH_OVERLAY   = true;
 
 	private static final float MAX_DISTANCE         = 10.0f;
@@ -101,8 +104,8 @@ public class MAVR200DepthEstimator {
 	private int   base = 0;
 	private int   top  = 40;
 
-	private final Color	bgColor           = new Color(128,128,128,130);
-	private final Color	depthColor        = new Color(33, 100, 122,80);
+	private final Color	bgColor           = new Color(128,128,128,140);
+	private final Color	depthColor        = new Color(33, 100, 122,70);
 
 	private Se3_F64       to_ned          = new Se3_F64();
 	private Vector3D_F64  offset          = new Vector3D_F64();
@@ -116,6 +119,8 @@ public class MAVR200DepthEstimator {
 
 	private BufferedImage img = null;
 
+	private int[] depth_a                 = null;   // Mean Buffer depth;
+
 
 	public <T> MAVR200DepthEstimator(IMAVMSPController control,ITargetListener targetListener, MSPConfig config, int width, int height,  IMAVMapper mapper) {
 		this(control,targetListener, config,width,height, mapper,null);
@@ -128,6 +133,7 @@ public class MAVR200DepthEstimator {
 		this.width   = width;
 		this.height  = height;
 		this.model   = control.getCurrentModel();
+		this.depth_a = new int[width];
 
 		// Vertical window for obstacle detection
 		this.base    = height * 2 / 3 - 70;
@@ -142,15 +148,22 @@ public class MAVR200DepthEstimator {
 
 		this.realsense.setAutoExposureArea(0, height-base, width, top - base);
 
-		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_AI) {
+		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_DETECT) {
 			this.detect = new NanoObjectDetection(width,height,stream);
 			this.detect.configure(narrow(realsense.getIntrinsics()), NanoObjectDetection.CLASS_PERSON);
 			ImageConversionUtil.getInstance(width, height);
 		}
 
-		//		this.trail = new NanoTrailDetection(width,height,stream);
+		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_TRAIL) {
+			this.trail = new NanoTrailDetection(width,height,stream);
+			this.trail.configure(narrow(realsense.getIntrinsics()));
+			ImageConversionUtil.getInstance(width, height);
+		}
 
-		//		this.segment = new NanoSegmentation(width,height,stream);
+		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_SEGMENT) {
+			this.segment = new NanoSegmentation(width,height,stream);
+			ImageConversionUtil.getInstance(width, height);
+		}
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
@@ -192,23 +205,31 @@ public class MAVR200DepthEstimator {
 
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
-				// Switch to upper window if altitude < 0.5m
+				// Switch Depth window according to altitude
 				determineDepthWindow(-0.5f);
 
 
 				if(DO_DEPTH_OVERLAY)
 					overlayDepth(depth.subimage(0, base, width, top), img);
 
-
-				if(detect!=null) {
+				// AI networks to be processed
+				if(detect!=null || trail!=null || segment!=null) {
 					ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
-					detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-					if(detect.hasObjectsDetected()) {
-						targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
+
+					if(detect!=null) {
+						detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+						if(detect.hasObjectsDetected()) {
+							targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
+						}
 					}
 
-					//				trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-					//				segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+					if(trail!=null) {
+						trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+					}
+
+					if(segment!=null) {
+						segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+					}
 				}
 
 				// Add rgb image to stream
@@ -232,9 +253,13 @@ public class MAVR200DepthEstimator {
 						continue;
 					}
 
+					// build depth mean with previous value
+					depth_z = (depth_a[x] + depth_z) / 2;
+					depth_a[x] = depth_z;
 
+					// transform to 3D coordinates
 					p2n.compute(x,y0,norm);
-					raw_pt.z =  depth_z*1e-3f;
+					raw_pt.z =  depth_z*1e-3;
 					raw_pt.x =  raw_pt.z*norm.x;
 					raw_pt.y = -raw_pt.z*norm.y;
 
@@ -301,7 +326,7 @@ public class MAVR200DepthEstimator {
 		ctx.drawString(String.format("%2.1f fps (obs.)",model.slam.fps), width-95, 20);
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000), 20, 20);
+			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000), 10, 20);
 		}
 
 		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000)
@@ -309,9 +334,9 @@ public class MAVR200DepthEstimator {
 
 	}
 
-	private void determineDepthWindow(float z_pos) {
+	private void determineDepthWindow(float z_pos1) {
 
-		if(model.state.l_z < z_pos) {
+		if(model.state.l_z < z_pos1) {
 			base    = height * 2 / 3 - 70;
 			top     = height * 2 / 3 + 10;
 		} else {
