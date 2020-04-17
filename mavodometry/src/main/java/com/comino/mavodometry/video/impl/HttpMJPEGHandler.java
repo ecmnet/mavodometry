@@ -85,12 +85,12 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	}
 
 	@Override @SuppressWarnings("unchecked")
-	public void handle(HttpExchange he) throws IOException {
+	public void handle(@SuppressWarnings("restriction") HttpExchange he) throws IOException {
         is_running = true;
 		he.getResponseHeaders().add("content-type","multipart/x-mixed-replace; boundary=--BoundaryString");
 		he.sendResponseHeaders(200, 0);
 		OutputStream os = new BufferedOutputStream(he.getResponseBody());
-		
+
 		System.out.println("Start streaming vision data...");
 
 		while(is_running) {
