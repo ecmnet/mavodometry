@@ -165,11 +165,11 @@ public class MAVT265PositionEstimator {
 
 
 		// reset vision when armed
-//		control.getStatusManager().addListener( Status.MSP_ARMED, (n) -> {
-//			if(n.isStatus(Status.MSP_ARMED)) {
-//				init("armed");
-//			}
-//		});
+		control.getStatusManager().addListener( Status.MSP_ARMED, (n) -> {
+			if(n.isStatus(Status.MSP_ARMED)) {
+				init("armed");
+			}
+		});
 
 
 		//reset ned transformation when GPOS gets valid
@@ -359,6 +359,7 @@ public class MAVT265PositionEstimator {
 		sms.roll  = (float)att.getRoll();
 		sms.pitch = (float)att.getPitch();
 		sms.yaw   = (float)att.getYaw();
+//		sms.yaw   = Float.NaN;
 
 		sms.covariance[0] = Float.NaN;
 
