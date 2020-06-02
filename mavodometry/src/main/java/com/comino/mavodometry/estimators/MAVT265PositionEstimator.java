@@ -117,6 +117,7 @@ public class MAVT265PositionEstimator {
 	private int           reset_count = 0;
 
 	private Planar<GrayU8>  img = null;
+	private IVisualStreamHandler<Planar<GrayU8>> stream=null;
 
 	// Stream data
 	private int   width;
@@ -124,17 +125,15 @@ public class MAVT265PositionEstimator {
 
 	private final Color	bgColor = new Color(128,128,128,130);
 
-	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height,int mode) {
-		this(control,config,width,height,mode,null);
-	}
 
-	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height,int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
+	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height,int mode) {
 
 
 		this.control = control;
 		this.width   = width;
 		this.height  = height;
 		this.model   = control.getCurrentModel();
+
 
 		this.img = new Planar<GrayU8>(GrayU8.class,width,height,3);
 
@@ -177,12 +176,6 @@ public class MAVT265PositionEstimator {
 			//if((n.isStatus(Status.MSP_GPOS_VALID)))
 			init("gpos");
 		});
-
-		if(stream!=null) {
-			stream.registerOverlayListener(ctx -> {
-				overlayFeatures(ctx);
-			});
-		}
 
 
 		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height,(tms, raw, p, s, a, img) ->  {
@@ -310,6 +303,14 @@ public class MAVT265PositionEstimator {
 
 	}
 
+	public void registerStream(IVisualStreamHandler<Planar<GrayU8>> stream) {
+		this.stream = stream;
+		this.stream.registerOverlayListener(ctx -> {
+			overlayFeatures(ctx);
+		});
+
+	}
+
 	public void init(String s) {
 		reset_count++;
 		t265.reset();
@@ -339,7 +340,7 @@ public class MAVT265PositionEstimator {
 		ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000), 20, 20);
+			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000f), 20, 20);
 		}
 
 		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000)

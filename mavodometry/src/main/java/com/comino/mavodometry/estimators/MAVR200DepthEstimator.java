@@ -118,17 +118,14 @@ public class MAVR200DepthEstimator {
 	private Point2Transform2_F64 p2n      = null;
 
 	private BufferedImage img = null;
+	private IVisualStreamHandler<Planar<GrayU8>> stream;
 
 	private int[] depth_a                 = null;   // Mean Buffer depth;
 
 
-	public <T> MAVR200DepthEstimator(IMAVMSPController control,ITargetListener targetListener, MSPConfig config, int width, int height,  IMAVMapper mapper) {
-		this(control,targetListener, config,width,height, mapper,null);
-	}
-
 	@SuppressWarnings("unused")
 	public <T> MAVR200DepthEstimator(IMAVMSPController control, ITargetListener targetListener, MSPConfig config, int width, int height,
-			IMAVMapper mapper, IVisualStreamHandler<Planar<GrayU8>> stream) {
+			IMAVMapper mapper) {
 
 		this.width   = width;
 		this.height  = height;
@@ -140,6 +137,7 @@ public class MAVR200DepthEstimator {
 		this.top     = height * 2 / 3 + 10;
 
 		this.img = new BufferedImage(width, top-base, BufferedImage.TYPE_BYTE_INDEXED, ColorMap.setAlpha(ColorMap.JET,0.4));
+
 
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
@@ -173,8 +171,8 @@ public class MAVR200DepthEstimator {
 
 
 
-		if(stream!=null) {
-			stream.registerOverlayListener(ctx -> {
+		if(this.stream!=null) {
+			this.stream.registerOverlayListener(ctx -> {
 				overlayFeatures(ctx);
 				if(DO_DEPTH_OVERLAY)
 					ctx.drawImage(img, 0, base, null);
@@ -308,6 +306,17 @@ public class MAVR200DepthEstimator {
 		}
 		isRunning=false;
 	}
+
+	public void registerStream(IVisualStreamHandler<Planar<GrayU8>> stream) {
+		this.stream = stream;
+
+		this.stream.registerOverlayListener(ctx -> {
+			overlayFeatures(ctx);
+			if(DO_DEPTH_OVERLAY)
+				ctx.drawImage(img, 0, base, null);
+		});
+	}
+
 	private void overlayFeatures(Graphics ctx) {
 
 		ctx.setColor(bgColor);
