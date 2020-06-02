@@ -125,8 +125,13 @@ public class StreamRealSenseT265Pose {
 		dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, 0, error);
 		checkError(error);
 
-		Realsense2Library.INSTANCE.rs2_hardware_reset(dev, error);
-		try { Thread.sleep(200); } catch (InterruptedException e) {  }
+		if(Realsense2Library.INSTANCE
+				.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_FIRMWARE_VERSION, error)
+				.getString(0).contains("951"))
+		{
+			Realsense2Library.INSTANCE.rs2_hardware_reset(dev, error);
+			try { Thread.sleep(200); } catch (InterruptedException e) {  }
+		}
 
 
 		config = Realsense2Library.INSTANCE.rs2_create_config(error);
@@ -280,9 +285,9 @@ public class StreamRealSenseT265Pose {
 					current_pose.getTranslation().set( - rawpose.translation.z, rawpose.translation.x, - rawpose.translation.y);
 					ConvertRotation3D_F64.quaternionToMatrix(
 							rawpose.rotation.w,
-						   -rawpose.rotation.z,
+							-rawpose.rotation.z,
 							rawpose.rotation.x,
-						   -rawpose.rotation.y, current_pose.getRotation());
+							-rawpose.rotation.y, current_pose.getRotation());
 
 					current_speed.getTranslation().set(- rawpose.velocity.z, rawpose.velocity.x, - rawpose.velocity.y);
 					current_speed.getRotation().set(current_pose.getRotation());

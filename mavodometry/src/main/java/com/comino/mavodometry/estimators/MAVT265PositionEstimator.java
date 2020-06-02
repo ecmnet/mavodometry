@@ -111,13 +111,14 @@ public class MAVT265PositionEstimator {
 	private long              tms_old = 0;
 	private long            tms_reset = 0;
 
-	private boolean         do_odometry = true;
+	private boolean       do_odometry = true;
+	private boolean      enableStream = false;
 
 	private int           error_count = 0;
 	private int           reset_count = 0;
 
 	private Planar<GrayU8>  img = null;
-	private IVisualStreamHandler<Planar<GrayU8>> stream=null;
+
 
 	// Stream data
 	private int   width;
@@ -126,7 +127,7 @@ public class MAVT265PositionEstimator {
 	private final Color	bgColor = new Color(128,128,128,130);
 
 
-	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height,int mode) {
+	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height,int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 
 		this.control = control;
@@ -176,6 +177,12 @@ public class MAVT265PositionEstimator {
 			//if((n.isStatus(Status.MSP_GPOS_VALID)))
 			init("gpos");
 		});
+
+		if(stream != null) {
+			stream.registerOverlayListener(ctx -> {
+				overlayFeatures(ctx);
+			});
+		}
 
 
 		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height,(tms, raw, p, s, a, img) ->  {
@@ -294,7 +301,7 @@ public class MAVT265PositionEstimator {
 			}
 
 			// Add left camera to stream
-			if(stream!=null) {
+			if(stream!=null && enableStream) {
 				stream.addToStream(img, model, tms);
 			}
 		});
@@ -303,12 +310,8 @@ public class MAVT265PositionEstimator {
 
 	}
 
-	public void registerStream(IVisualStreamHandler<Planar<GrayU8>> stream) {
-		this.stream = stream;
-		this.stream.registerOverlayListener(ctx -> {
-			overlayFeatures(ctx);
-		});
-
+	public void enableStream(boolean enable) {
+		this.enableStream = enable;
 	}
 
 	public void init(String s) {

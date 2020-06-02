@@ -96,26 +96,36 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		he.sendResponseHeaders(200, 0);
 		OutputStream os = new BufferedOutputStream(he.getResponseBody());
 
-		System.out.println("Start streaming vision data...");
-
 		is_running = true;
 
+        long tms = 0;
 		while(is_running) {
 
 			try {
 
 				synchronized(this) {
+				  tms = System.currentTimeMillis();
 				  if(input_image==null)
-						wait();
+						wait(100);
 				}
 
 				os.write(("--BoundaryString\r\nContent-type:image/jpeg content-length:1\r\n\r\n").getBytes());
+
+				if((System.currentTimeMillis()-tms) > 100) {
+
+					ctx.drawString("No video available", 110 , image.getHeight()/2);
+					ImageIO.write(image, "jpg", os );
+					os.write("\r\n\r\n".getBytes());
+					is_running = false;
+					continue;
+		        }
 
 				if(input_image instanceof Planar) {
 					ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input_image, image, true);
 				}
 				else if(input_image instanceof GrayU8)
 					ConvertBufferedImage.convertTo((GrayU8)input_image, image, true);
+
 
 				if(listeners.size()>0) {
 					for(IOverlayListener listener : listeners)
@@ -140,10 +150,10 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	@Override
 	public  void addToStream(T input, DataModel model, long tms_us) {
 
+
 		if((System.currentTimeMillis()-last_image_tms)<MAX_VIDEO_RATE_MS )//|| !model.sys.isStatus(Status.MSP_GCL_CONNECTED))
 			return;
 		last_image_tms = System.currentTimeMillis();
-
 
 		synchronized(this) {
 			input_image = input;
