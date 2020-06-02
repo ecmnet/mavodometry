@@ -36,12 +36,18 @@ package com.comino.mavodometry.librealsense.t265.demo;
 import java.awt.image.BufferedImage;
 
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
+import com.comino.mavodometry.struct.Attitude3D_F64;
+import com.comino.mavutils.MSPMathUtils;
 
 import boofcv.io.image.ConvertBufferedImage;
+import boofcv.struct.image.GrayU8;
+import boofcv.struct.image.Planar;
 import javafx.application.Application;
 import javafx.application.Platform;
 import javafx.embed.swing.SwingFXUtils;
+import javafx.event.ActionEvent;
 import javafx.scene.Scene;
+import javafx.scene.control.Button;
 import javafx.scene.control.Label;
 import javafx.scene.image.ImageView;
 import javafx.scene.image.WritableImage;
@@ -61,8 +67,14 @@ public class StreamRealSenseTestPose extends Application  {
 	private Label labelx = new Label("X");
 	private Label labely = new Label("Y");
 	private Label labelz = new Label("Z");
+	private Label labelr = new Label("R");
+	private Label labelp = new Label("P");
+	private Label labelw = new Label("W");
+
 
 	private StreamRealSenseT265Pose t265;
+
+	private Attitude3D_F64   att      = new Attitude3D_F64();
 
 
 	@Override
@@ -72,22 +84,45 @@ public class StreamRealSenseTestPose extends Application  {
 		labelx.setMinWidth(80);
 		labely.setMinWidth(80);
 		labelz.setMinWidth(80);
+		labelw.setMinWidth(80);
+		labelp.setMinWidth(80);
+		labelr.setMinWidth(80);
+
 
 		GridPane root = new GridPane();
 		root.add(leftv, 0, 0);
-		root.add(labelx, 1, 0);
-		root.add(labely, 2, 0);
-		root.add(labelz, 3, 0);
+		GridPane label = new GridPane();
+		root.add(label, 1, 0);
+		label.add(labelx, 1, 0);
+		label.add(labely, 2, 0);
+		label.add(labelz, 3, 0);
+		label.add(labelr, 1, 1);
+		label.add(labelp, 2, 1);
+		label.add(labelw, 3, 1);
+
+		Button reset = new Button("Reset");
+		label.add(reset, 1,4);
+
+		reset.setOnAction((ActionEvent event)-> {
+			t265.reset();
+		});
 
 
-		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD,WIDTH,HEIGHT,(tms, raw, p , s, a, left, right) ->  {
 
-			ConvertBufferedImage.convertTo(left, leftb);
+		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,WIDTH,HEIGHT,(tms, raw, p , s, a, img) ->  {
+
+			ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)img, leftb, true);
+
+			att.setFromMatrix(p.R);
 
 			Platform.runLater(() -> {
-				labelx.setText(String.format(" X: %+3.2f     ", p.T.x));
-				labely.setText(String.format(" Y: %+3.2f     ", p.T.y));
-				labelz.setText(String.format(" Z: %+3.2f     ", p.T.z));
+				labelx.setText(String.format(" X : %+3.2f     ", p.T.x));
+				labely.setText(String.format(" Y : %+3.2f     ", p.T.y));
+				labelz.setText(String.format(" Z : %+3.2f     ", p.T.z));
+				labelp.setText(String.format(" P : %+3.1f°    ", att.getInDegree(Attitude3D_F64.PITCH)));
+				labelr.setText(String.format(" R : %+3.1f°    ", att.getInDegree(Attitude3D_F64.ROLL)));
+				labelw.setText(String.format(" W : %+3.1f°    ", att.getInDegree(Attitude3D_F64.YAW)));
+
 				SwingFXUtils.toFXImage(leftb, lefti);
 			});
 
@@ -97,7 +132,7 @@ public class StreamRealSenseTestPose extends Application  {
 
 		t265.start();
 
-		primaryStage.setScene(new Scene(root, WIDTH+240,HEIGHT));
+		primaryStage.setScene(new Scene(root, WIDTH+280,HEIGHT));
 		primaryStage.show();
 
 
@@ -108,7 +143,7 @@ public class StreamRealSenseTestPose extends Application  {
 		});
 
 
-		leftb = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_BYTE_GRAY);
+		leftb = new BufferedImage(WIDTH, HEIGHT, BufferedImage.TYPE_3BYTE_BGR);
 		lefti = new WritableImage(WIDTH, HEIGHT);
 		leftv.setImage(lefti);
 

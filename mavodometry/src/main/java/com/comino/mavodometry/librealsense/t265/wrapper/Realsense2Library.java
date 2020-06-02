@@ -25,7 +25,12 @@ public interface Realsense2Library extends Library {
 	public static final String JNA_LIBRARY_NAME = "realsense2";
 	public static final NativeLibrary JNA_NATIVE_LIB = NativeLibrary.getInstance(Realsense2Library.JNA_LIBRARY_NAME);
 	public static final Realsense2Library INSTANCE = (Realsense2Library)Native.loadLibrary(Realsense2Library.JNA_LIBRARY_NAME, Realsense2Library.class);
-	/** enum values */
+
+
+	public static final int RS2_API_MAJOR_VERSION = (int)2;
+	public static final int RS2_API_MINOR_VERSION = (int)30;
+	public static final int RS2_API_VERSION = (int)(((RS2_API_MAJOR_VERSION) * 10000) + ((RS2_API_MINOR_VERSION) * 100) + (0));
+
 	public static interface rs2_notification_category {
 		/**
 		 * < Frames didn't arrived within 5 seconds<br>
@@ -1173,14 +1178,11 @@ public interface Realsense2Library extends Library {
 		public static final int RS2_RECORDING_MODE_COUNT = 3;
 	};
 	public static final int RS2_PRODUCT_LINE_ANY = (int)0xff;
-	public static final int RS2_API_MINOR_VERSION = (int)30;
-	public static final int RS2_API_VERSION = (int)(((2) * 10000) + ((30) * 100) + (0));
 	public static final int RS2_PRODUCT_LINE_T200 = (int)0x10;
 	public static final int RS2_PRODUCT_LINE_NON_INTEL = (int)0x01;
 	public static final int RS2_PRODUCT_LINE_L500 = (int)0x08;
-	public static final String RS2_API_VERSION_STR = (String)("2.30.0");
+	public static final String RS2_API_VERSION_STR = (String)(RS2_API_MAJOR_VERSION+"."+RS2_API_MINOR_VERSION+".0");
 	public static final int RS2_PRODUCT_LINE_D400 = (int)0x02;
-	public static final int RS2_API_MAJOR_VERSION = (int)2;
 	public static final int RS2_UNSIGNED_UPDATE_MODE_FULL = (int)2;
 	public static final int RS2_API_BUILD_VERSION = (int)0;
 	public static final int RS2_PRODUCT_LINE_DEPTH = (int)(0x08 | 0x04 | 0x02);

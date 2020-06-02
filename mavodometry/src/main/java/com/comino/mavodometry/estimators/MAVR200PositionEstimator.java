@@ -102,7 +102,6 @@ public class MAVR200PositionEstimator  {
 
 	private static final int    MIN_MESSAGE_INTERVAL_MS = 500;
 
-	// TODO: get mounting offset of camera from config file
 	// private final Point3D_F64 mounting_offset = new Point3D_F64(0.015,-0.057,0.068);
 
 

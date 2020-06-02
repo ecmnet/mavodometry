@@ -136,7 +136,7 @@ public class MAVT265PositionEstimator {
 		this.height  = height;
 		this.model   = control.getCurrentModel();
 
-		this.img = new Planar<GrayU8>(GrayU8.class,width,height,1);
+		this.img = new Planar<GrayU8>(GrayU8.class,width,height,3);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("t265_offset_x", String.valueOf(OFFSET_X));
@@ -185,7 +185,7 @@ public class MAVT265PositionEstimator {
 		}
 
 
-		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD,width,height,(tms, raw, p, s, a, left, right) ->  {
+		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height,(tms, raw, p, s, a, img) ->  {
 
 			if(raw.tracker_confidence == 0) {
 				quality = 0f; error_count++;
@@ -235,9 +235,13 @@ public class MAVT265PositionEstimator {
 				return;
 			}
 
-			// rotate to body => visual attitude = 0
-			CommonOps_DDRM.transpose(p.R, to_body.R);
-			p.concat(to_body, body);
+			if(t265.getMount()==StreamRealSenseT265Pose.POS_FOREWARD) {
+				// rotate to body => visual attitude = 0
+				CommonOps_DDRM.transpose(p.R, to_body.R);
+				p.concat(to_body, body);
+			} else {
+				body.T.set(p.T);
+			}
 
 
 			// Get model attitude rotation
@@ -298,12 +302,11 @@ public class MAVT265PositionEstimator {
 
 			// Add left camera to stream
 			if(stream!=null) {
-				img.bands[0] = left;
 				stream.addToStream(img, model, tms);
 			}
 		});
 
-	System.out.println("T265 controller initialized with mounting offset "+offset);
+		System.out.println("T265 controller initialized with mounting offset "+offset);
 
 	}
 
@@ -359,7 +362,7 @@ public class MAVT265PositionEstimator {
 		sms.roll  = (float)att.getRoll();
 		sms.pitch = (float)att.getPitch();
 		sms.yaw   = (float)att.getYaw();
-//		sms.yaw   = Float.NaN;
+		//		sms.yaw   = Float.NaN;
 
 		sms.covariance[0] = Float.NaN;
 

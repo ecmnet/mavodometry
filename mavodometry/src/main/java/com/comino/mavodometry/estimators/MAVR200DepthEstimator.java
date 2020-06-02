@@ -274,9 +274,6 @@ public class MAVR200DepthEstimator {
 
 					// rotate in NED frame if NED available
 					if(!to_ned.T.isNaN() &&  !control.isSimulation()) {
-
-						// TODO: check for ground estimates and exclude them
-
 						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
 						ned_pt.plusIP(to_ned.T);
 					} else {
