@@ -1,5 +1,8 @@
 package com.comino.mavodometry.librealsense.t265.boofcv;
 
+import org.ejml.data.DMatrixRMaj;
+import org.ejml.dense.row.CommonOps_DDRM;
+
 /****************************************************************************
  *
  *   Copyright (c) 2020 Eike Mansfeld ecm@gmx.de. All rights reserved.
@@ -45,6 +48,7 @@ import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.ConvertRotation3D_F64;
 import georegression.struct.se.Se3_F64;
+import georegression.struct.so.Quaternion_F32;
 
 public class StreamRealSenseT265Pose {
 
@@ -93,6 +97,9 @@ public class StreamRealSenseT265Pose {
 	private int mount;
 	private int dev_count = 0;
 
+	private DMatrixRMaj   rtX90  = CommonOps_DDRM.identity( 3 );
+	private DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
+
 
 	public StreamRealSenseT265Pose(int mount, IPoseCallback callback) {
 		this(mount, WIDTH,HEIGHT,callback);
@@ -105,6 +112,7 @@ public class StreamRealSenseT265Pose {
 		this.x1 = x0 + width;
 		this.y1 = y0 + height;
 		this.mount = mount;
+		ConvertRotation3D_F64.rotX(Math.PI/2,rtX90);
 
 		this.callback = callback;
 
@@ -125,14 +133,6 @@ public class StreamRealSenseT265Pose {
 		dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, 0, error);
 		checkError(error);
 
-		if(Realsense2Library.INSTANCE
-				.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_FIRMWARE_VERSION, error)
-				.getString(0).contains("951"))
-		{
-			Realsense2Library.INSTANCE.rs2_hardware_reset(dev, error);
-			try { Thread.sleep(200); } catch (InterruptedException e) {  }
-		}
-
 
 		config = Realsense2Library.INSTANCE.rs2_create_config(error);
 
@@ -146,7 +146,17 @@ public class StreamRealSenseT265Pose {
 	public void start() {
 		if(dev_count < 1)
 			return;
-		System.out.println("T265 pose estimation started"+device_list);
+
+		if(Realsense2Library.INSTANCE
+				.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_FIRMWARE_VERSION, error)
+				.getString(0).contains("951"))
+		{
+			System.out.println("T265 hardware reset performed..");
+			Realsense2Library.INSTANCE.rs2_hardware_reset(dev, error);
+			try { Thread.sleep(200); } catch (InterruptedException e) {  }
+		}
+
+		System.out.println("T265 pose estimation started");
 		is_running = true;
 		OdometryPool.submit(new CombineThread());
 	}
@@ -214,7 +224,6 @@ public class StreamRealSenseT265Pose {
 			is_initialized = false;
 			reset_request = false;
 
-			// TODO: Pipelinestart failes with 0.2.0951 FW
 			Realsense2Library.INSTANCE.rs2_pipeline_start_with_config(pipeline, config, error);
 			try { Thread.sleep(200); } catch (InterruptedException e) {  }
 			if(!checkError(error)) {
@@ -298,7 +307,15 @@ public class StreamRealSenseT265Pose {
 				case POS_DOWNWARD:
 
 					current_pose.getTranslation().set( -rawpose.translation.x, -rawpose.translation.z, - rawpose.translation.y);
-					current_pose.R.zero();
+
+					ConvertRotation3D_F64.quaternionToMatrix(
+							rawpose.rotation.w,
+							rawpose.rotation.x,
+							-rawpose.rotation.z,
+							rawpose.rotation.y, tmp);
+
+					CommonOps_DDRM.mult(tmp, rtX90 , current_pose.getRotation());
+
 					current_speed.getTranslation().set(- rawpose.velocity.x, -rawpose.velocity.z, - rawpose.velocity.y);
 					current_speed.getRotation().set(current_pose.getRotation());
 
