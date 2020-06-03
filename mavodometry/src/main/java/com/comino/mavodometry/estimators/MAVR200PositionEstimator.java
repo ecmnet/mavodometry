@@ -110,7 +110,6 @@ public class MAVR200PositionEstimator  {
 	private RealSenseInfo 						    	info				= null;
 
 	private GrayU8 gray 			= null;
-	private GrayU8 test 			= null;
 
 	private double oldTimeDepth_us	= 0;
 	private double estTimeDepth_us	= 0;
@@ -294,7 +293,7 @@ public class MAVR200PositionEstimator  {
 		visualOdometry.setCalibration(realsense.getIntrinsics(),new DoNothing2Transform2_F32());
 
 		if(stream!=null) {
-			registerStreams(stream);
+			streams.add(stream);
 
 			if(debug && streams.get(0) !=null) {
 				streams.get(0).registerOverlayListener(ctx -> {
@@ -510,11 +509,6 @@ public class MAVR200PositionEstimator  {
 
 	public void enableDetectors( boolean enable) {
 		this.isDetectorEnabled = enable;
-	}
-
-	public void registerStreams(IVisualStreamHandler stream) {
-		System.out.println("[vis] Vision stream registered: "+stream.getClass().getSimpleName());
-		streams.add(stream);
 	}
 
 	public void start() {
