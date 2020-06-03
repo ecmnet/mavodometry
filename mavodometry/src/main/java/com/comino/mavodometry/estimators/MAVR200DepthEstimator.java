@@ -174,12 +174,10 @@ public class MAVR200DepthEstimator {
 		if(stream!=null) {
 			stream.registerOverlayListener(ctx -> {
 				overlayFeatures(ctx);
-				if(DO_DEPTH_OVERLAY)
+				if(DO_DEPTH_OVERLAY && enableStream)
 					ctx.drawImage(img, 0, base, null);
 			});
 		}
-
-
 
 		realsense.registerListener(new Listener() {
 
@@ -207,7 +205,7 @@ public class MAVR200DepthEstimator {
 				determineDepthWindow(-0.5f);
 
 
-				if(DO_DEPTH_OVERLAY)
+				if(DO_DEPTH_OVERLAY && enableStream)
 					overlayDepth(depth.subimage(0, base, width, top), img);
 
 				// AI networks to be processed
@@ -313,6 +311,9 @@ public class MAVR200DepthEstimator {
 
 	private void overlayFeatures(Graphics ctx) {
 
+		if(!enableStream)
+			return;
+
 		ctx.setColor(bgColor);
 		ctx.fillRect(5, 5, width-10, 21);
 
@@ -326,7 +327,7 @@ public class MAVR200DepthEstimator {
 		ctx.drawString(String.format("%2.1f fps (obs.)",model.slam.fps), width-95, 20);
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000), 10, 20);
+			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000f), 10, 20);
 		}
 
 		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000)
