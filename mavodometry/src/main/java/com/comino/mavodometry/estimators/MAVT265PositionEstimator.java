@@ -42,6 +42,7 @@ import org.mavlink.messages.MAV_FRAME;
 import org.mavlink.messages.MAV_SEVERITY;
 import org.mavlink.messages.MSP_CMD;
 import org.mavlink.messages.MSP_COMPONENT_CTRL;
+import org.mavlink.messages.lquac.msg_debug_vect;
 import org.mavlink.messages.lquac.msg_msp_command;
 import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
@@ -124,7 +125,8 @@ public class MAVT265PositionEstimator {
 	private int   width;
 	private int   height;
 
-	private final Color	bgColor = new Color(128,128,128,130);
+	private final Color	bgColor           = new Color(128,128,128,130);
+	private final msg_debug_vect  debug   = new msg_debug_vect(1,2);
 
 
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height,int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
@@ -185,10 +187,14 @@ public class MAVT265PositionEstimator {
 		}
 
 
-		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height,(tms, raw, p, s, a, img) ->  {
+		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_FOREWARD,width,height,(tms, raw, p, s, a, img) ->  {
 
 			if(raw.tracker_confidence == 0) {
-				quality = 0f; error_count++;
+				quality = 0f;
+				if(error_count++ > MAX_ERRORS) {
+					init("quality");
+					return;
+				}
 			}
 			else if(raw.tracker_confidence == 1)
 				quality = 0.33f;
@@ -199,7 +205,7 @@ public class MAVT265PositionEstimator {
 
 			// Initializing odometry
 			// Note: This takes 1.5sec for T265
-			if((System.currentTimeMillis() - tms_reset) < 1500) {
+			if((System.currentTimeMillis() - tms_reset) < 500) {
 				quality = 0; error_count=0;
 
 				// set initial T265 pose as origin
@@ -217,6 +223,9 @@ public class MAVT265PositionEstimator {
 				CommonOps_DDRM.transpose(p.R, tmp);
 				CommonOps_DDRM.mult( to_ned.R, tmp , initial_rot );
 
+
+				publishMSPVision(p,ned,tms);
+
 				return;
 			}
 
@@ -225,23 +234,13 @@ public class MAVT265PositionEstimator {
 
 			// Valdidations
 
-			if(error_count > MAX_ERRORS) {
-				init("quality");
-				return;
-			}
-
 			if(s.T.norm()>MAX_SPEED) {
 				init("speed");
 				return;
 			}
 
-			if(t265.getMount()==StreamRealSenseT265Pose.POS_FOREWARD) {
-				// rotate to body => visual attitude = 0
-				CommonOps_DDRM.transpose(p.R, to_body.R);
-				p.concat(to_body, body);
-			} else {
-				body.T.set(p.T);
-			}
+			CommonOps_DDRM.transpose(p.R, to_body.R);
+			p.concat(to_body, body);
 
 
 			// Get model attitude rotation
@@ -299,6 +298,7 @@ public class MAVT265PositionEstimator {
 
 				break;
 			}
+
 
 			// Add left camera to stream
 			if(stream!=null && enableStream) {
