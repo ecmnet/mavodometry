@@ -56,7 +56,7 @@ import com.sun.jna.ptr.PointerByReference;
  * For help, please visit <a href="http://nativelibs4java.googlecode.com/">NativeLibs4Java</a> , <a href="http://rococoa.dev.java.net/">Rococoa</a>, or <a href="http://jna.dev.java.net/">JNA</a>.
  */
 public interface LibRealSenseWrapper extends Library {
-	public static final String JNA_LIBRARY_NAME = LibraryExtractor.getLibraryPath("realsense", false, LibRealSenseWrapper.class);
+	public static final String JNA_LIBRARY_NAME = LibraryExtractor.getLibraryPath("realsense1", false, LibRealSenseWrapper.class);
 	public static final NativeLibrary JNA_NATIVE_LIB = NativeLibrary.getInstance(LibRealSenseWrapper.JNA_LIBRARY_NAME, MangledFunctionMapper.DEFAULT_OPTIONS);
 	public static final LibRealSenseWrapper INSTANCE = (LibRealSenseWrapper)Native.loadLibrary(LibRealSenseWrapper.JNA_LIBRARY_NAME, LibRealSenseWrapper.class, MangledFunctionMapper.DEFAULT_OPTIONS);
 	/** enum values */
