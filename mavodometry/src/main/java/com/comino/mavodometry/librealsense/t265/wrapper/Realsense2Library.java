@@ -1044,11 +1044,22 @@ public interface Realsense2Library extends Library {
 		 * <i>native declaration : line 1527</i>
 		 */
 		public static final int RS2_OPTION_DEPTH_OFFSET = 59;
-		/**
-		 * < Number of enumeration values. Not a valid input: intended to be used in for-loops.<br>
-		 * <i>native declaration : line 1528</i>
-		 */
-		public static final int RS2_OPTION_COUNT = 60;
+
+		/**< Power of the LED (light emitting diode), with 0 meaning LED off**/
+		public static final int  RS2_OPTION_LED_POWER = 60;
+		public static final int  RS2_OPTION_ZERO_ORDER_ENABLED = 61; /**< Toggle Zero-Order mode */
+		public static final int  RS2_OPTION_ENABLE_MAP_PRESERVATION = 62; /**< Preserve previous map when starting */
+		public static final int  RS2_OPTION_FREEFALL_DETECTION_ENABLED = 63; /**< Enable/disable sensor shutdown when a free-fall is detected (on by default) */
+		public static final int  RS2_OPTION_AVALANCHE_PHOTO_DIODE = 64; /**< Changes the exposure time of Avalanche Photo Diode in the receiver */
+		public static final int  RS2_OPTION_POST_PROCESSING_SHARPENING = 65;  /**< Changes the amount of sharpening in the post-processed image */
+		public static final int  RS2_OPTION_PRE_PROCESSING_SHARPENING = 66; /**< Changes the amount of sharpening in the pre-processed image */
+		public static final int  RS2_OPTION_NOISE_FILTERING = 67; /**< Control edges and background noise */
+		public static final int  RS2_OPTION_INVALIDATION_BYPASS = 68; /**< Enable\disable pixel invalidation */
+		public static final int  RS2_OPTION_AMBIENT_LIGHT = 69; /**< Change the depth ambient light see rs2_ambient_light for values */
+		public static final int  RS2_OPTION_SENSOR_MODE = 70; /**< The resolution mode: see rs2_sensor_mode for values */
+		public static final int  RS2_OPTION_EMITTER_ALWAYS_ON = 71; /**< Enable Laser On constantly (GS SKU Only) */
+		public static final int  RS2_OPTION_THERMAL_COMPENSATION = 72; /**< Depth Thermal Compensation for selected D400 SKUs */
+		public static final int  RS2_OPTION_COUNT = 73; /**< Number of enumeration values. Not a valid input: intended to be used in for-loops. */
 	};
 	/** enum values */
 	public static interface rs2_sr300_visual_preset {
@@ -4264,7 +4275,7 @@ public interface Realsense2Library extends Library {
 	 * Original signature : <code>float rs2_get_option(const rs2_options*, rs2_option, rs2_error**)</code><br>
 	 * <i>native declaration : line 1582</i>
 	 */
-	float rs2_get_option(Realsense2Library.rs2_options options, int option, PointerByReference error);
+	float rs2_get_option(PointerByReference options, int option, PointerByReference error);
 
 	/**
 	 * write new value to sensor option<br>
@@ -4275,7 +4286,7 @@ public interface Realsense2Library extends Library {
 	 * Original signature : <code>void rs2_set_option(const rs2_options*, rs2_option, float, rs2_error**)</code><br>
 	 * <i>native declaration : line 1591</i>
 	 */
-	void rs2_set_option(Realsense2Library.rs2_options options, int option, float value, PointerByReference error);
+	void rs2_set_option(PointerByReference options, int option, float value, PointerByReference error);
 
 	/**
 	 * get the list of supported options of options container<br>

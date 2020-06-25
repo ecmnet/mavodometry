@@ -41,24 +41,30 @@ import com.comino.mavodometry.librealsense.t265.wrapper.Realsense2Library;
 import com.comino.mavodometry.librealsense.t265.wrapper.Realsense2Library.rs2_camera_info;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
-import com.sun.tools.javac.code.Attribute.Array;
 
 import boofcv.struct.calib.CameraUniversalOmni;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.ConvertRotation3D_F64;
 import georegression.struct.se.Se3_F64;
-import georegression.struct.so.Quaternion_F32;
 
 public class StreamRealSenseT265Pose {
 
 	private static final int CYCLE_MS = 20;
+
+	private static final float OPTION_ENABLE  = 1.0f;
+	private static final float OPTION_DISABLE = 0.0f;
 
 	private static final int WIDTH  = 848;
 	private static final int HEIGHT = 800;
 
 	public static final  int POS_FOREWARD = 0;
 	public static final  int POS_DOWNWARD = 1;
+
+	public static final  int CONFIDENCE_FAILED = 0;
+	public static final  int CONFIDENCE_LOW    = 1;
+	public static final  int CONFIDENCE_MEDIUM = 2;
+	public static final  int CONFIDENCE_HIGH   = 3;
 
 	private CameraUniversalOmni left_model;
 	private CameraUniversalOmni right_model;
@@ -71,6 +77,8 @@ public class StreamRealSenseT265Pose {
 	private Realsense2Library.rs2_pipeline pipeline;
 	private Realsense2Library.rs2_config config;
 	private Realsense2Library.rs2_device_list device_list;
+
+	private PointerByReference sensor = null;
 
 	private Realsense2Library.rs2_pose rawpose = new Realsense2Library.rs2_pose();
 
@@ -133,13 +141,18 @@ public class StreamRealSenseT265Pose {
 		dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, 0, error);
 		checkError(error);
 
+		// Settings some options
+		PointerByReference sensor_list = Realsense2Library.INSTANCE.rs2_query_sensors(dev, error);
+		sensor = Realsense2Library.INSTANCE.rs2_create_sensor(sensor_list, 0, error);
+
+		Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, OPTION_DISABLE, error);
+    	Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, OPTION_DISABLE, error);
+		Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_MAPPING, OPTION_DISABLE, error);
+		Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, OPTION_DISABLE, error);
 
 		config = Realsense2Library.INSTANCE.rs2_create_config(error);
-
-		//		Realsense2Library.INSTANCE.rs2_get_stream_profiles_count(dev, error);
-
 		pipeline = Realsense2Library.INSTANCE.rs2_create_pipeline(ctx, error);
-		checkError(error);
+
 
 	}
 
@@ -244,7 +257,13 @@ public class StreamRealSenseT265Pose {
 					try { Thread.sleep(wait_ms); } catch (InterruptedException e) {  }
 				}
 
-				Realsense2Library.rs2_frame frames = Realsense2Library.INSTANCE.rs2_pipeline_wait_for_frames(pipeline, 500, error);
+				Realsense2Library.rs2_frame frames = Realsense2Library.INSTANCE.rs2_pipeline_wait_for_frames(pipeline, 10000, error);
+				if(frames==null) {
+					System.out.println("T265 not available. Stopped.");
+					is_running = false;
+					continue;
+				}
+
 				tms = (long)Realsense2Library.INSTANCE.rs2_get_frame_timestamp(frames,error);
 
 				frame = Realsense2Library.INSTANCE.rs2_extract_frame(frames, 0, error);
@@ -304,15 +323,16 @@ public class StreamRealSenseT265Pose {
 					current_acceleration.getTranslation().set(- rawpose.acceleration.z, rawpose.acceleration.x, - rawpose.acceleration.y);
 
 					break;
+
 				case POS_DOWNWARD:
 
 					current_pose.getTranslation().set( -rawpose.translation.x, -rawpose.translation.z, - rawpose.translation.y);
 
 					ConvertRotation3D_F64.quaternionToMatrix(
-							rawpose.rotation.w,
 							rawpose.rotation.x,
-							-rawpose.rotation.z,
-							rawpose.rotation.y, tmp);
+							rawpose.rotation.w,
+							-rawpose.rotation.y,
+							rawpose.rotation.z, tmp);
 
 					CommonOps_DDRM.mult(tmp, rtX90 , current_pose.getRotation());
 
@@ -324,11 +344,6 @@ public class StreamRealSenseT265Pose {
 					break;
 				}
 
-				if(is_initialized)
-					callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration,
-							img.subimage(x0, y0, x1, y1));
-
-
 				if(reset_request) {
 					try {
 						synchronized(this) {
@@ -339,7 +354,13 @@ public class StreamRealSenseT265Pose {
 							checkError(error);
 						}
 					} catch(Exception e) { e.printStackTrace(); }
+					continue;
 				}
+
+				if(is_initialized)
+					callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration,
+							img.subimage(x0, y0, x1, y1));
+
 
 			}
 			Realsense2Library.INSTANCE.rs2_pipeline_stop(pipeline, error);
@@ -353,13 +374,7 @@ public class StreamRealSenseT265Pose {
 	}
 
 	private boolean checkError(PointerByReference error) {
-		if(error.getValue()!=null) {
-			if(error.getValue().getString(1).length()>0) {
-				System.err.println(error.getValue().getString(1));
-				return false;
-			}
-			return true;
-		}
+
 		return true;
 	}
 
