@@ -87,13 +87,13 @@ public class MAVT265PositionEstimator {
 	public static final int  GROUNDTRUTH_MODE   = 1;
 	public static final int  LPOS_VIS_MODE_NED  = 2;
 	public static final int  LPOS_ODO_MODE_NED  = 3;
-	public static final int  LPOS_MODE_BODY     = 4;
+	public static final int  LPOS_ODO_MODE_BODY = 4;
+
 
 
 	// MAVLink messages
 	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
 	private final msg_vision_position_estimate sms = new msg_vision_position_estimate(1,2);
-	private final msg_vision_speed_estimate    smv = new msg_vision_speed_estimate(1,2);
 	private final msg_odometry                 odo = new msg_odometry(1,2);
 
 	// Controls
@@ -305,7 +305,7 @@ public class MAVT265PositionEstimator {
 
 			case LPOS_VIS_MODE_NED:
 
-				// Publish position/speed data NED
+				// Publish position NED
 				if(do_odometry)
 					publishPX4VisionPos(ned,tms);
 				publishMSPVision(body,ned,ned_s,tms);
@@ -314,18 +314,18 @@ public class MAVT265PositionEstimator {
 
 			case LPOS_ODO_MODE_NED:
 
-				// Publish position/speed data NED
+				// Publish position data NED frame, speed body frame
 				if(do_odometry)
-					publishPX4Odometry(ned,body_s,body,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
+					publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
 				publishMSPVision(body,ned,ned_s,tms);
 
 				break;
 
-			case LPOS_MODE_BODY:
+			case LPOS_ODO_MODE_BODY:
 
-				// Publish position/speed data body frame
+				// Publish position and speed data body frame
 				if(do_odometry)
-					publishPX4Odometry(body,body_s, body,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
+					publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
 				publishMSPVision(p,ned,ned_s,tms);
 
 				break;
@@ -396,10 +396,10 @@ public class MAVT265PositionEstimator {
 	}
 
 
-	private void publishPX4Odometry(Se3_F64 pose, Se3_F64 speed, Se3_F64 body, boolean pose_is_valid, long tms) {
+	private void publishPX4Odometry(Se3_F64 pose, Se3_F64 speed, int frame, boolean pose_is_valid, boolean z_valid,long tms) {
 
 		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
-		odo.frame_id       = MAV_FRAME.MAV_FRAME_LOCAL_NED;
+		odo.frame_id       = frame;
 		odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
 
 		odo.time_usec = tms * 1000;
@@ -408,7 +408,10 @@ public class MAVT265PositionEstimator {
 		if(pose_is_valid) {
 			odo.x = (float) pose.T.x;
 			odo.y = (float) pose.T.y;
-			odo.z = (float) pose.T.z;
+			if(z_valid)
+			  odo.z = (float) pose.T.z;
+			else
+			  odo.z = model.state.l_z;
 		} else {
 			odo.x = Float.NaN;
 			odo.y = Float.NaN;
@@ -465,23 +468,6 @@ public class MAVT265PositionEstimator {
 
 	}
 
-	private void publishPX4VisionSpeed(Se3_F64 pose, long tms) {
-
-		smv.usec = tms * 1000;
-
-		smv.x = (float) pose.T.x;
-		smv.y = (float) pose.T.y;
-		smv.z = (float) pose.T.z;
-
-		smv.reset_counter = reset_count;
-
-		smv.covariance[0] = Float.NaN;
-
-		control.sendMAVLinkMessage(smv);
-
-		model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
-
-	}
 
 	private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed,long tms) {
 
