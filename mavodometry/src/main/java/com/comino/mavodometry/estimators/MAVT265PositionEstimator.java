@@ -39,6 +39,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
+import org.mavlink.messages.ESTIMATOR_STATUS_FLAGS;
 import org.mavlink.messages.MAV_ESTIMATOR_TYPE;
 import org.mavlink.messages.MAV_FRAME;
 import org.mavlink.messages.MAV_SEVERITY;
@@ -49,7 +50,6 @@ import org.mavlink.messages.lquac.msg_msp_command;
 import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
 import org.mavlink.messages.lquac.msg_vision_position_estimate;
-import org.mavlink.messages.lquac.msg_vision_speed_estimate;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
@@ -57,6 +57,7 @@ import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
+import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.struct.Attitude3D_F64;
@@ -65,18 +66,15 @@ import com.comino.mavutils.legacy.ExecutorService;
 
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
-import georegression.geometry.ConvertRotation3D_F32;
-import georegression.geometry.ConvertRotation3D_F64;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
-import georegression.struct.so.Quaternion_F32;
 import georegression.struct.so.Quaternion_F64;
 
 public class MAVT265PositionEstimator {
 
-	private static final int     	 MAX_ERRORS = 10;
-	private static final float  	  MAX_SPEED = 1.0f;
+	private static final int     	 MAX_ERRORS          = 10;
+	private static final float       MAX_SPEED_DEVIATION = 0.4f;
 
 	// mounting offset in m
 	private static final double   	   OFFSET_X =  0.00;
@@ -115,10 +113,12 @@ public class MAVT265PositionEstimator {
 
 	private Quaternion_F64   att_q    = new Quaternion_F64();
 
+
 	// 3D helper structures
 	private Vector3D_F64     offset     = new Vector3D_F64();
 	private Vector3D_F64     tmpv       = new Vector3D_F64();
 	private Vector3D_F64     offset_r   = new Vector3D_F64();
+	private Vector3D_F64     cur_s      = new Vector3D_F64();
 
 	private Attitude3D_F64   att      = new Attitude3D_F64();
 
@@ -191,6 +191,11 @@ public class MAVT265PositionEstimator {
 			if(n.isStatus(Status.MSP_ARMED)) {
 				init("armed");
 			}
+		});
+
+		// reset vision when absolute position lost
+		control.getStatusManager().addListener(StatusManager.TYPE_ESTIMATOR, ESTIMATOR_STATUS_FLAGS.ESTIMATOR_POS_HORIZ_ABS, StatusManager.EDGE_FALLING, (n) -> {
+			init("Est.Status");
 		});
 
 
@@ -292,6 +297,14 @@ public class MAVT265PositionEstimator {
 			// get euler angles
 			att.setFromMatrix(ned.R);
 
+			// Speed check: Is visual XY speed acceptable
+			if(MSP3DUtils.convertCurrentSpeed(model, cur_s) && MSP3DUtils.distance2D(ned_s.T, cur_s) > MAX_SPEED_DEVIATION) {
+				error_count++;
+				control.writeLogMessage(new LogMessage("[vio] T265 speed vs local speed: "+MSP3DUtils.distance2D(ned_s.T, cur_s)+"m/s", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+				init("speed");
+				return;
+			}
+
 			switch(mode) {
 
 			case GROUNDTRUTH_MODE:
@@ -304,6 +317,7 @@ public class MAVT265PositionEstimator {
 				break;
 
 			case LPOS_VIS_MODE_NED:
+
 
 				// Publish position NED
 				if(do_odometry)
@@ -355,7 +369,7 @@ public class MAVT265PositionEstimator {
 		reset_count++;
 		is_initialized = false;
 		t265.reset();
-		control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+		control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 		tms_reset = System.currentTimeMillis();
 		ExecutorService.get().schedule(() -> {
 			is_initialized = true;
@@ -409,9 +423,9 @@ public class MAVT265PositionEstimator {
 			odo.x = (float) pose.T.x;
 			odo.y = (float) pose.T.y;
 			if(z_valid)
-			  odo.z = (float) pose.T.z;
+				odo.z = (float) pose.T.z;
 			else
-			  odo.z = model.state.l_z;
+				odo.z = model.state.l_z;
 		} else {
 			odo.x = Float.NaN;
 			odo.y = Float.NaN;
@@ -426,13 +440,13 @@ public class MAVT265PositionEstimator {
 		odo.pose_covariance[0] = Float.NaN;
 		odo.velocity_covariance[0] = Float.NaN;
 
-//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
-//		odo.q[0] = (float)att_q.w;
-//		odo.q[1] = (float)att_q.x;
-//		odo.q[2] = (float)att_q.y;
-//		odo.q[3] = (float)att_q.z;
+		//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
+		//		odo.q[0] = (float)att_q.w;
+		//		odo.q[1] = (float)att_q.x;
+		//		odo.q[2] = (float)att_q.y;
+		//		odo.q[3] = (float)att_q.z;
 
-        // do not use twist
+		// do not use twist
 		odo.q[0] = Float.NaN;
 
 
