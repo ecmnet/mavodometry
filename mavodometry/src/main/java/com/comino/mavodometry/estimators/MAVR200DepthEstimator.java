@@ -179,7 +179,7 @@ public class MAVR200DepthEstimator {
 			});
 		}
 
-		realsense.registerListener(new Listener() {
+		realsense.registerCallback(new Listener() {
 
 			int y0=0; int x; int y; int depth_z; int raw_z;
 
