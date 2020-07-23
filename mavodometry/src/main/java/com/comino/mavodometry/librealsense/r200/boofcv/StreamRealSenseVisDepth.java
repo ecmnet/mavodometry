@@ -141,7 +141,7 @@ public class StreamRealSenseVisDepth {
 		LibRealSenseWrapper.INSTANCE.rs_set_device_option(dev, rs_option.RS_OPTION_R200_AUTO_EXPOSURE_BOTTOM_EDGE, y+height, error);
 	}
 
-	public StreamRealSenseVisDepth registerListener(Listener listener) {
+	public StreamRealSenseVisDepth registerCallback(Listener listener) {
 		listeners.add(listener);
 		return this;
 	}

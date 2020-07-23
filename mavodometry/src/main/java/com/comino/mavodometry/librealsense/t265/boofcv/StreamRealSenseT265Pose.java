@@ -1,5 +1,8 @@
 package com.comino.mavodometry.librealsense.t265.boofcv;
 
+import java.util.ArrayList;
+import java.util.List;
+
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
 
@@ -90,7 +93,7 @@ public class StreamRealSenseT265Pose {
 
 	private Realsense2Library.rs2_extrinsics extrinsics = new Realsense2Library.rs2_extrinsics();
 
-	private IPoseCallback callback;
+	private List<IPoseCallback> callbacks = new ArrayList<IPoseCallback>();
 
 	private Planar<GrayU8> img  = new Planar<GrayU8>(GrayU8.class,WIDTH,HEIGHT,3);
 
@@ -109,11 +112,11 @@ public class StreamRealSenseT265Pose {
 	private DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
 
 
-	public StreamRealSenseT265Pose(int mount, IPoseCallback callback) {
-		this(mount, WIDTH,HEIGHT,callback);
+	public StreamRealSenseT265Pose(int mount) {
+		this(mount, WIDTH,HEIGHT);
 	}
 
-	public StreamRealSenseT265Pose(int mount, int width, int height, IPoseCallback callback) {
+	public StreamRealSenseT265Pose(int mount, int width, int height) {
 
 		this.x0 = WIDTH/2 - width/2;
 		this.y0 = HEIGHT/2 - height/2;
@@ -122,7 +125,6 @@ public class StreamRealSenseT265Pose {
 		this.mount = mount;
 		ConvertRotation3D_F64.rotX(Math.PI/2,rtX90);
 
-		this.callback = callback;
 
 		ctx = Realsense2Library.INSTANCE.rs2_create_context(Realsense2Library.RS2_API_VERSION, error);
 		if(!checkError(error)) {
@@ -154,6 +156,11 @@ public class StreamRealSenseT265Pose {
 		pipeline = Realsense2Library.INSTANCE.rs2_create_pipeline(ctx, error);
 
 
+	}
+
+	public StreamRealSenseT265Pose registerCallback(IPoseCallback callback) {
+		this.callbacks.add(callback);
+		return this;
 	}
 
 	public void start() {
@@ -349,7 +356,7 @@ public class StreamRealSenseT265Pose {
 						synchronized(this) {
 							reset_request = false;
 							Realsense2Library.INSTANCE.rs2_pipeline_stop(pipeline, error);
-							try { Thread.sleep(100); } catch (InterruptedException e) {  }
+							try { Thread.sleep(200); } catch (InterruptedException e) {  }
 							Realsense2Library.INSTANCE.rs2_pipeline_start_with_config(pipeline, config, error);
 							checkError(error);
 						}
@@ -358,8 +365,8 @@ public class StreamRealSenseT265Pose {
 				}
 
 				if(is_initialized)
-					callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration,
-							img.subimage(x0, y0, x1, y1));
+					for(IPoseCallback callback : callbacks)
+					  callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 
 
 			}

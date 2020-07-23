@@ -305,7 +305,7 @@ public class MAVR200PositionEstimator  {
 		initialized_count = 0;
 
 
-		realsense.registerListener(new Listener() {
+		realsense.registerCallback(new Listener() {
 
 			double dt; int mf=0; int fpm;
 			int qual_error_count=0;

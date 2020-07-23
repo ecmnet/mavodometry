@@ -116,7 +116,6 @@ public class MAVT265PositionEstimator {
 
 	// 3D helper structures
 	private Vector3D_F64     offset     = new Vector3D_F64();
-	private Vector3D_F64     tmpv       = new Vector3D_F64();
 	private Vector3D_F64     offset_r   = new Vector3D_F64();
 	private Vector3D_F64     cur_s      = new Vector3D_F64();
 
@@ -195,7 +194,7 @@ public class MAVT265PositionEstimator {
 
 		// reset vision when absolute position lost
 		control.getStatusManager().addListener(StatusManager.TYPE_ESTIMATOR, ESTIMATOR_STATUS_FLAGS.ESTIMATOR_POS_HORIZ_ABS, StatusManager.EDGE_FALLING, (n) -> {
-			init("Est.Status");
+			init("Est.LPOS(abs)");
 		});
 
 
@@ -206,7 +205,8 @@ public class MAVT265PositionEstimator {
 		}
 
 
-		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height,(tms, raw, p, s, a, img) ->  {
+		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height);
+		t265.registerCallback((tms, raw, p, s, a, img) ->  {
 
 			switch(raw.tracker_confidence) {
 			case StreamRealSenseT265Pose.CONFIDENCE_FAILED:
@@ -353,6 +353,11 @@ public class MAVT265PositionEstimator {
 			}
 
 		});
+
+//		t265.registerCallback((tms, raw, p, s, a, img) ->  {
+//			// TODO: Apriltag detection
+//		});
+
 
 		if(t265.getMount() == StreamRealSenseT265Pose.POS_DOWNWARD)
 			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted downwards");
