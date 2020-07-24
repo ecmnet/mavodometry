@@ -45,6 +45,7 @@ import com.comino.mavodometry.librealsense.t265.wrapper.Realsense2Library.rs2_ca
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
+import boofcv.struct.calib.CameraKannalaBrandt;
 import boofcv.struct.calib.CameraUniversalOmni;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
@@ -69,8 +70,8 @@ public class StreamRealSenseT265Pose {
 	public static final  int CONFIDENCE_MEDIUM = 2;
 	public static final  int CONFIDENCE_HIGH   = 3;
 
-	private CameraUniversalOmni left_model;
-	private CameraUniversalOmni right_model;
+	private CameraKannalaBrandt left_model;
+	private CameraKannalaBrandt right_model;
 
 	private PointerByReference error = new PointerByReference();
 
@@ -204,11 +205,11 @@ public class StreamRealSenseT265Pose {
 	}
 
 
-	public CameraUniversalOmni getLeftModel() {
+	public CameraKannalaBrandt getLeftModel() {
 		return left_model;
 	}
 
-	public CameraUniversalOmni getRightModel() {
+	public CameraKannalaBrandt getRightModel() {
 		return right_model;
 	}
 
@@ -275,6 +276,7 @@ public class StreamRealSenseT265Pose {
 
 				frame = Realsense2Library.INSTANCE.rs2_extract_frame(frames, 0, error);
 				if(Realsense2Library.INSTANCE.rs2_get_frame_data_size(frame, error) > 0) {
+					// get left image
 					bufferGrayToU8(Realsense2Library.INSTANCE.rs2_get_frame_data(frame, error),img);
 
 					if(mode_left==null) {
@@ -386,25 +388,22 @@ public class StreamRealSenseT265Pose {
 	}
 
 
-	private CameraUniversalOmni createFisheyeModel(Realsense2Library.rs2_intrinsics in) {
+	private CameraKannalaBrandt createFisheyeModel(Realsense2Library.rs2_intrinsics in) {
 
-		CameraUniversalOmni omni = new CameraUniversalOmni(5);
+		CameraKannalaBrandt model = new CameraKannalaBrandt();
 
-		omni.fx = in.fx;
-		omni.fy = in.fy;
-		omni.cx = in.ppx;
-		omni.cy = in.ppy;
-		omni.width  = in.width;
-		omni.height = in.height;
-		omni.t1 = 0;
-		omni.t2 = 0;
+		model.fx = in.fx;
+		model.fy = in.fy;
+		model.cx = in.ppx;
+		model.cy = in.ppy;
+		model.width  = x1-x0;
+		model.height = y1-y0;
 
-		omni.mirrorOffset = 0.5;
+		for(int i=0;i<5;i++) {
+			model.coefSymm[i] = in.coeffs[i];
+		}
 
-		for(int i = 0; i< in.coeffs.length;i++)
-			omni.radial[i] = in.coeffs[i];
-
-		return omni;
+		return model;
 
 	}
 

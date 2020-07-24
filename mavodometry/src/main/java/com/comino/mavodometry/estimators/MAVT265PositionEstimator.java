@@ -64,11 +64,21 @@ import com.comino.mavodometry.struct.Attitude3D_F64;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.legacy.ExecutorService;
 
+import boofcv.abst.fiducial.FiducialDetector;
+import boofcv.alg.distort.LensDistortionNarrowFOV;
+import boofcv.alg.distort.brown.LensDistortionBrown;
+import boofcv.alg.distort.pinhole.LensDistortionPinhole;
+import boofcv.factory.fiducial.ConfigFiducialBinary;
+import boofcv.factory.fiducial.FactoryFiducial;
+import boofcv.factory.filter.binary.ConfigThreshold;
+import boofcv.factory.filter.binary.ThresholdType;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.GeometryMath_F64;
+import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
+import georegression.struct.shapes.Polygon2D_F64;
 import georegression.struct.so.Quaternion_F64;
 
 public class MAVT265PositionEstimator {
@@ -133,8 +143,7 @@ public class MAVT265PositionEstimator {
 	private int           error_count = 0;
 	private int           reset_count = 0;
 
-	private Planar<GrayU8>  img = null;
-
+	private FiducialDetector<GrayU8> detector = null;
 
 	// Stream data
 	private int   width;
@@ -151,9 +160,6 @@ public class MAVT265PositionEstimator {
 		this.width   = width;
 		this.height  = height;
 		this.model   = control.getCurrentModel();
-
-
-		this.img = new Planar<GrayU8>(GrayU8.class,width,height,3);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("t265_offset_x", String.valueOf(OFFSET_X));
@@ -353,9 +359,20 @@ public class MAVT265PositionEstimator {
 			}
 
 		});
-
+//
+//		final Se3_F64 targetToSensor = new Se3_F64();
+//		final LensDistortionPinhole lensDistortion = new LensDistortionPinhole(t265.getLeftModel());
+//
+//		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(0.1), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 21), GrayU8.class);
+//        detector.setLensDistortion(lensDistortion, width, height);
+//
 //		t265.registerCallback((tms, raw, p, s, a, img) ->  {
-//			// TODO: Apriltag detection
+//			detector.detect(img.bands[0]);
+//			if(detector.totalFound()>0) {
+//			   detector.getFiducialToCamera(0, targetToSensor);
+//			   System.out.println("Fiducial found: "+detector.getId(0));
+//			   System.out.println(targetToSensor);
+//			}
 //		});
 
 
