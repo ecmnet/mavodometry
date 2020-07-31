@@ -83,6 +83,8 @@ import georegression.struct.so.Quaternion_F64;
 
 public class MAVT265PositionEstimator {
 
+	private static final boolean     ENABLE_FIDUCIAL     = true;
+
 	private static final int     	 MAX_ERRORS          = 10;
 	private static final float       MAX_SPEED_DEVIATION = 0.4f;
 
@@ -139,6 +141,15 @@ public class MAVT265PositionEstimator {
 	private boolean       do_odometry = true;
 	private boolean      enableStream = false;
 	private boolean    is_initialized = false;
+
+	private boolean     precision_landing_enabled = ENABLE_FIDUCIAL;
+
+	private boolean       is_fiducial = false;
+	private boolean      was_fiducial = false;
+	private Se3_F64    targetToSensor = new Se3_F64();
+	private Se3_F64          fiducial = new Se3_F64();
+
+	private  LensDistortionPinhole lensDistortion = null;
 
 	private int           error_count = 0;
 	private int           reset_count = 0;
@@ -210,6 +221,7 @@ public class MAVT265PositionEstimator {
 			});
 		}
 
+		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(0.1), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 21), GrayU8.class);
 
 		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height);
 		t265.registerCallback((tms, raw, p, s, a, img) ->  {
@@ -261,9 +273,12 @@ public class MAVT265PositionEstimator {
 				CommonOps_DDRM.transpose(p.R, tmp);
 				CommonOps_DDRM.mult( to_ned.R, tmp , initial_rot );
 
+				if(lensDistortion == null) {
+				   lensDistortion = new LensDistortionPinhole(t265.getLeftModel());
+				   detector.setLensDistortion(lensDistortion,width, height);
+				}
 
 				return;
-
 			}
 
 			if(error_count > MAX_ERRORS) {
@@ -311,6 +326,59 @@ public class MAVT265PositionEstimator {
 				return;
 			}
 
+			if(precision_landing_enabled) {
+
+				// TODO: Make use of two different fiducials depending on the height
+
+				try {
+				detector.detect(img.bands[0]);
+				if(detector.totalFound()>0) {
+					is_fiducial = true;
+					detector.getFiducialToCamera(0, targetToSensor);
+
+					// transform to NED
+					// TODO: check offset?
+					body.concat(targetToSensor, fiducial);
+
+					
+
+				}
+				else {
+					is_fiducial = false;
+					MSP3DUtils.setNaN(fiducial);
+				}
+
+
+				if(is_fiducial) {
+
+					if(!was_fiducial) {
+						// TODO: Transform fiducial, and FiducialTarget(0,0,0) to LPOS coordinates
+						control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+						was_fiducial = true;
+					}
+
+					// TODO: The difference between LPOS and FIDUCIAL is the track to reach 0,0,0
+
+
+//					publishMSPVision(fiducial,ned ,ned_s,tms);
+//
+//					// Add left camera to stream
+//					if(stream!=null && enableStream) {
+//						stream.addToStream(img, model, tms);
+//					}
+//
+//					return;
+
+				} else
+					was_fiducial = false;
+
+				} catch(Exception e ) {
+					control.writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+					e.printStackTrace();
+				//	precision_landing_enabled = false;
+				}
+			}
+
 			switch(mode) {
 
 			case GROUNDTRUTH_MODE:
@@ -328,7 +396,7 @@ public class MAVT265PositionEstimator {
 				// Publish position NED
 				if(do_odometry)
 					publishPX4VisionPos(ned,tms);
-				publishMSPVision(body,ned,ned_s,tms);
+				publishMSPVision(fiducial,ned,ned_s,tms);
 
 				break;
 
@@ -337,7 +405,7 @@ public class MAVT265PositionEstimator {
 				// Publish position data NED frame, speed body frame
 				if(do_odometry)
 					publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(body,ned,ned_s,tms);
+				publishMSPVision(fiducial,ned,ned_s,tms);
 
 				break;
 
@@ -346,7 +414,7 @@ public class MAVT265PositionEstimator {
 				// Publish position and speed data body frame
 				if(do_odometry)
 					publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(p,ned,ned_s,tms);
+				publishMSPVision(fiducial,ned,ned_s,tms);
 
 				break;
 
@@ -359,21 +427,6 @@ public class MAVT265PositionEstimator {
 			}
 
 		});
-//
-//		final Se3_F64 targetToSensor = new Se3_F64();
-//		final LensDistortionPinhole lensDistortion = new LensDistortionPinhole(t265.getLeftModel());
-//
-//		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(0.1), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 21), GrayU8.class);
-//        detector.setLensDistortion(lensDistortion, width, height);
-//
-//		t265.registerCallback((tms, raw, p, s, a, img) ->  {
-//			detector.detect(img.bands[0]);
-//			if(detector.totalFound()>0) {
-//			   detector.getFiducialToCamera(0, targetToSensor);
-//			   System.out.println("Fiducial found: "+detector.getId(0));
-//			   System.out.println(targetToSensor);
-//			}
-//		});
 
 
 		if(t265.getMount() == StreamRealSenseT265Pose.POS_DOWNWARD)
@@ -391,6 +444,7 @@ public class MAVT265PositionEstimator {
 		reset_count++;
 		is_initialized = false;
 		t265.reset();
+		detector.setLensDistortion(lensDistortion, width, height);
 		control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 		tms_reset = System.currentTimeMillis();
 		ExecutorService.get().schedule(() -> {
@@ -419,8 +473,13 @@ public class MAVT265PositionEstimator {
 		ctx.fillRect(5, 5, width-10, 21);
 		ctx.setColor(Color.white);
 
-		ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
-		ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
+		if(is_fiducial) {
+			ctx.drawString("locked", width/2-20, height/2+5);
+			// TODO: Show updated xy-distance and height
+		} else {
+			ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
+			ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
+		}
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000f), 20, 20);
@@ -527,7 +586,7 @@ public class MAVT265PositionEstimator {
 		msg.errors  = error_count;
 		msg.tms = tms * 1000;
 
-		if(tms_old > 0) {
+		if(tms_old != tms) {
 			msg.fps = 1000 / (tms - tms_old);
 		}
 		tms_old = tms;
