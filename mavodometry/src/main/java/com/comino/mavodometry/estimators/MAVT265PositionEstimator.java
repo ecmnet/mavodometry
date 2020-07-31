@@ -75,6 +75,7 @@ import boofcv.factory.filter.binary.ThresholdType;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.GeometryMath_F64;
+import georegression.struct.GeoTuple3D_F64;
 import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
@@ -119,6 +120,7 @@ public class MAVT265PositionEstimator {
 	private Se3_F64          ned_s    = new Se3_F64();
 	private Se3_F64          body     = new Se3_F64();
 	private Se3_F64          body_s   = new Se3_F64();
+	private Se3_F64          lpos     = new Se3_F64();
 
 	private DMatrixRMaj   tmp         = CommonOps_DDRM.identity( 3 );
 	private DMatrixRMaj   initial_rot = CommonOps_DDRM.identity( 3 );
@@ -129,7 +131,7 @@ public class MAVT265PositionEstimator {
 	// 3D helper structures
 	private Vector3D_F64     offset     = new Vector3D_F64();
 	private Vector3D_F64     offset_r   = new Vector3D_F64();
-	private Vector3D_F64     cur_s      = new Vector3D_F64();
+	private Vector3D_F64     lpos_s     = new Vector3D_F64();
 
 	private Attitude3D_F64   att      = new Attitude3D_F64();
 
@@ -147,8 +149,9 @@ public class MAVT265PositionEstimator {
 	private boolean       is_fiducial = false;
 	private boolean      was_fiducial = false;
 	private Se3_F64    targetToSensor = new Se3_F64();
-	private Se3_F64          fiducial = new Se3_F64();
+	private Se3_F64     precision_ned = new Se3_F64();
 
+	private Vector3D_F64     precision_offset     = new Vector3D_F64();
 	private  LensDistortionPinhole lensDistortion = null;
 
 	private int           error_count = 0;
@@ -274,9 +277,10 @@ public class MAVT265PositionEstimator {
 				CommonOps_DDRM.mult( to_ned.R, tmp , initial_rot );
 
 				if(lensDistortion == null) {
-				   lensDistortion = new LensDistortionPinhole(t265.getLeftModel());
-				   detector.setLensDistortion(lensDistortion,width, height);
+					lensDistortion = new LensDistortionPinhole(t265.getLeftModel());
+					detector.setLensDistortion(lensDistortion,width, height);
 				}
+				precision_offset.set(0,0,0);
 
 				return;
 			}
@@ -289,6 +293,8 @@ public class MAVT265PositionEstimator {
 			if(!is_initialized)
 				return;
 
+
+			MSP3DUtils.convertModelToSe3_F64(model, lpos);
 
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 			p.concat(to_body, body);
@@ -319,9 +325,9 @@ public class MAVT265PositionEstimator {
 			att.setFromMatrix(ned.R);
 
 			// Speed check: Is visual XY speed acceptable
-			if(MSP3DUtils.convertCurrentSpeed(model, cur_s) && MSP3DUtils.distance2D(ned_s.T, cur_s) > MAX_SPEED_DEVIATION) {
+			if(MSP3DUtils.convertCurrentSpeed(model, lpos_s) && MSP3DUtils.distance2D(ned_s.T, lpos_s) > MAX_SPEED_DEVIATION) {
 				error_count++;
-				control.writeLogMessage(new LogMessage("[vio] T265 speed vs local speed: "+MSP3DUtils.distance2D(ned_s.T, cur_s)+"m/s", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+				control.writeLogMessage(new LogMessage("[vio] T265 speed vs local speed: "+MSP3DUtils.distance2D(ned_s.T, lpos_s)+"m/s", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 				init("speed");
 				return;
 			}
@@ -331,51 +337,53 @@ public class MAVT265PositionEstimator {
 				// TODO: Make use of two different fiducials depending on the height
 
 				try {
-				detector.detect(img.bands[0]);
-				if(detector.totalFound()>0) {
-					is_fiducial = true;
-					detector.getFiducialToCamera(0, targetToSensor);
+					detector.detect(img.bands[0]);
+					if(detector.totalFound()>0) {
+						is_fiducial = true;
+						detector.getFiducialToCamera(0, targetToSensor);
 
-					// transform to NED
-					// TODO: check offset?
-					body.concat(targetToSensor, fiducial);
+						// transform to NED and add offset -> precision_ned is now in LPOS frame
+						to_ned.concat(targetToSensor, precision_ned);
+						precision_ned.T.plusIP(precision_offset);
 
-					
+						// TODO: precision_ned could be ned when switched.
+						//       Landing target position is precision_offset
 
-				}
-				else {
-					is_fiducial = false;
-					MSP3DUtils.setNaN(fiducial);
-				}
-
-
-				if(is_fiducial) {
-
-					if(!was_fiducial) {
-						// TODO: Transform fiducial, and FiducialTarget(0,0,0) to LPOS coordinates
-						control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-						was_fiducial = true;
+					}
+					else {
+						is_fiducial = false;
+						precision_offset.set(0,0,0);
+						MSP3DUtils.setNaN(precision_ned);
 					}
 
-					// TODO: The difference between LPOS and FIDUCIAL is the track to reach 0,0,0
+
+					if(is_fiducial) {
+
+						if(!was_fiducial) {
+							was_fiducial = true;
+							precision_offset.set(precision_ned.T.x - lpos.T.x, precision_ned.T.y - lpos.T.y, precision_ned.T.z - lpos.T.z );
+							control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+							sendPoseDebug(precision_offset);
+						}
 
 
-//					publishMSPVision(fiducial,ned ,ned_s,tms);
-//
-//					// Add left camera to stream
-//					if(stream!=null && enableStream) {
-//						stream.addToStream(img, model, tms);
-//					}
-//
-//					return;
+						//					publishMSPVision(fiducial,ned ,ned_s,tms);
+						//
+						//					// Add left camera to stream
+						//					if(stream!=null && enableStream) {
+						//						stream.addToStream(img, model, tms);
+						//					}
+						//
+						//					return;
 
-				} else
-					was_fiducial = false;
+					} else {
+						was_fiducial = false;
+					}
 
 				} catch(Exception e ) {
 					control.writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
 					e.printStackTrace();
-				//	precision_landing_enabled = false;
+					//	precision_landing_enabled = false;
 				}
 			}
 
@@ -396,7 +404,7 @@ public class MAVT265PositionEstimator {
 				// Publish position NED
 				if(do_odometry)
 					publishPX4VisionPos(ned,tms);
-				publishMSPVision(fiducial,ned,ned_s,tms);
+				publishMSPVision(precision_ned,ned,ned_s,tms);
 
 				break;
 
@@ -405,7 +413,7 @@ public class MAVT265PositionEstimator {
 				// Publish position data NED frame, speed body frame
 				if(do_odometry)
 					publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(fiducial,ned,ned_s,tms);
+				publishMSPVision(precision_ned,ned,ned_s,tms);
 
 				break;
 
@@ -414,7 +422,7 @@ public class MAVT265PositionEstimator {
 				// Publish position and speed data body frame
 				if(do_odometry)
 					publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(fiducial,ned,ned_s,tms);
+				publishMSPVision(precision_ned,ned,ned_s,tms);
 
 				break;
 
@@ -609,7 +617,7 @@ public class MAVT265PositionEstimator {
 
 	}
 
-	public void sendPoseDebug(Se3_F64 pose) {
+	public void sendPoseDebug(GeoTuple3D_F64<?> pose) {
 
 		debug.x = (float)pose.getX();
 		debug.y = (float)pose.getY();
