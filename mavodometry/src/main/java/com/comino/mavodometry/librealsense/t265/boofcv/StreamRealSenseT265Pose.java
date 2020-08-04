@@ -394,10 +394,12 @@ public class StreamRealSenseT265Pose {
 
 		model.fx = in.fx;
 		model.fy = in.fy;
-		model.cx = in.ppx;
-		model.cy = in.ppy;
+
 		model.width  = x1-x0;
 		model.height = y1-y0;
+
+		model.cx = model.width/2f;
+		model.cy = model.height/2f;
 
 		for(int i=0;i<5;i++) {
 			model.coefSymm[i] = in.coeffs[i];
