@@ -113,8 +113,9 @@ public class MAVT265PositionEstimator {
 	private DataModel               model;
 
 	// 3D transformation matrices
-	private Se3_F64          to_ned     = new Se3_F64();
-	private Se3_F64          to_body    = new Se3_F64();
+	private Se3_F64          to_ned              = new Se3_F64();
+	private Se3_F64          to_fiducial_ned     = new Se3_F64();
+	private Se3_F64          to_body             = new Se3_F64();
 
 	private Se3_F64          ned      = new Se3_F64();
 	private Se3_F64          ned_s    = new Se3_F64();
@@ -334,20 +335,21 @@ public class MAVT265PositionEstimator {
 
 			if(precision_landing_enabled) {
 
-				// TODO: Make use of two different fiducials depending on the height
+				// TODO: Make use of multiple fiducials depending on the height
 
 				try {
 					detector.detect(img.bands[0]);
 					if(detector.totalFound()>0) {
 						is_fiducial = true;
 						detector.getFiducialToCamera(0, targetToSensor);
+						targetToSensor.T.z = - targetToSensor.T.z;
 
 						// transform to NED and add offset -> precision_ned is now in LPOS frame
-						to_ned.concat(targetToSensor, precision_ned);
+						GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
 						precision_ned.T.plusIP(precision_offset);
 
 						// TODO: precision_ned could be ned when switched.
-						//       Landing target position is precision_offset
+						//       Landing target position is precision_offset - initial_offset (assuming landed fiducial pos is 0)
 
 					}
 					else {
@@ -361,9 +363,11 @@ public class MAVT265PositionEstimator {
 
 						if(!was_fiducial) {
 							was_fiducial = true;
-							precision_offset.set(precision_ned.T.x - lpos.T.x, precision_ned.T.y - lpos.T.y, precision_ned.T.z - lpos.T.z );
-							control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
+							precision_offset.set(lpos.T.x - precision_ned.T.x,lpos.T.y - precision_ned.T.y, lpos.T.z - precision_ned.T.z );
+							control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control", MAV_SEVERITY.MAV_SEVERITY_INFO));
 							sendPoseDebug(precision_offset);
+							return;
 						}
 
 
@@ -377,7 +381,10 @@ public class MAVT265PositionEstimator {
 						//					return;
 
 					} else {
-						was_fiducial = false;
+						if(was_fiducial) {
+							was_fiducial = false;
+							control.writeLogMessage(new LogMessage("[vio] Fiducial control lost", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+						}
 					}
 
 				} catch(Exception e ) {
