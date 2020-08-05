@@ -57,6 +57,7 @@ import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
+import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
@@ -85,6 +86,7 @@ import georegression.struct.so.Quaternion_F64;
 public class MAVT265PositionEstimator {
 
 	private static final boolean     ENABLE_FIDUCIAL     = true;
+	private static final float       FIDUCIAL_SIZE       = 0.10f;
 
 	private static final int     	 MAX_ERRORS          = 10;
 	private static final float       MAX_SPEED_DEVIATION = 0.4f;
@@ -218,6 +220,18 @@ public class MAVT265PositionEstimator {
 			init("Est.LPOS(abs)");
 		});
 
+		control.getStatusManager().addListener( StatusManager.TYPE_MSP_SERVICES, Status.MSP_FIDUCIAL, StatusManager.EDGE_BOTH, (n) -> {
+			if(n.isSensorAvailable(Status.MSP_FIDUCIAL))
+			  control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control.", MAV_SEVERITY.MAV_SEVERITY_INFO));
+			else
+			  control.writeLogMessage(new LogMessage("[vio] Fiducial control lost.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+			// set vision flag for QGC
+			model.vision.setStatus(Vision.MOCAP_FIDUCIAL, n.isSensorAvailable(Status.MSP_FIDUCIAL));
+
+		});
+
+
+
 
 		if(stream != null) {
 			stream.registerOverlayListener(ctx -> {
@@ -225,7 +239,7 @@ public class MAVT265PositionEstimator {
 			});
 		}
 
-		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(0.1), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 21), GrayU8.class);
+		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(FIDUCIAL_SIZE), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 21), GrayU8.class);
 
 		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height);
 		t265.registerCallback((tms, raw, p, s, a, img) ->  {
@@ -335,11 +349,14 @@ public class MAVT265PositionEstimator {
 
 			if(precision_landing_enabled) {
 
-				// TODO: Make use of multiple fiducials depending on the height
+				// TODO: Fiducial status, issues, ideas
+				// - 10cm Fiducual applicable from 0.2 to 0,8m
+				// - Landing gear shadow
+				// - landing procedure - how to
 
 				try {
 					detector.detect(img.bands[0]);
-					if(detector.totalFound()>0) {
+					if(detector.totalFound()>0 && detector.is3D()) {
 						is_fiducial = true;
 						detector.getFiducialToCamera(0, targetToSensor);
 						targetToSensor.T.z = - targetToSensor.T.z;
@@ -365,7 +382,6 @@ public class MAVT265PositionEstimator {
 							was_fiducial = true;
 							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
 							precision_offset.set(lpos.T.x - precision_ned.T.x,lpos.T.y - precision_ned.T.y, lpos.T.z - precision_ned.T.z );
-							control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control", MAV_SEVERITY.MAV_SEVERITY_INFO));
 							sendPoseDebug(precision_offset);
 							return;
 						}
@@ -383,7 +399,6 @@ public class MAVT265PositionEstimator {
 					} else {
 						if(was_fiducial) {
 							was_fiducial = false;
-							control.writeLogMessage(new LogMessage("[vio] Fiducial control lost", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 						}
 					}
 
@@ -393,6 +408,8 @@ public class MAVT265PositionEstimator {
 					//	precision_landing_enabled = false;
 				}
 			}
+
+			model.sys.setSensor(Status.MSP_FIDUCIAL,is_fiducial);
 
 			switch(mode) {
 
@@ -440,6 +457,7 @@ public class MAVT265PositionEstimator {
 			if(stream!=null && enableStream) {
 				stream.addToStream(img, model, tms);
 			}
+
 
 		});
 
@@ -599,7 +617,8 @@ public class MAVT265PositionEstimator {
 
 		msg.quality = (int)(quality * 100f);
 		msg.errors  = error_count;
-		msg.tms = tms * 1000;
+		msg.tms     = tms * 1000;
+		msg.flags   = model.vision.flags;
 
 		if(tms_old != tms) {
 			msg.fps = 1000 / (tms - tms_old);
