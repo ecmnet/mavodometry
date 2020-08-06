@@ -53,15 +53,16 @@ import org.mavlink.messages.lquac.msg_vision_position_estimate;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
+import com.comino.mavcom.flow.MessageBus;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.status.StatusManager;
+import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
-import com.comino.mavodometry.struct.Attitude3D_F64;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.legacy.ExecutorService;
 
@@ -103,6 +104,8 @@ public class MAVT265PositionEstimator {
 	public static final int  LPOS_ODO_MODE_BODY = 4;
 
 
+	// MessageBus
+	private static final MessageBus bus = MessageBus.getInstance();
 
 	// MAVLink messages
 	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
@@ -222,15 +225,15 @@ public class MAVT265PositionEstimator {
 
 		control.getStatusManager().addListener( StatusManager.TYPE_MSP_SERVICES, Status.MSP_FIDUCIAL, StatusManager.EDGE_BOTH, (n) -> {
 			if(n.isSensorAvailable(Status.MSP_FIDUCIAL))
-			  control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control.", MAV_SEVERITY.MAV_SEVERITY_INFO));
-			else
-			  control.writeLogMessage(new LogMessage("[vio] Fiducial control lost.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+				control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control.", MAV_SEVERITY.MAV_SEVERITY_INFO));
+			else {
+				precision_offset.set(0, 0, 0);
+				control.writeLogMessage(new LogMessage("[vio] Fiducial control lost.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+			}
 			// set vision flag for QGC
-			model.vision.setStatus(Vision.MOCAP_FIDUCIAL, n.isSensorAvailable(Status.MSP_FIDUCIAL));
+			model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, n.isSensorAvailable(Status.MSP_FIDUCIAL));
 
 		});
-
-
 
 
 		if(stream != null) {
@@ -371,8 +374,6 @@ public class MAVT265PositionEstimator {
 					}
 					else {
 						is_fiducial = false;
-						precision_offset.set(0,0,0);
-						MSP3DUtils.setNaN(precision_ned);
 					}
 
 
@@ -382,7 +383,6 @@ public class MAVT265PositionEstimator {
 							was_fiducial = true;
 							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
 							precision_offset.set(lpos.T.x - precision_ned.T.x,lpos.T.y - precision_ned.T.y, lpos.T.z - precision_ned.T.z );
-							sendPoseDebug(precision_offset);
 							return;
 						}
 
@@ -416,9 +416,7 @@ public class MAVT265PositionEstimator {
 			case GROUNDTRUTH_MODE:
 
 				// just set ground truth in local model
-				model.vision.gx =  (float)ned.getX();
-				model.vision.gy =  (float)ned.getY();
-				model.vision.gz =  (float)ned.getZ();
+				model.vision.setGroundTruth(ned.T);
 
 				break;
 
@@ -428,36 +426,48 @@ public class MAVT265PositionEstimator {
 				// Publish position NED
 				if(do_odometry)
 					publishPX4VisionPos(ned,tms);
-				publishMSPVision(precision_ned,ned,ned_s,tms);
+				publishMSPVision(precision_ned,ned,ned_s,precision_offset,tms);
 
 				break;
 
 			case LPOS_ODO_MODE_NED:
 
+
 				// Publish position data NED frame, speed body frame
 				if(do_odometry)
 					publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(precision_ned,ned,ned_s,tms);
+				publishMSPVision(precision_ned,ned,ned_s,precision_offset,tms);
 
 				break;
 
 			case LPOS_ODO_MODE_BODY:
 
+
 				// Publish position and speed data body frame
 				if(do_odometry)
 					publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(precision_ned,ned,ned_s,tms);
+				publishMSPVision(precision_ned,ned,ned_s,precision_offset,tms);
 
 				break;
 
 			}
+
+			model.vision.setStatus(Vision.POS_VALID, true);
+
+			// Transfer to local model
+			model.vision.setAttitude(att);
+			model.vision.setPrecisionOffset(precision_offset);
+			model.vision.setPosition(ned.T);
+			model.vision.setSpeed(ned_s.T);
+
+			// Publish vision data to subscribers
+			bus.publish(model.vision);
 
 
 			// Add left camera to stream
 			if(stream!=null && enableStream) {
 				stream.addToStream(img, model, tms);
 			}
-
 
 		});
 
@@ -474,13 +484,15 @@ public class MAVT265PositionEstimator {
 	}
 
 	public void init(String s) {
+		model.vision.setStatus(Vision.POS_VALID, false);
 		reset_count++;
 		is_initialized = false;
 		t265.reset();
-		detector.setLensDistortion(lensDistortion, width, height);
 		control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 		tms_reset = System.currentTimeMillis();
 		ExecutorService.get().schedule(() -> {
+			if(lensDistortion!=null)
+			  detector.setLensDistortion(lensDistortion, width, height);
 			is_initialized = true;
 		}, 2, TimeUnit.SECONDS);
 	}
@@ -597,7 +609,7 @@ public class MAVT265PositionEstimator {
 	}
 
 
-	private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed,long tms) {
+	private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed,Vector3D_F64 offset,long tms) {
 
 		msg.x =  (float) pose.T.x;
 		msg.y =  (float) pose.T.y;
@@ -610,6 +622,10 @@ public class MAVT265PositionEstimator {
 		msg.gx =  (float) orig.T.x;
 		msg.gy =  (float) orig.T.y;
 		msg.gz =  (float) orig.T.z;
+
+		msg.px =  (float)offset.x;
+		msg.py =  (float)offset.y;
+		msg.pz =  (float)offset.z;
 
 		msg.h   = (float)att.getYaw();
 		msg.r   = (float)att.getRoll();
