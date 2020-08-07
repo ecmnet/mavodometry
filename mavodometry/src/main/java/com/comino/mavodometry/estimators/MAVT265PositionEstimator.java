@@ -88,6 +88,7 @@ public class MAVT265PositionEstimator {
 
 	private static final boolean     ENABLE_FIDUCIAL     = true;
 	private static final float       FIDUCIAL_SIZE       = 0.10f;
+	private static final int     REQUIRED_FIDUCIAL_COUNT = 4;
 
 	private static final int     	 MAX_ERRORS          = 10;
 	private static final float       MAX_SPEED_DEVIATION = 0.4f;
@@ -154,6 +155,7 @@ public class MAVT265PositionEstimator {
 
 	private boolean       is_fiducial = false;
 	private boolean      was_fiducial = false;
+	private int         init_fiducial = 0;
 	private Se3_F64    targetToSensor = new Se3_F64();
 	private Se3_F64     precision_ned = new Se3_F64();
 
@@ -277,6 +279,7 @@ public class MAVT265PositionEstimator {
 			// Reset odometry
 			// Note: This takes 1.5sec for T265
 			if((System.currentTimeMillis() - tms_reset) < 2500) {
+				model.vision.setStatus(Vision.RESETTING, true);
 				quality = 0; error_count=0; tms_reset = 0; confidence_old = 0;
 
 				// set initial T265 pose as origin
@@ -302,6 +305,8 @@ public class MAVT265PositionEstimator {
 
 				return;
 			}
+
+			model.vision.setStatus(Vision.RESETTING, false);
 
 			if(error_count > MAX_ERRORS) {
 				init("quality");
@@ -368,48 +373,41 @@ public class MAVT265PositionEstimator {
 						GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
 						precision_ned.T.plusIP(precision_offset);
 
-						// TODO: precision_ned could be ned when switched.
-						//       Landing target position is precision_offset - initial_offset (assuming landed fiducial pos is 0)
-
 					}
 					else {
+						init_fiducial = 0;
 						is_fiducial = false;
 					}
 
+					model.sys.setSensor(Status.MSP_FIDUCIAL,is_fiducial);
 
 					if(is_fiducial) {
-
 						if(!was_fiducial) {
-							was_fiducial = true;
-							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
-							precision_offset.set(lpos.T.x - precision_ned.T.x,lpos.T.y - precision_ned.T.y, lpos.T.z - precision_ned.T.z );
-							return;
-						}
-
-
-						//					publishMSPVision(fiducial,ned ,ned_s,tms);
-						//
-						//					// Add left camera to stream
-						//					if(stream!=null && enableStream) {
-						//						stream.addToStream(img, model, tms);
-						//					}
-						//
-						//					return;
-
+							    // Require n valid fiducial detections in sequence before initializing
+							    if(init_fiducial++ < REQUIRED_FIDUCIAL_COUNT)
+							    	return;
+								MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
+								detector.getFiducialToCamera(0, targetToSensor);
+								targetToSensor.T.z = - targetToSensor.T.z;
+								GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
+								precision_offset.set(lpos.T.x - precision_ned.T.x,lpos.T.y - precision_ned.T.y, lpos.T.z - precision_ned.T.z );
+								was_fiducial = true;
+								return;
+							}
 					} else {
 						if(was_fiducial) {
 							was_fiducial = false;
+							// TODO: Transform vision to last Fiducial position
 						}
 					}
 
 				} catch(Exception e ) {
+					was_fiducial = false;
 					control.writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
 					e.printStackTrace();
-					//	precision_landing_enabled = false;
+					return;
 				}
 			}
-
-			model.sys.setSensor(Status.MSP_FIDUCIAL,is_fiducial);
 
 			switch(mode) {
 
@@ -460,8 +458,8 @@ public class MAVT265PositionEstimator {
 			model.vision.setPosition(ned.T);
 			model.vision.setSpeed(ned_s.T);
 
-			// Publish vision data to subscribers
-			bus.publish(model.vision);
+			//			// Publish vision data to subscribers
+			//			bus.publish(model.vision);
 
 
 			// Add left camera to stream
@@ -492,7 +490,7 @@ public class MAVT265PositionEstimator {
 		tms_reset = System.currentTimeMillis();
 		ExecutorService.get().schedule(() -> {
 			if(lensDistortion!=null)
-			  detector.setLensDistortion(lensDistortion, width, height);
+				detector.setLensDistortion(lensDistortion, width, height);
 			is_initialized = true;
 		}, 2, TimeUnit.SECONDS);
 	}
