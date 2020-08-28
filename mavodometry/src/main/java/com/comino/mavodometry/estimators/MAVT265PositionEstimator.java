@@ -93,6 +93,8 @@ public class MAVT265PositionEstimator {
 	private static final int     	 MAX_ERRORS          = 10;
 	private static final float       MAX_SPEED_DEVIATION = 0.4f;
 
+	private static final long        LOCK_TIMEOUT        = 2000;
+
 	// mounting offset in m
 	private static final double   	   OFFSET_X =  0.00;
 	private static final double        OFFSET_Y =  0.00;
@@ -155,6 +157,7 @@ public class MAVT265PositionEstimator {
 
 	private boolean       is_fiducial = false;
 	private boolean      was_fiducial = false;
+	private long          locking_tms = 0;
 	private int         init_fiducial = 0;
 	private Se3_F64    targetToSensor = new Se3_F64();
 	private Se3_F64     precision_ned = new Se3_F64();
@@ -225,18 +228,6 @@ public class MAVT265PositionEstimator {
 			init("Est.LPOS(abs)");
 		});
 
-		control.getStatusManager().addListener( StatusManager.TYPE_MSP_SERVICES, Status.MSP_FIDUCIAL, StatusManager.EDGE_BOTH, (n) -> {
-//			if(n.isSensorAvailable(Status.MSP_FIDUCIAL))
-//				control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control.", MAV_SEVERITY.MAV_SEVERITY_INFO));
-//			else {
-//				precision_offset.set(0, 0, 0);
-//				control.writeLogMessage(new LogMessage("[vio] Fiducial control lost.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-//			}
-			// set vision flag for QGC
-			model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, n.isSensorAvailable(Status.MSP_FIDUCIAL));
-
-		});
-
 
 		if(stream != null) {
 			stream.registerOverlayListener(ctx -> {
@@ -301,7 +292,8 @@ public class MAVT265PositionEstimator {
 					lensDistortion = new LensDistortionPinhole(t265.getLeftModel());
 					detector.setLensDistortion(lensDistortion,width, height);
 				}
-				precision_offset.set(0,0,0);
+				precision_offset.set(Double.NaN,Double.NaN,Double.NaN);
+				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 
 				return;
 			}
@@ -357,6 +349,12 @@ public class MAVT265PositionEstimator {
 
 			if(precision_landing_enabled) {
 
+				if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT) {
+					precision_offset.set(Double.NaN,Double.NaN,Double.NaN);
+					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
+				}
+
+
 				// TODO: Fiducial status, issues, ideas
 				// - 10cm Fiducual applicable from 0.2 to 0,8m
 				// - Landing gear shadow
@@ -380,8 +378,6 @@ public class MAVT265PositionEstimator {
 						is_fiducial = false;
 					}
 
-					model.sys.setSensor(Status.MSP_FIDUCIAL,is_fiducial);
-
 					if(is_fiducial) {
 						if(!was_fiducial) {
 							    // Require n valid fiducial detections in sequence before initializing
@@ -392,6 +388,8 @@ public class MAVT265PositionEstimator {
 								targetToSensor.T.z = - targetToSensor.T.z;
 								GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
 								precision_offset.set(lpos.T.x - precision_ned.T.x,lpos.T.y - precision_ned.T.y, lpos.T.z - precision_ned.T.z );
+								model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
+								locking_tms = System.currentTimeMillis();
 								was_fiducial = true;
 								return;
 							}
@@ -618,13 +616,13 @@ public class MAVT265PositionEstimator {
 		msg.vy =  (float) speed.T.y;
 		msg.vz =  (float) speed.T.z;
 
-//		msg.gx =  (float) orig.T.x;
-//		msg.gy =  (float) orig.T.y;
-//		msg.gz =  (float) orig.T.z;
+		msg.gx =  (float) orig.T.x;
+		msg.gy =  (float) orig.T.y;
+		msg.gz =  (float) orig.T.z;
 
-		msg.gx =  (float)offset.x;
-		msg.gy =  (float)offset.y;
-		msg.gz =  (float)offset.z;
+		msg.px =  (float)offset.x;
+		msg.py =  (float)offset.y;
+		msg.pz =  (float)offset.z;
 
 		msg.h   = (float)att.getYaw();
 		msg.r   = (float)att.getRoll();
