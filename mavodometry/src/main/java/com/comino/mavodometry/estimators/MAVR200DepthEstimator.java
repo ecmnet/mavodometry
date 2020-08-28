@@ -120,6 +120,8 @@ public class MAVR200DepthEstimator {
 	private BufferedImage             img = null;
 	private boolean          enableStream = false;
 
+	private float depth_window_switch_alt = -1.0f;
+
 	private int[] depth_a                 = null;   // Mean Buffer depth;
 
 
@@ -202,7 +204,7 @@ public class MAVR200DepthEstimator {
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
 				// Switch Depth window according to altitude
-				determineDepthWindow(-0.5f);
+				determineDepthWindow(depth_window_switch_alt);
 
 
 				if(DO_DEPTH_OVERLAY && enableStream)
