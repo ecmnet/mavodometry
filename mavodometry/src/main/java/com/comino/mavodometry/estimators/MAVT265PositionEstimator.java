@@ -106,7 +106,7 @@ public class MAVT265PositionEstimator {
 
 
 	// MessageBus
-	private static final MessageBus bus = MessageBus.getInstance();
+//	private static final MessageBus bus = MessageBus.getInstance();
 
 	// MAVLink messages
 	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
@@ -226,12 +226,12 @@ public class MAVT265PositionEstimator {
 		});
 
 		control.getStatusManager().addListener( StatusManager.TYPE_MSP_SERVICES, Status.MSP_FIDUCIAL, StatusManager.EDGE_BOTH, (n) -> {
-			if(n.isSensorAvailable(Status.MSP_FIDUCIAL))
-				control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control.", MAV_SEVERITY.MAV_SEVERITY_INFO));
-			else {
-				precision_offset.set(0, 0, 0);
-				control.writeLogMessage(new LogMessage("[vio] Fiducial control lost.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-			}
+//			if(n.isSensorAvailable(Status.MSP_FIDUCIAL))
+//				control.writeLogMessage(new LogMessage("[vio] Switched to fiducial control.", MAV_SEVERITY.MAV_SEVERITY_INFO));
+//			else {
+//				precision_offset.set(0, 0, 0);
+//				control.writeLogMessage(new LogMessage("[vio] Fiducial control lost.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+//			}
 			// set vision flag for QGC
 			model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, n.isSensorAvailable(Status.MSP_FIDUCIAL));
 
@@ -361,6 +361,7 @@ public class MAVT265PositionEstimator {
 				// - 10cm Fiducual applicable from 0.2 to 0,8m
 				// - Landing gear shadow
 				// - landing procedure - how to
+				// 280820: Offset is LPOS target position => works
 
 				try {
 					detector.detect(img.bands[0]);
@@ -617,13 +618,13 @@ public class MAVT265PositionEstimator {
 		msg.vy =  (float) speed.T.y;
 		msg.vz =  (float) speed.T.z;
 
-		msg.gx =  (float) orig.T.x;
-		msg.gy =  (float) orig.T.y;
-		msg.gz =  (float) orig.T.z;
+//		msg.gx =  (float) orig.T.x;
+//		msg.gy =  (float) orig.T.y;
+//		msg.gz =  (float) orig.T.z;
 
-		msg.px =  (float)offset.x;
-		msg.py =  (float)offset.y;
-		msg.pz =  (float)offset.z;
+		msg.gx =  (float)offset.x;
+		msg.gy =  (float)offset.y;
+		msg.gz =  (float)offset.z;
 
 		msg.h   = (float)att.getYaw();
 		msg.r   = (float)att.getRoll();
