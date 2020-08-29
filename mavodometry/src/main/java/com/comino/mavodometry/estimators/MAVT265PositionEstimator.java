@@ -354,13 +354,6 @@ public class MAVT265PositionEstimator {
 					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 				}
 
-
-				// TODO: Fiducial status, issues, ideas
-				// - 10cm Fiducual applicable from 0.2 to 0,8m
-				// - Landing gear shadow
-				// - landing procedure - how to
-				// 280820: Offset is LPOS target position => works
-
 				try {
 					detector.detect(img.bands[0]);
 					if(detector.totalFound()>0 && detector.is3D()) {
@@ -368,9 +361,10 @@ public class MAVT265PositionEstimator {
 						detector.getFiducialToCamera(0, targetToSensor);
 						targetToSensor.T.z = - targetToSensor.T.z;
 
-						// transform to NED and add offset -> precision_ned is now in LPOS frame
 						GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
-						precision_ned.T.plusIP(precision_offset);
+						precision_offset.set(lpos.T.x - precision_ned.T.x,lpos.T.y - precision_ned.T.y, lpos.T.z - precision_ned.T.z );
+						model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
+						locking_tms = System.currentTimeMillis();
 
 					}
 					else {
@@ -380,30 +374,21 @@ public class MAVT265PositionEstimator {
 
 					if(is_fiducial) {
 						if(!was_fiducial) {
-							    // Require n valid fiducial detections in sequence before initializing
-							    if(init_fiducial++ < REQUIRED_FIDUCIAL_COUNT)
-							    	return;
 								MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
-								detector.getFiducialToCamera(0, targetToSensor);
-								targetToSensor.T.z = - targetToSensor.T.z;
-								GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
-								precision_offset.set(lpos.T.x - precision_ned.T.x,lpos.T.y - precision_ned.T.y, lpos.T.z - precision_ned.T.z );
-								model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
-								locking_tms = System.currentTimeMillis();
 								was_fiducial = true;
 								return;
 							}
 					} else {
 						if(was_fiducial) {
 							was_fiducial = false;
-							// TODO: Transform vision to last Fiducial position
 						}
 					}
 
 				} catch(Exception e ) {
 					was_fiducial = false;
 					control.writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
-					e.printStackTrace();
+					precision_offset.set(Double.NaN,Double.NaN,Double.NaN);
+					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 					return;
 				}
 			}
