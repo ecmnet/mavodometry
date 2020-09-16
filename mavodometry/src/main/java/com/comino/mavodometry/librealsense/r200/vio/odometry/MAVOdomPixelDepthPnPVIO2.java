@@ -294,7 +294,6 @@ public class MAVOdomPixelDepthPnPVIO2<T extends ImageBase<T>>  {
 			p = t.getCookie();
 			pixelToNorm.compute(t.x, t.y, p.observation);
 
-			// Add offset TODO: do this in modelMatcher
 			p.location.z += offset.z;
 			p.location.y += offset.y;
 			p.location.x += offset.x;

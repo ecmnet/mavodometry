@@ -48,7 +48,7 @@ import georegression.struct.se.Se3_F64;
  *
  * @author Peter Abeles
  */
-// TODO WARNING! active list has been modified by dropping and adding tracks
+//
 // this is probably true of other SFM algorithms
 public class MAVOdomPixelDepthPnP_to_DepthVisualOdometryVIO<Vis extends ImageBase<Vis>, Depth extends ImageGray<Depth>>
 	implements MAVDepthVisualOdometry<Vis,Depth> , AccessPointTracks3D
@@ -78,7 +78,6 @@ public class MAVOdomPixelDepthPnP_to_DepthVisualOdometryVIO<Vis extends ImageBas
 
 	@Override
 	public Point3D_F64 getTrackLocation(int index) {
-		// TODO see comment above
 		try {
 			PointTrack t = alg.getTracker().getActiveTracks(null).get(index);
 			return ((Point2D3D)t.getCookie()).getLocation();

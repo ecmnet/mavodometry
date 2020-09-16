@@ -87,7 +87,7 @@ import georegression.struct.so.Quaternion_F64;
 public class MAVT265PositionEstimator {
 
 	private static final boolean     ENABLE_FIDUCIAL     = true;
-	private static final float       FIDUCIAL_SIZE       = 0.10f;
+	private static final float       FIDUCIAL_SIZE       = 0.191f;
 	private static final int     REQUIRED_FIDUCIAL_COUNT = 4;
 
 	private static final int     	 MAX_ERRORS          = 10;
