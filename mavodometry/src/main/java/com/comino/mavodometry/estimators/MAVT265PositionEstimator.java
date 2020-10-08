@@ -86,7 +86,7 @@ import georegression.struct.so.Quaternion_F64;
 
 public class MAVT265PositionEstimator {
 
-	private static final boolean     ENABLE_FIDUCIAL     = true;
+	private static final boolean     ENABLE_FIDUCIAL     = false;
 	private static final float       FIDUCIAL_SIZE       = 0.191f;
 	private static final int     REQUIRED_FIDUCIAL_COUNT = 4;
 
@@ -108,7 +108,7 @@ public class MAVT265PositionEstimator {
 
 
 	// MessageBus
-//	private static final MessageBus bus = MessageBus.getInstance();
+	//	private static final MessageBus bus = MessageBus.getInstance();
 
 	// MAVLink messages
 	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
@@ -229,15 +229,18 @@ public class MAVT265PositionEstimator {
 		});
 
 
-		if(stream != null) {
-			stream.registerOverlayListener(ctx -> {
-				overlayFeatures(ctx);
-			});
-		}
 
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(FIDUCIAL_SIZE), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 21), GrayU8.class);
 
-		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height);
+		try {
+			t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height);
+		} catch( IllegalArgumentException e) {
+			System.out.println("No T265 device found");
+			return;
+
+		}
+
+
 		t265.registerCallback((tms, raw, p, s, a, img) ->  {
 
 			switch(raw.tracker_confidence) {
@@ -266,6 +269,7 @@ public class MAVT265PositionEstimator {
 			}
 
 			confidence_old = raw.tracker_confidence;
+
 
 			// Reset odometry
 			// Note: This takes 1.5sec for T265
@@ -374,10 +378,10 @@ public class MAVT265PositionEstimator {
 
 					if(is_fiducial) {
 						if(!was_fiducial) {
-								MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
-								was_fiducial = true;
-								return;
-							}
+							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
+							was_fiducial = true;
+							return;
+						}
 					} else {
 						if(was_fiducial) {
 							was_fiducial = false;
@@ -418,7 +422,7 @@ public class MAVT265PositionEstimator {
 				// Publish position data NED frame, speed body frame
 				if(do_odometry)
 					publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(precision_ned,ned,ned_s,precision_offset,tms);
+				publishMSPVision(p,ned,ned_s,precision_offset,tms);
 
 				break;
 
@@ -445,13 +449,18 @@ public class MAVT265PositionEstimator {
 			//			// Publish vision data to subscribers
 			//			bus.publish(model.vision);
 
-
 			// Add left camera to stream
 			if(stream!=null && enableStream) {
 				stream.addToStream(img, model, tms);
 			}
 
 		});
+
+		if(stream != null && t265!=null) {
+			stream.registerOverlayListener(ctx -> {
+				overlayFeatures(ctx);
+			});
+		}
 
 
 		if(t265.getMount() == StreamRealSenseT265Pose.POS_DOWNWARD)
@@ -481,6 +490,8 @@ public class MAVT265PositionEstimator {
 
 
 	public void start() {
+		if(t265==null)
+			return;
 		t265.start();
 		System.out.println("[vio] Starting T265....");
 		t265.printDeviceInfo();
@@ -491,6 +502,8 @@ public class MAVT265PositionEstimator {
 	}
 
 	public void stop() {
+		if(t265==null)
+			return;
 		t265.stop();
 	}
 

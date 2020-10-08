@@ -124,6 +124,8 @@ public class StreamRealSenseT265Pose {
 		this.x1 = x0 + width;
 		this.y1 = y0 + height;
 		this.mount = mount;
+		
+		
 		ConvertRotation3D_F64.rotX(Math.PI/2,rtX90);
 
 
@@ -138,7 +140,7 @@ public class StreamRealSenseT265Pose {
 		dev_count = Realsense2Library.INSTANCE.rs2_get_device_count(device_list, error);
 		if(dev_count < 1) {
 			is_running = false;
-			return;
+			throw new IllegalArgumentException("No device found");
 		}
 
 		dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, 0, error);
@@ -165,6 +167,7 @@ public class StreamRealSenseT265Pose {
 	}
 
 	public void start() {
+		
 		if(dev_count < 1)
 			return;
 
@@ -214,6 +217,8 @@ public class StreamRealSenseT265Pose {
 	}
 
 	public void printDeviceInfo() {
+		
+		try {
 
 		System.out.println(Realsense2Library.INSTANCE
 				.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_NAME, error).getString(0));
@@ -224,6 +229,7 @@ public class StreamRealSenseT265Pose {
 				.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_FIRMWARE_VERSION, error)
 				.getString(0));
 		System.out.println("API version "+Realsense2Library.RS2_API_VERSION_STR);
+		} catch(Exception e ) { }
 
 	}
 

@@ -261,16 +261,16 @@ public class StreamRealSenseVisDepth {
 	//	output.data = input.getShortArray(0, 678400);
 
 		short[] inp = input.getShortArray(0, output.width * output.height);
-	//	System.arraycopy(inp, 0, output.data, 0, output.width * output.height);
+		System.arraycopy(inp, 0, output.data, 0, output.width * output.height);
 
-		// Upside down mounting
-		indexIn = output.width * output.height -1;
-		for( y = 0; y < output.height; y++ ) {
-			indexOut = output.startIndex + y*output.stride;
-			for( x = 0; x < output.width; x++ , indexOut++ ) {
-				output.data[indexOut] = inp[indexIn--];
-			}
-		}
+//		// Upside down mounting
+//		indexIn = output.width * output.height -1;
+//		for( y = 0; y < output.height; y++ ) {
+//			indexOut = output.startIndex + y*output.stride;
+//			for( x = 0; x < output.width; x++ , indexOut++ ) {
+//				output.data[indexOut] = inp[indexIn--];
+//			}
+//		}
 	}
 
 
@@ -284,15 +284,15 @@ public class StreamRealSenseVisDepth {
 
 		input = inp.getByteArray(0, output.width * output.height * 3);
 
-		// Upside down mounting
-		indexIn = output.width * output.height * 3 -1;
+		
+		indexIn = 0;//output.width * output.height * 3 -1;
 
 		for( y = 0; y < output.height; y++ ) {
 			indexOut = output.startIndex + y*output.stride;
 			for( x = 0; x < output.width; x++ , indexOut++ ) {
-				b2.data[indexOut] = input[indexIn--];
-				b1.data[indexOut] = input[indexIn--];
-				b0.data[indexOut] = input[indexIn--];
+				b0.data[indexOut] = input[indexIn++];
+				b1.data[indexOut] = input[indexIn++];
+				b2.data[indexOut] = input[indexIn++];
 			}
 		}
 	}
@@ -301,14 +301,14 @@ public class StreamRealSenseVisDepth {
 
 		input = inp.getByteArray(0, output.width * output.height);
 
-		// Upside down mounting
-		indexIn = output.width * output.height  -1;
+		
+		indexIn = 0;//output.width * output.height  -1;
 		for(y = 0; y < output.height; y++ ) {
 			int indexOut = output.startIndex + y*output.stride;
 			for(x = 0; x < output.width; x++ , indexOut++ ) {
 				output.getBand(0).data[indexOut] = input[indexIn];
 				output.getBand(1).data[indexOut] = input[indexIn];
-				output.getBand(2).data[indexOut] = input[indexIn--];
+				output.getBand(2).data[indexOut] = input[indexIn++];
 			}
 		}
 	}
