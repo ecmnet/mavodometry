@@ -152,6 +152,7 @@ public class MAVT265PositionEstimator {
 	private boolean       do_odometry = true;
 	private boolean      enableStream = false;
 	private boolean    is_initialized = false;
+	private boolean      check_speed  = false;
 
 	private boolean     precision_landing_enabled = ENABLE_FIDUCIAL;
 
@@ -190,6 +191,8 @@ public class MAVT265PositionEstimator {
 		offset.x = -config.getFloatProperty("t265_offset_x", String.valueOf(OFFSET_X));
 		offset.y = -config.getFloatProperty("t265_offset_y", String.valueOf(OFFSET_Y));
 		offset.z = -config.getFloatProperty("t265_offset_z", String.valueOf(OFFSET_Z));
+		
+		check_speed = config.getBoolProperty("t265_check_speed", "false");
 
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
@@ -344,7 +347,7 @@ public class MAVT265PositionEstimator {
 			att.setFromMatrix(ned.R);
 
 			// Speed check: Is visual XY speed acceptable
-			if(MSP3DUtils.convertCurrentSpeed(model, lpos_s) && MSP3DUtils.distance2D(ned_s.T, lpos_s) > MAX_SPEED_DEVIATION) {
+			if(check_speed && MSP3DUtils.convertCurrentSpeed(model, lpos_s) && MSP3DUtils.distance2D(ned_s.T, lpos_s) > MAX_SPEED_DEVIATION) {
 				error_count++;
 				control.writeLogMessage(new LogMessage("[vio] T265 speed vs local speed: "+MSP3DUtils.distance2D(ned_s.T, lpos_s)+"m/s", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 				init("speed");
