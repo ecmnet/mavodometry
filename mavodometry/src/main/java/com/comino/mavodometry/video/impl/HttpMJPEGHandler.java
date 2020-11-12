@@ -105,8 +105,11 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 				synchronized(this) {
 				  tms = System.currentTimeMillis();
-				  if(input_image==null)
-						wait(100);
+				  if(input_image==null) {
+						wait(20);
+						continue;
+				  }
+				  
 				}
 
 				os.write(("--BoundaryString\r\nContent-type:image/jpeg content-length:1\r\n\r\n").getBytes());
@@ -116,6 +119,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 					ctx.drawString("No video available", 110 , image.getHeight()/2);
 					ImageIO.write(image, "jpg", os );
 					os.write("\r\n\r\n".getBytes());
+					os.flush();
 					is_running = false;
 					continue;
 		        }
@@ -134,6 +138,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 				ImageIO.write(image, "jpg", os );
 				os.write("\r\n\r\n".getBytes());
+				os.flush();
 
 				input_image = null;
 
