@@ -120,7 +120,7 @@ public class MAVR200DepthEstimator {
 	private BufferedImage             img = null;
 	private boolean          enableStream = false;
 
-	private float depth_window_switch_alt = -1.0f;
+	private float depth_window_switch_alt = 9999.0f;
 
 	private int[] depth_a                 = null;   // Mean Buffer depth;
 
@@ -144,11 +144,11 @@ public class MAVR200DepthEstimator {
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
 		try {
-		   this.realsense = new StreamRealSenseVisDepth(0,info);
+			this.realsense = new StreamRealSenseVisDepth(0,info);
 		} catch( IllegalArgumentException e) {
 			System.out.println("No R200 device found");
 			return;
-			
+
 		}
 		this.p2n = (narrow(realsense.getIntrinsics())).undistort_F64(true,false);
 
@@ -181,9 +181,11 @@ public class MAVR200DepthEstimator {
 
 		if(stream!=null) {
 			stream.registerOverlayListener(ctx -> {
-				overlayFeatures(ctx);
-				if(DO_DEPTH_OVERLAY && enableStream)
-					ctx.drawImage(img, 0, base, null);
+				if(enableStream) {
+					overlayFeatures(ctx);
+					if(DO_DEPTH_OVERLAY)
+						ctx.drawImage(img, 0, base, null);
+				}
 			});
 		}
 
@@ -199,6 +201,7 @@ public class MAVR200DepthEstimator {
 
 			@Override
 			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
+				
 
 				// Idea: make depth window y-alignment dependent on flight hight to avoid ground detected as
 				// obstacle
@@ -215,6 +218,13 @@ public class MAVR200DepthEstimator {
 
 				if(DO_DEPTH_OVERLAY && enableStream)
 					overlayDepth(depth.subimage(0, base, width, top), img);
+				
+				if(!model.sys.isStatus(Status.MSP_LPOS_VALID)) {
+					if(stream!=null && enableStream) {
+						stream.addToStream(rgb, model, timeDepth);
+					}
+					return;
+				}
 
 				// AI networks to be processed
 				if(detect!=null || trail!=null || segment!=null) {
@@ -314,7 +324,7 @@ public class MAVR200DepthEstimator {
 
 	public void enableStream(boolean enable) {
 		if(realsense!=null)
-		  this.enableStream = enable;
+			this.enableStream = enable;
 		else
 			this.enableStream = false;
 	}
@@ -334,8 +344,8 @@ public class MAVR200DepthEstimator {
 		}
 
 		ctx.setColor(Color.white);
-	//	ctx.drawString(String.format("%2.1f fps (obs.)",(float)model.slam.fps), width-95, 20);
-		
+		//	ctx.drawString(String.format("%2.1f fps (obs.)",(float)model.slam.fps), width-95, 20);
+
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000f), 10, 20);
