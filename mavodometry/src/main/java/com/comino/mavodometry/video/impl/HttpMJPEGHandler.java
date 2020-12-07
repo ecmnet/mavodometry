@@ -65,10 +65,13 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	private Graphics2D ctx;
 
 	private T input_image;
+	private BufferedImage black_image;
+	
 	private boolean is_running = false;
 
 	private long last_image_tms = 0;
 
+	@SuppressWarnings("unchecked")
 	public HttpMJPEGHandler(int width, int height, DataModel model) {
 		this.model = model;
 		this.listeners = new ArrayList<IOverlayListener>();
@@ -106,16 +109,14 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 				synchronized(this) {
 				  tms = System.currentTimeMillis();
 				  if(input_image==null) {
-						wait(20);
-						continue;
-				  }
-				  
+						wait(200);
+				  }	  
 				}
 
 				os.write(("--BoundaryString\r\nContent-type:image/jpeg content-length:1\r\n\r\n").getBytes());
 
-				if((System.currentTimeMillis()-tms) > 100) {
-
+				if((System.currentTimeMillis()-tms) > 300) {
+					ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 					ctx.drawString("No video available", 110 , image.getHeight()/2);
 					ImageIO.write(image, "jpg", os );
 					os.write("\r\n\r\n".getBytes());
@@ -146,6 +147,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		}
         he.close();
 	}
+	
 
 	@Override
 	public void registerOverlayListener(IOverlayListener listener) {
