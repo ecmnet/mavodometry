@@ -238,9 +238,12 @@ public class StreamRealSenseVisDepth {
 
 					// Limit maximum frame rate to MAX_RATE
 					wait = MAX_RATE - ( System.currentTimeMillis() - tms + 1 );
+					
 					if(wait>0)
 					   Thread.sleep(wait);
 
+				} catch(InterruptedException i) {
+					;
 				} catch(Exception e) {
 					e.printStackTrace();
 				}
