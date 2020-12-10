@@ -74,6 +74,7 @@ import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.legacy.ExecutorService;
 
 import boofcv.abst.fiducial.FiducialDetector;
+import boofcv.abst.fiducial.FiducialStability;
 import boofcv.alg.distort.pinhole.LensDistortionPinhole;
 import boofcv.factory.fiducial.ConfigFiducialBinary;
 import boofcv.factory.fiducial.FactoryFiducial;
@@ -89,22 +90,21 @@ import georegression.struct.se.Se3_F64;
 import georegression.struct.so.Quaternion_F64;
 
 public class MAVT265PositionEstimator {
-	
+
 	private static final String T265_PRECISION_LOCK      = "t265_precision_lock";
 	private static final String T265_OFFSET_X            = "t265_offset_x";
 	private static final String T265_OFFSET_Y            = "t265_offset_y";
 	private static final String T265_OFFSET_Z            = "t265_offset_z";
 	private static final String T265_CHECK_SPEED_XY      = "t265_check_speed_xy";
 	private static final String T265_CHECK_SPEED_Z       = "t265_check_speed_z";
-	
-	
-	
-	private static final List<Integer> FIDUCIALS         = new ArrayList<Integer>(List.of(284,643));
 
+
+
+	private static final int         FIDUCIAL            = 284;
 	private static final float       FIDUCIAL_SIZE       = 0.193f;
-	private static final float       FIDUCIAL_RATIO      = 0.053f / FIDUCIAL_SIZE;
+	private static final int         FIDUCIAL_RATE       = 200;
 
-	private static final int     	 MAX_ERRORS          = 10;
+	private static final int     	 MAX_ERRORS          = 15;
 
 	private static final float       MAX_SPEED_DEVIATION = 0.3f;
 
@@ -179,25 +179,22 @@ public class MAVT265PositionEstimator {
 	private SimpleLowPassFilter  avg_xy_speed_dev  = new SimpleLowPassFilter(0.75);
 
 	private boolean       is_fiducial = false;
-	private boolean      was_fiducial = false;
 	private int          fiducial_idx = 0;
 	private long          locking_tms = 0;
-	private int       fiducial_errors = 0;
+	private long         fiducial_tms = 0;
 	private Se3_F64    targetToSensor = new Se3_F64();
 	private Se3_F64     precision_ned = new Se3_F64();
 	private Point2D_F64  fiducial_cen = new Point2D_F64();
-	
-	private Vector3D_F64   fiducial_offset    = new Vector3D_F64(0,0.065,0);
-	private Vector3D_F64   fiducial_offset_r  = new Vector3D_F64();
 
-	private Vector3D_F64 precision_offset     = new Vector3D_F64();
-	
+	private Vector3D_F64 precision_lock     = new Vector3D_F64();
+
 	private  LensDistortionPinhole lensDistortion = null;
 
 	private int           error_count = 0;
 	private int           reset_count = 0;
 
 	private FiducialDetector<GrayU8> detector = null;
+	private FiducialStability        stability = new FiducialStability();
 
 	// Stream data
 	private int   width;
@@ -205,7 +202,7 @@ public class MAVT265PositionEstimator {
 
 	private final Color	bgColor_header    = new Color(128,128,128,130);
 	private final BasicStroke stroke      = new BasicStroke(3);
-	private final msg_debug_vect  debug   = new msg_debug_vect(1,2);
+	//	private final msg_debug_vect  debug   = new msg_debug_vect(1,2);
 
 
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
@@ -261,8 +258,8 @@ public class MAVT265PositionEstimator {
 		});
 
 		model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK,config.getBoolProperty(T265_PRECISION_LOCK, "true"));
-			
-		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(FIDUCIAL_SIZE), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 21), GrayU8.class);
+
+		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(FIDUCIAL_SIZE), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
 		try {
 			t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height);
@@ -336,12 +333,12 @@ public class MAVT265PositionEstimator {
 					lensDistortion = new LensDistortionPinhole(t265.getLeftModel());
 					detector.setLensDistortion(lensDistortion,width, height);
 				}
-				precision_offset.set(Double.NaN,Double.NaN,Double.NaN);
+				precision_lock.set(Double.NaN,Double.NaN,Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 
 				avg_z_speed_dev.clear();
 				avg_xy_speed_dev.clear();
-				
+
 				is_fiducial = false;
 
 				// IDEA: Publish Dummy Vision with LIDAR-Z to PX4
@@ -370,7 +367,6 @@ public class MAVT265PositionEstimator {
 
 
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
-
 
 			// Get model attitude rotation
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
@@ -419,13 +415,14 @@ public class MAVT265PositionEstimator {
 					return;
 				}
 			}
-			
 
-			// Precision lock procedure
-			if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK))  {
+
+			// Precision lock procedure 
+			if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK) && (System.currentTimeMillis() - fiducial_tms) > FIDUCIAL_RATE)  {
+				fiducial_tms = System.currentTimeMillis();
 
 				if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT) {
-					precision_offset.set(Double.NaN,Double.NaN,Double.NaN);
+					precision_lock.set(Double.NaN,Double.NaN,Double.NaN);
 					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 				}
 
@@ -434,84 +431,41 @@ public class MAVT265PositionEstimator {
 					if(detector.totalFound()>0 && detector.is3D()) {
 						for(int i = 0; i < detector.totalFound();i++ ) {
 							is_fiducial = false;
-							if(FIDUCIALS.contains(Integer.valueOf((int)detector.getId(i)))) {
-					//		if(detector.getId(i)==643 || detector.getId(i)==284) {
-								fiducial_errors = 0;
+							if(detector.getId(i)==FIDUCIAL) {
 								fiducial_idx = i;
 								is_fiducial = true;
 								break;
 							}
-
 						}
 
-						if(was_fiducial) {
+						if(is_fiducial) {
 
 							if(detector.getFiducialToCamera(fiducial_idx, targetToSensor)) {
-								
-								// Rotate offset into fiducial rotation and add/sub
-								GeometryMath_F64.mult(targetToSensor.R, fiducial_offset, fiducial_offset_r );
-								if(detector.getId(fiducial_idx)==643) {
-									targetToSensor.T.scale(FIDUCIAL_RATIO);
-									targetToSensor.T.plusIP(fiducial_offset_r);
-								} else {
-									fiducial_offset_r.scale(-1);
-									targetToSensor.T.plusIP(fiducial_offset_r);
-								}
-								
-//								System.out.println(fiducial_offset_r);
-//								System.out.println(targetToSensor.T);
-								
+
+								detector.computeStability(fiducial_idx, 0.25f, stability);
+
 								targetToSensor.T.z = - targetToSensor.T.z;
 								detector.getCenter(fiducial_idx, fiducial_cen);
-								
-								// TODO: Set found center via re-projection
 
+								MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
 								GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
-					//			precision_offset.set(lpos.T.x - precision_ned.T.x,lpos.T.y - precision_ned.T.y, lpos.T.z - precision_ned.T.z );
-					//			precision_offset.set(precision_ned.T.x,precision_ned.T.y,precision_ned.T.z );
-								
-								precision_offset.set(targetToSensor.T.x,targetToSensor.T.y,targetToSensor.T.z );
-								
+								precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,lpos.T.x-precision_ned.T.z );
+
 								model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
 								locking_tms = System.currentTimeMillis();
+								
 							}
-
 						} 
 					}
-					else {
-						fiducial_errors++;
-					}
 
-					if(fiducial_errors > 10 && is_fiducial) {
-						System.out.println(" No fiducial");
-						model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
-						is_fiducial = false;
-					}
-
-					if(is_fiducial) {
-						if(!was_fiducial) {
-						//	control.writeLogMessage(new LogMessage("[vio] Fiducial "+detector.getId(fiducial_idx)+" was found", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
-							was_fiducial = true;
-							return;
-						}
-					} else {
-						if(was_fiducial) {
-							was_fiducial = false;
-						}
-					}
 
 				} catch(Exception e ) {
-					was_fiducial = false;
 					control.writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
-					precision_offset.set(Double.NaN,Double.NaN,Double.NaN);
+					precision_lock.set(Double.NaN,Double.NaN,Double.NaN);
 					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 					return;
 				}
-			} else {
-				was_fiducial = is_fiducial = false;
-				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);	
-			}
+			} 
 
 			// Publishing data
 
@@ -530,7 +484,7 @@ public class MAVT265PositionEstimator {
 				// Publish position NED
 				if(do_odometry)
 					publishPX4VisionPos(ned,tms);
-				publishMSPVision(precision_ned,ned,ned_s,precision_offset,tms);
+				publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
 
 				break;
 
@@ -540,7 +494,7 @@ public class MAVT265PositionEstimator {
 				// Publish position data NED frame, speed body frame; No Z update
 				if(do_odometry)
 					publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(p,ned,ned_s,precision_offset,tms);
+				publishMSPVision(p,ned,ned_s,precision_lock,tms);
 
 				break;
 
@@ -550,7 +504,7 @@ public class MAVT265PositionEstimator {
 				// Publish position and speed data body frame
 				if(do_odometry)
 					publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(precision_ned,ned,ned_s,precision_offset,tms);
+				publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
 
 				break;
 
@@ -560,15 +514,9 @@ public class MAVT265PositionEstimator {
 
 			// Transfer to local model
 			model.vision.setAttitude(att);
-			model.vision.setPrecisionOffset(precision_offset);
+			model.vision.setPrecisionOffset(precision_lock);
 			model.vision.setPosition(ned.T);
 			model.vision.setSpeed(ned_s.T);
-
-			debug.z = (float)avg_z_speed_dev.getMean();
-			debug.y = (float)raw.tracker_confidence;
-			debug.x = (float)avg_xy_speed_dev.getMean();
-
-			control.sendMAVLinkMessage(debug);
 
 			//			// Publish vision data to subscribers
 			//			bus.publish(model.vision);
@@ -633,26 +581,25 @@ public class MAVT265PositionEstimator {
 	}
 
 	private void overlayFeatures(Graphics ctx) {
-		
+
 
 		ctx.setColor(bgColor_header);
 		ctx.fillRect(5, 5, width-10, 21);
 
 		ctx.setXORMode(Color.white); ((Graphics2D)ctx).setStroke(stroke);
-		if(is_fiducial) {
-			//ctx.drawString("locked", width/2-20, height/2+5);
-			ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
-			ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
-			
-			ctx.drawLine((int)fiducial_cen.x-10, (int)fiducial_cen.y, (int)fiducial_cen.x+10, (int)fiducial_cen.y);
-			ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
-			
-		} else {
-			ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
-			ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
-		}
-	    ctx.setPaintMode();
-		
+
+		if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {
+
+			ctx.drawOval((int)fiducial_cen.x-10, (int)fiducial_cen.y-10, 20, 20);
+			//			ctx.drawLine((int)fiducial_cen.x-10, (int)fiducial_cen.y, (int)fiducial_cen.x+10, (int)fiducial_cen.y);
+			//			ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
+
+		} 
+		ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
+		ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
+
+		ctx.setPaintMode();
+
 		ctx.setColor(Color.white);
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
@@ -788,15 +735,15 @@ public class MAVT265PositionEstimator {
 
 	}
 
-	private void sendPoseDebug(GeoTuple3D_F64<?> pose) {
-
-		debug.x = (float)pose.getX();
-		debug.y = (float)pose.getY();
-		debug.z = (float)pose.getZ();
-
-		control.sendMAVLinkMessage(debug);
-
-	}
+	//	private void sendPoseDebug(GeoTuple3D_F64<?> pose) {
+	//
+	//		debug.x = (float)pose.getX();
+	//		debug.y = (float)pose.getY();
+	//		debug.z = (float)pose.getZ();
+	//
+	//		control.sendMAVLinkMessage(debug);
+	//
+	//	}
 
 
 
