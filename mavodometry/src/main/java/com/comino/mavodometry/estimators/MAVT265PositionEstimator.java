@@ -71,6 +71,7 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.legacy.ExecutorService;
 
 import boofcv.abst.fiducial.FiducialDetector;
@@ -86,12 +87,14 @@ import georegression.geometry.GeometryMath_F64;
 import georegression.struct.GeoTuple3D_F64;
 import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Vector3D_F64;
+import georegression.struct.point.Vector4D_F64;
 import georegression.struct.se.Se3_F64;
 import georegression.struct.so.Quaternion_F64;
 
 public class MAVT265PositionEstimator {
 
 	private static final String T265_PRECISION_LOCK      = "t265_precision_lock";
+	private static final String T265_FIDUCIAL_SIZE       = "t265_fiducial_size";
 	private static final String T265_OFFSET_X            = "t265_offset_x";
 	private static final String T265_OFFSET_Y            = "t265_offset_y";
 	private static final String T265_OFFSET_Z            = "t265_offset_z";
@@ -101,8 +104,8 @@ public class MAVT265PositionEstimator {
 
 
 	private static final int         FIDUCIAL            = 284;
-	private static final float       FIDUCIAL_SIZE       = 0.193f;
-	private static final int         FIDUCIAL_RATE       = 200;
+	private static final float       FIDUCIAL_SIZE       = 0.168f;
+	private static final int         FIDUCIAL_RATE       = 100;
 
 	private static final int     	 MAX_ERRORS          = 15;
 
@@ -178,15 +181,16 @@ public class MAVT265PositionEstimator {
 	private SimpleLowPassFilter   avg_z_speed_dev  = new SimpleLowPassFilter(0.75);
 	private SimpleLowPassFilter  avg_xy_speed_dev  = new SimpleLowPassFilter(0.75);
 
-	private boolean       is_fiducial = false;
-	private int          fiducial_idx = 0;
-	private long          locking_tms = 0;
-	private long         fiducial_tms = 0;
-	private Se3_F64    targetToSensor = new Se3_F64();
-	private Se3_F64     precision_ned = new Se3_F64();
-	private Point2D_F64  fiducial_cen = new Point2D_F64();
-
-	private Vector3D_F64 precision_lock     = new Vector3D_F64();
+	private boolean          is_fiducial        = false;
+	private float            fiducial_size      = FIDUCIAL_SIZE;
+	private int              fiducial_idx       = 0;
+	private long             locking_tms        = 0;
+	private long             fiducial_tms       = 0;
+	private Se3_F64          targetToSensor     = new Se3_F64();
+	private Se3_F64          precision_ned      = new Se3_F64();
+	private Attitude3D_F64   fiducial_att       = new Attitude3D_F64();
+	private Point2D_F64      fiducial_cen       = new Point2D_F64();
+	private Vector4D_F64     precision_lock     = new Vector4D_F64();
 
 	private  LensDistortionPinhole lensDistortion = null;
 
@@ -219,6 +223,8 @@ public class MAVT265PositionEstimator {
 
 		check_speed_xy = config.getBoolProperty(T265_CHECK_SPEED_XY, "false");
 		check_speed_z  = config.getBoolProperty(T265_CHECK_SPEED_Z, "false");
+		
+		fiducial_size   = config.getFloatProperty(T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
 
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
@@ -259,7 +265,7 @@ public class MAVT265PositionEstimator {
 
 		model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK,config.getBoolProperty(T265_PRECISION_LOCK, "true"));
 
-		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(FIDUCIAL_SIZE), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
+		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
 		try {
 			t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,width,height);
@@ -333,7 +339,7 @@ public class MAVT265PositionEstimator {
 					lensDistortion = new LensDistortionPinhole(t265.getLeftModel());
 					detector.setLensDistortion(lensDistortion,width, height);
 				}
-				precision_lock.set(Double.NaN,Double.NaN,Double.NaN);
+				precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 
 				avg_z_speed_dev.clear();
@@ -418,11 +424,13 @@ public class MAVT265PositionEstimator {
 
 
 			// Precision lock procedure 
-			if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK) && (System.currentTimeMillis() - fiducial_tms) > FIDUCIAL_RATE)  {
+			if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK) && 
+					( (System.currentTimeMillis() - fiducial_tms) > FIDUCIAL_RATE)) {
 				fiducial_tms = System.currentTimeMillis();
+				model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, true);
 
 				if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT) {
-					precision_lock.set(Double.NaN,Double.NaN,Double.NaN);
+					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 				}
 
@@ -449,7 +457,10 @@ public class MAVT265PositionEstimator {
 
 								MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
 								GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
-								precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,lpos.T.x-precision_ned.T.z );
+								
+								fiducial_att.setFromMatrix(targetToSensor.R);
+								precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,lpos.T.x-precision_ned.T.z,
+										fiducial_att.getYaw()+model.attitude.y);
 
 								model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
 								locking_tms = System.currentTimeMillis();
@@ -461,7 +472,7 @@ public class MAVT265PositionEstimator {
 
 				} catch(Exception e ) {
 					control.writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
-					precision_lock.set(Double.NaN,Double.NaN,Double.NaN);
+					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 					return;
 				}
@@ -517,6 +528,7 @@ public class MAVT265PositionEstimator {
 			model.vision.setPrecisionOffset(precision_lock);
 			model.vision.setPosition(ned.T);
 			model.vision.setSpeed(ned_s.T);
+			model.vision.tms = model.sys.getSynchronizedPX4Time_us();
 
 			//			// Publish vision data to subscribers
 			//			bus.publish(model.vision);
@@ -685,7 +697,7 @@ public class MAVT265PositionEstimator {
 	}
 
 
-	private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed,Vector3D_F64 offset,long tms) {
+	private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed,Vector4D_F64 offset,long tms) {
 
 		msg.x =  (float) pose.T.x;
 		msg.y =  (float) pose.T.y;
@@ -702,6 +714,7 @@ public class MAVT265PositionEstimator {
 		msg.px =  (float)offset.x;
 		msg.py =  (float)offset.y;
 		msg.pz =  (float)offset.z;
+		msg.pw =  (float)offset.w;
 
 		msg.h   = (float)att.getYaw();
 		msg.r   = (float)att.getRoll();
