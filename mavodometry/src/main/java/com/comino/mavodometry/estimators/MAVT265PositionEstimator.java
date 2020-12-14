@@ -598,17 +598,16 @@ public class MAVT265PositionEstimator {
 		ctx.setColor(bgColor_header);
 		ctx.fillRect(5, 5, width-10, 21);
 
-		ctx.setXORMode(Color.white); ((Graphics2D)ctx).setStroke(stroke);
+		ctx.setXORMode(Color.white); 
 
-		if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {
+		if(is_fiducial) {
 
-			ctx.drawOval((int)fiducial_cen.x-10, (int)fiducial_cen.y-10, 20, 20);
-			//			ctx.drawLine((int)fiducial_cen.x-10, (int)fiducial_cen.y, (int)fiducial_cen.x+10, (int)fiducial_cen.y);
-			//			ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
+			ctx.drawLine((int)fiducial_cen.x-10, (int)fiducial_cen.y, (int)fiducial_cen.x+10, (int)fiducial_cen.y);
+			ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
 
 		} 
-		ctx.drawLine(width/2-10, height/2, width/2+10, height/2);
-		ctx.drawLine(width/2, height/2-10, width/2, height/2+10);
+		ctx.drawLine(80, height/2, width/2-30, height/2); ctx.drawLine(width/2+30, height/2, width-80, height/2);
+		ctx.drawLine(width/2, 60, width/2, height/2-20); ctx.drawLine(width/2, height/2+20, width/2, height-60);
 
 		ctx.setPaintMode();
 
@@ -617,8 +616,8 @@ public class MAVT265PositionEstimator {
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000f), 20, 20);
 		}
-
-		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000)
+		
+		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 500000)
 			ctx.drawString(model.msg.text, 10, height-5);
 
 	}
