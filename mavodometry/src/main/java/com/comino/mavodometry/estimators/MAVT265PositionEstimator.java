@@ -1,10 +1,8 @@
 package com.comino.mavodometry.estimators;
 
-import java.awt.BasicStroke;
-
 /****************************************************************************
  *
- *   Copyright (c) 2020 Eike Mansfeld ecm@gmx.de. All rights reserved.
+ *   Copyright (c) 2020,21 Eike Mansfeld ecm@gmx.de. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -37,10 +35,6 @@ import java.awt.BasicStroke;
 
 import java.awt.Color;
 import java.awt.Graphics;
-import java.awt.Graphics2D;
-import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.List;
 import java.util.concurrent.TimeUnit;
 
 import org.ejml.data.DMatrixRMaj;
@@ -71,7 +65,6 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.video.IVisualStreamHandler;
-import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.legacy.ExecutorService;
 
 import boofcv.abst.fiducial.FiducialDetector;
@@ -84,7 +77,6 @@ import boofcv.factory.filter.binary.ThresholdType;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.GeometryMath_F64;
-import georegression.struct.GeoTuple3D_F64;
 import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.point.Vector4D_F64;
@@ -124,8 +116,6 @@ public class MAVT265PositionEstimator {
 	public static final int  LPOS_ODO_MODE_NED  = 3;
 	public static final int  LPOS_ODO_MODE_BODY = 4;
 
-	private static final DecimalFormat f2 = new DecimalFormat("#0.00");
-
 
 	// MessageBus -> maybe used for failsafe actions
 	// private static final MessageBus bus = MessageBus.getInstance();
@@ -153,9 +143,6 @@ public class MAVT265PositionEstimator {
 
 	private DMatrixRMaj   tmp         = CommonOps_DDRM.identity( 3 );
 	private DMatrixRMaj   initial_rot = CommonOps_DDRM.identity( 3 );
-
-	private Quaternion_F64   att_q    = new Quaternion_F64();
-
 
 	// 3D helper structures
 	private Vector3D_F64     offset     = new Vector3D_F64();
@@ -205,8 +192,7 @@ public class MAVT265PositionEstimator {
 	private int   height;
 
 	private final Color	bgColor_header    = new Color(128,128,128,130);
-	private final BasicStroke stroke      = new BasicStroke(3);
-	//	private final msg_debug_vect  debug   = new msg_debug_vect(1,2);
+//	private final msg_debug_vect  debug   = new msg_debug_vect(1,2);
 
 
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
@@ -223,8 +209,9 @@ public class MAVT265PositionEstimator {
 
 		check_speed_xy = config.getBoolProperty(T265_CHECK_SPEED_XY, "false");
 		check_speed_z  = config.getBoolProperty(T265_CHECK_SPEED_Z, "false");
-		
+
 		fiducial_size   = config.getFloatProperty(T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
+		System.out.println("Fiducial size: "+fiducial_size+"m");
 
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
@@ -444,101 +431,101 @@ public class MAVT265PositionEstimator {
 								is_fiducial = true;
 								break;
 							}
-						}
-
-						if(is_fiducial) {
-
-							if(detector.getFiducialToCamera(fiducial_idx, targetToSensor)) {
-
-								detector.computeStability(fiducial_idx, 0.25f, stability);
-
-								targetToSensor.T.z = - targetToSensor.T.z;
-								detector.getCenter(fiducial_idx, fiducial_cen);
-
-								MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
-								GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
-								
-								fiducial_att.setFromMatrix(targetToSensor.R);
-								precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,lpos.T.x-precision_ned.T.z,
-										fiducial_att.getYaw()+model.attitude.y);
-
-								model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
-								locking_tms = System.currentTimeMillis();
-								
-							}
 						} 
+					} else 
+						is_fiducial = false;
+
+					if(is_fiducial) {
+
+						if(detector.getFiducialToCamera(fiducial_idx, targetToSensor)) {
+
+							detector.computeStability(fiducial_idx, 0.25f, stability);
+
+							targetToSensor.T.z = - targetToSensor.T.z;
+							detector.getCenter(fiducial_idx, fiducial_cen);
+
+							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
+							GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
+
+							fiducial_att.setFromMatrix(targetToSensor.R);
+							precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
+									fiducial_att.getYaw()+model.attitude.y);
+
+							model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
+							locking_tms = System.currentTimeMillis();
+
+						}
 					}
-
-
-				} catch(Exception e ) {
-					control.writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
-					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
-					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
-					return;
-				}
-			} 
-
-			// Publishing data
-
-			switch(mode) {
-
-			case GROUNDTRUTH_MODE:
-
-				// just set ground truth in local model
-				model.vision.setGroundTruth(ned.T);
-
-				break;
-
-			case LPOS_VIS_MODE_NED:
-
-
-				// Publish position NED
-				if(do_odometry)
-					publishPX4VisionPos(ned,tms);
-				publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
-
-				break;
-
-			case LPOS_ODO_MODE_NED:
-
-
-				// Publish position data NED frame, speed body frame; No Z update
-				if(do_odometry)
-					publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(p,ned,ned_s,precision_lock,tms);
-
-				break;
-
-			case LPOS_ODO_MODE_BODY:
-
-
-				// Publish position and speed data body frame
-				if(do_odometry)
-					publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-				publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
-
-				break;
-
+					
+			} catch(Exception e ) {
+				control.writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+				precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
+				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
+				return;
 			}
+		} 
 
-			model.vision.setStatus(Vision.POS_VALID, true);
+		// Publishing data
 
-			// Transfer to local model
-			model.vision.setAttitude(att);
-			model.vision.setPrecisionOffset(precision_lock);
-			model.vision.setPosition(ned.T);
-			model.vision.setSpeed(ned_s.T);
-			model.vision.tms = model.sys.getSynchronizedPX4Time_us();
+		switch(mode) {
 
-			//			// Publish vision data to subscribers
-			//			bus.publish(model.vision);
+		case GROUNDTRUTH_MODE:
 
-			// Add left camera to stream
-			if(stream!=null && enableStream) {
-				stream.addToStream(img, model, tms);
-			}
+			// just set ground truth in local model
+			model.vision.setGroundTruth(ned.T);
 
-		});
+			break;
+
+		case LPOS_VIS_MODE_NED:
+
+
+			// Publish position NED
+			if(do_odometry)
+				publishPX4VisionPos(ned,tms);
+			publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
+
+			break;
+
+		case LPOS_ODO_MODE_NED:
+
+
+			// Publish position data NED frame, speed body frame; No Z update
+			if(do_odometry)
+				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
+			publishMSPVision(p,ned,ned_s,precision_lock,tms);
+
+			break;
+
+		case LPOS_ODO_MODE_BODY:
+
+
+			// Publish position and speed data body frame
+			if(do_odometry)
+				publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
+			publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
+
+			break;
+
+		}
+
+		model.vision.setStatus(Vision.POS_VALID, true);
+
+		// Transfer to local model
+		model.vision.setAttitude(att);
+		model.vision.setPrecisionOffset(precision_lock);
+		model.vision.setPosition(ned.T);
+		model.vision.setSpeed(ned_s.T);
+		model.vision.tms = model.sys.getSynchronizedPX4Time_us();
+
+		//			// Publish vision data to subscribers
+		//			bus.publish(model.vision);
+
+		// Add left camera to stream
+		if(stream!=null && enableStream) {
+			stream.addToStream(img, model, tms);
+		}
+
+	});
 
 		if(stream != null && t265!=null){
 			stream.registerOverlayListener(ctx -> {
@@ -553,209 +540,211 @@ public class MAVT265PositionEstimator {
 		else
 			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted forewards");
 
-	}
+}
 
-	public void enableStream(boolean enable) {
-		this.enableStream = enable;
-	}
+public void enableStream(boolean enable) {
+	this.enableStream = enable;
+}
 
-	public void init(String s) {
-		model.vision.setStatus(Vision.POS_VALID, false);
-		reset_count++;
-		is_initialized = false;
-		t265.reset();
-		control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
-		tms_reset = System.currentTimeMillis();
-		ExecutorService.get().schedule(() -> {
-			if(lensDistortion!=null)
-				detector.setLensDistortion(lensDistortion, width, height);
-			is_initialized = true;
-		}, 2, TimeUnit.SECONDS);
-	}
-
-
-	public void start() {
-		if(t265==null)
-			return;
-		t265.start();
-		System.out.println("[vio] Starting T265....");
-		t265.printDeviceInfo();
-		ExecutorService.get().schedule(() -> {
-			init("init");
-			is_initialized = true;
-		}, 10, TimeUnit.SECONDS);
-	}
-
-	public void stop() {
-		if(t265==null)
-			return;
-		t265.stop();
-	}
-
-	private void overlayFeatures(Graphics ctx) {
+public void init(String s) {
+	model.vision.setStatus(Vision.POS_VALID, false);
+	reset_count++;
+	is_initialized = false;
+	t265.reset();
+	control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+	tms_reset = System.currentTimeMillis();
+	ExecutorService.get().schedule(() -> {
+		if(lensDistortion!=null)
+			detector.setLensDistortion(lensDistortion, width, height);
+		is_initialized = true;
+	}, 2, TimeUnit.SECONDS);
+}
 
 
-		ctx.setColor(bgColor_header);
-		ctx.fillRect(5, 5, width-10, 21);
+public void start() {
+	if(t265==null)
+		return;
+	t265.start();
+	System.out.println("[vio] Starting T265....");
+	t265.printDeviceInfo();
+	ExecutorService.get().schedule(() -> {
+		init("init");
+		is_initialized = true;
+	}, 10, TimeUnit.SECONDS);
+}
 
-		ctx.setXORMode(Color.white); 
+public void stop() {
+	if(t265==null)
+		return;
+	t265.stop();
+}
 
-		if(is_fiducial) {
+private void overlayFeatures(Graphics ctx) {
 
-			ctx.drawLine((int)fiducial_cen.x-10, (int)fiducial_cen.y, (int)fiducial_cen.x+10, (int)fiducial_cen.y);
-			ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
 
-		} 
-		ctx.drawLine(80, height/2, width/2-30, height/2); ctx.drawLine(width/2+30, height/2, width-80, height/2);
-		ctx.drawLine(width/2, 60, width/2, height/2-20); ctx.drawLine(width/2, height/2+20, width/2, height-60);
+	ctx.setColor(bgColor_header);
+	ctx.fillRect(5, 5, width-10, 21);
 
-		ctx.setPaintMode();
+	ctx.setXORMode(Color.white);  
 
-		ctx.setColor(Color.white);
-
-		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000f), 20, 20);
-		}
+	if(is_fiducial) {	
+		ctx.drawLine((int)fiducial_cen.x-10, (int)fiducial_cen.y, (int)fiducial_cen.x+10, (int)fiducial_cen.y);
+		ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
+	} 
 		
-		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 500000)
-			ctx.drawString(model.msg.text, 10, height-5);
+	ctx.drawLine(95, height/2, width/2-25, height/2); ctx.drawLine(width/2+25, height/2, width-95, height/2);
+	ctx.drawLine(width/2, 60, width/2, height/2-20); ctx.drawLine(width/2, height/2+20, width/2, height-60);
 
+	ctx.setPaintMode();
+	ctx.setColor(Color.white);
+	
+	if(is_fiducial && Double.isFinite(precision_lock.z))
+		ctx.drawString(String.format("%#.2fm",-precision_lock.z), width-40, 20);
+
+	if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
+		ctx.drawString(String.format("%.1fsec",model.sys.t_armed_ms/1000f), 20, 20);
 	}
 
+	if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000 
+			&& model.msg.severity < MAV_SEVERITY.MAV_SEVERITY_DEBUG)
+		ctx.drawString(model.msg.text, 10, height-5);
 
-	private void publishPX4Odometry(Se3_F64 pose, Se3_F64 speed, int frame, boolean pose_is_valid, boolean z_valid,long tms) {
-
-		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
-		odo.frame_id       = frame;
-		odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
-
-		odo.time_usec = tms * 1000;
+}
 
 
-		if(pose_is_valid) {
-			odo.x = (float) pose.T.x;
-			odo.y = (float) pose.T.y;
-			if(z_valid)
-				odo.z = (float) pose.T.z;
-			else
-				odo.z = model.state.l_z;
-		} else {
-			odo.x = Float.NaN;
-			odo.y = Float.NaN;
-			odo.z = Float.NaN;
-		}
+private void publishPX4Odometry(Se3_F64 pose, Se3_F64 speed, int frame, boolean pose_is_valid, boolean z_valid,long tms) {
 
-		odo.vx = (float) speed.T.x;
-		odo.vy = (float) speed.T.y;
-		odo.vz = (float) speed.T.z;
+	odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
+	odo.frame_id       = frame;
+	odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
 
-		// Use EKF params
-		odo.pose_covariance[0] = Float.NaN;
-		odo.velocity_covariance[0] = Float.NaN;
-
-		//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
-		//		odo.q[0] = (float)att_q.w;
-		//		odo.q[1] = (float)att_q.x;
-		//		odo.q[2] = (float)att_q.y;
-		//		odo.q[3] = (float)att_q.z;
-
-		// do not use twist
-		odo.q[0] = Float.NaN;
+	odo.time_usec = tms * 1000;
 
 
-		odo.reset_counter = reset_count;
-
-		control.sendMAVLinkMessage(odo);
-
-		model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
-
+	if(pose_is_valid) {
+		odo.x = (float) pose.T.x;
+		odo.y = (float) pose.T.y;
+		if(z_valid)
+			odo.z = (float) pose.T.z;
+		else
+			odo.z = model.state.l_z;
+	} else {
+		odo.x = Float.NaN;
+		odo.y = Float.NaN;
+		odo.z = Float.NaN;
 	}
 
-	private void publishPX4VisionPos(Se3_F64 pose, long tms) {
+	odo.vx = (float) speed.T.x;
+	odo.vy = (float) speed.T.y;
+	odo.vz = (float) speed.T.z;
+
+	// Use EKF params
+	odo.pose_covariance[0] = Float.NaN;
+	odo.velocity_covariance[0] = Float.NaN;
+
+	//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
+	//		odo.q[0] = (float)att_q.w;
+	//		odo.q[1] = (float)att_q.x;
+	//		odo.q[2] = (float)att_q.y;
+	//		odo.q[3] = (float)att_q.z;
+
+	// do not use twist
+	odo.q[0] = Float.NaN;
 
 
-		sms.usec = tms * 1000;
+	odo.reset_counter = reset_count;
 
-		sms.x = (float) pose.T.x;
-		sms.y = (float) pose.T.y;
-		sms.z = (float) pose.T.z;
+	control.sendMAVLinkMessage(odo);
 
-		sms.reset_counter = reset_count;
+	model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
 
-		sms.roll  = (float)att.getRoll();
-		sms.pitch = (float)att.getPitch();
-		sms.yaw   = (float)att.getYaw();
-		//		sms.yaw   = Float.NaN;
+}
 
-		sms.covariance[0] = Float.NaN;
+private void publishPX4VisionPos(Se3_F64 pose, long tms) {
 
-		control.sendMAVLinkMessage(sms);
 
-		model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
+	sms.usec = tms * 1000;
 
+	sms.x = (float) pose.T.x;
+	sms.y = (float) pose.T.y;
+	sms.z = (float) pose.T.z;
+
+	sms.reset_counter = reset_count;
+
+	sms.roll  = (float)att.getRoll();
+	sms.pitch = (float)att.getPitch();
+	sms.yaw   = (float)att.getYaw();
+	//		sms.yaw   = Float.NaN;
+
+	sms.covariance[0] = Float.NaN;
+
+	control.sendMAVLinkMessage(sms);
+
+	model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
+
+}
+
+
+private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed,Vector4D_F64 offset,long tms) {
+
+	msg.x =  (float) pose.T.x;
+	msg.y =  (float) pose.T.y;
+	msg.z =  (float) pose.T.z;
+
+	msg.vx =  (float) speed.T.x;
+	msg.vy =  (float) speed.T.y;
+	msg.vz =  (float) speed.T.z;
+
+	msg.gx =  (float) orig.T.x;
+	msg.gy =  (float) orig.T.y;
+	msg.gz =  (float) orig.T.z;
+
+	msg.px =  (float)offset.x;
+	msg.py =  (float)offset.y;
+	msg.pz =  (float)offset.z;
+	msg.pw =  (float)offset.w;
+
+	msg.h   = (float)att.getYaw();
+	msg.r   = (float)att.getRoll();
+	msg.p   = (float)att.getPitch();
+
+	msg.quality = (int)(quality * 100f);
+	msg.errors  = error_count;
+	msg.tms     = tms * 1000;
+	msg.flags   = model.vision.flags;
+
+	if(tms_old != tms) {
+		msg.fps = 1000 / (tms - tms_old);
 	}
+	tms_old = tms;
+
+	control.sendMAVLinkMessage(msg);
 
 
-	private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed,Vector4D_F64 offset,long tms) {
+}
 
-		msg.x =  (float) pose.T.x;
-		msg.y =  (float) pose.T.y;
-		msg.z =  (float) pose.T.z;
+public void printMatricesDebug(String title,Se3_F64 pose) {
 
-		msg.vx =  (float) speed.T.x;
-		msg.vy =  (float) speed.T.y;
-		msg.vz =  (float) speed.T.z;
+	System.out.println("--"+title+"---");
+	System.out.println("P=         "+pose.T);
+	System.out.println("ToBody=    "+to_body.T);
+	System.out.println("Body=      "+body.T);
+	System.out.println("ToNed=     "+to_ned.T);
+	System.out.println("OffsetR=   "+offset_r);
+	System.out.println("Ned=        "+ned.T);
+	System.out.println("----------");
 
-		msg.gx =  (float) orig.T.x;
-		msg.gy =  (float) orig.T.y;
-		msg.gz =  (float) orig.T.z;
+}
 
-		msg.px =  (float)offset.x;
-		msg.py =  (float)offset.y;
-		msg.pz =  (float)offset.z;
-		msg.pw =  (float)offset.w;
-
-		msg.h   = (float)att.getYaw();
-		msg.r   = (float)att.getRoll();
-		msg.p   = (float)att.getPitch();
-
-		msg.quality = (int)(quality * 100f);
-		msg.errors  = error_count;
-		msg.tms     = tms * 1000;
-		msg.flags   = model.vision.flags;
-
-		if(tms_old != tms) {
-			msg.fps = 1000 / (tms - tms_old);
-		}
-		tms_old = tms;
-
-		control.sendMAVLinkMessage(msg);
-
-
-	}
-
-	public void printMatricesDebug(String title,Se3_F64 pose) {
-
-		System.out.println("--"+title+"---");
-		System.out.println("P=         "+pose.T);
-		System.out.println("ToBody=    "+to_body.T);
-		System.out.println("Body=      "+body.T);
-		System.out.println("ToNed=     "+to_ned.T);
-		System.out.println("OffsetR=   "+offset_r);
-		System.out.println("Ned=        "+ned.T);
-		System.out.println("----------");
-
-	}
-
-	//	private void sendPoseDebug(GeoTuple3D_F64<?> pose) {
-	//
-	//		debug.x = (float)pose.getX();
-	//		debug.y = (float)pose.getY();
-	//		debug.z = (float)pose.getZ();
-	//
-	//		control.sendMAVLinkMessage(debug);
-	//
-	//	}
+//	private void sendPoseDebug(GeoTuple3D_F64<?> pose) {
+//
+//		debug.x = (float)pose.getX();
+//		debug.y = (float)pose.getY();
+//		debug.z = (float)pose.getZ();
+//
+//		control.sendMAVLinkMessage(debug);
+//
+//	}
 
 
 
