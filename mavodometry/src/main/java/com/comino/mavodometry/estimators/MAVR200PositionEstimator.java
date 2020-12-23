@@ -487,7 +487,7 @@ public class MAVR200PositionEstimator  {
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED))
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000), 20, 20);
 
-		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000)
+		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG))
 			ctx.drawString(model.msg.text, 10, info.height-5);
 
 	}
@@ -662,7 +662,7 @@ public class MAVR200PositionEstimator  {
 
 	private void updateInternalModel() {
 
-		model.vision.tms = model.sys.getSynchronizedPX4Time_us();
+		model.vision.tms = DataModel.getSynchronizedPX4Time_us();
 		model.vision.x  = (float) pose.T.z;
 		model.vision.y  = (float) pose.T.x;
 		model.vision.z  = (float) pose.T.y;

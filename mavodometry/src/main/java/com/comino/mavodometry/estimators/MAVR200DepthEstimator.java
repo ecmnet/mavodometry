@@ -41,6 +41,8 @@ import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
 
+import org.mavlink.messages.MAV_SEVERITY;
+
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
@@ -299,7 +301,7 @@ public class MAVR200DepthEstimator {
 					}
 				}
 				model.slam.quality = quality * 100 / width;
-				model.slam.tms = model.sys.getSynchronizedPX4Time_us();
+				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
 
 			}
 
@@ -351,7 +353,7 @@ public class MAVR200DepthEstimator {
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000f), 10, 20);
 		}
 
-		if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000)
+		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG))
 			ctx.drawString(model.msg.text, 10, height-5);
 
 	}

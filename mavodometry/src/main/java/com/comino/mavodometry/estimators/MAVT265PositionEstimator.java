@@ -515,7 +515,7 @@ public class MAVT265PositionEstimator {
 		model.vision.setPrecisionOffset(precision_lock);
 		model.vision.setPosition(ned.T);
 		model.vision.setSpeed(ned_s.T);
-		model.vision.tms = model.sys.getSynchronizedPX4Time_us();
+		model.vision.tms = DataModel.getSynchronizedPX4Time_us();
 
 		//			// Publish vision data to subscribers
 		//			bus.publish(model.vision);
@@ -605,8 +605,10 @@ private void overlayFeatures(Graphics ctx) {
 		ctx.drawString(String.format("%.1fsec",model.sys.t_armed_ms/1000f), 20, 20);
 	}
 
-	if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000 
-			&& model.msg.severity < MAV_SEVERITY.MAV_SEVERITY_DEBUG)
+//	if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000 
+//			&& model.msg.severity < MAV_SEVERITY.MAV_SEVERITY_DEBUG)
+	
+	if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO))
 		ctx.drawString(model.msg.text, 10, height-5);
 
 }
