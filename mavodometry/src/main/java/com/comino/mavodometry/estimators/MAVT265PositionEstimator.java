@@ -528,9 +528,9 @@ public class MAVT265PositionEstimator {
 	});
 
 		if(stream != null && t265!=null){
-			stream.registerOverlayListener(ctx -> {
+			stream.registerOverlayListener((ctx,tms) -> {
 				if(enableStream)
-					overlayFeatures(ctx);
+					overlayFeatures(ctx, tms);
 			});
 		}
 
@@ -579,7 +579,7 @@ public void stop() {
 	t265.stop();
 }
 
-private void overlayFeatures(Graphics ctx) {
+private void overlayFeatures(Graphics ctx, long tms) {
 
 
 	ctx.setColor(bgColor_header);
@@ -605,10 +605,12 @@ private void overlayFeatures(Graphics ctx) {
 		ctx.drawString(String.format("%.1fsec",model.sys.t_armed_ms/1000f), 20, 20);
 	}
 
-//	if(model.msg.text != null && (model.sys.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000 
+	// TODO: To be refactored
+//	if(model.msg.text != null && (DataModel.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000 
+//			&& !model.msg.text.contains("[logger]")
 //			&& model.msg.severity < MAV_SEVERITY.MAV_SEVERITY_DEBUG)
 	
-	if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO))
+	if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO,tms))
 		ctx.drawString(model.msg.text, 10, height-5);
 
 }

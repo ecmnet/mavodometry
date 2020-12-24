@@ -34,6 +34,7 @@
 
 package com.comino.mavodometry.video.impl;
 
+import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
@@ -109,19 +110,24 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 				synchronized(this) {
 				  tms = System.currentTimeMillis();
 				  if(input_image==null) {
-						wait(200);
+						wait(100);
 				  }	  
 				}
+				
 
 				os.write(("--BoundaryString\r\nContent-type:image/jpeg content-length:1\r\n\r\n").getBytes());
 
-				if((System.currentTimeMillis()-tms) > 300) {
+				if((System.currentTimeMillis()-tms) > 80) {
 					ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 					ctx.drawString("No video available", 110 , image.getHeight()/2);
+					if(listeners.size()>0) {
+						for(IOverlayListener listener : listeners)
+							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+					}
 					ImageIO.write(image, "jpg", os );
 					os.write("\r\n\r\n".getBytes());
 					os.flush();
-					is_running = false;
+					//is_running = false;
 					continue;
 		        }
 
@@ -131,10 +137,9 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 				else if(input_image instanceof GrayU8)
 					ConvertBufferedImage.convertTo((GrayU8)input_image, image, true);
 
-
 				if(listeners.size()>0) {
 					for(IOverlayListener listener : listeners)
-						listener.processOverlay(ctx);
+						listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 				}
 
 				ImageIO.write(image, "jpg", os );

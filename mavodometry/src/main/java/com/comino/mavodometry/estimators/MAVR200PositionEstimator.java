@@ -296,8 +296,8 @@ public class MAVR200PositionEstimator  {
 			streams.add(stream);
 
 			if(debug && streams.get(0) !=null) {
-				streams.get(0).registerOverlayListener(ctx -> {
-					overlayFeatures(ctx);
+				streams.get(0).registerOverlayListener((ctx,tms) -> {
+					overlayFeatures(ctx,tms);
 				});
 			}
 		}
@@ -464,7 +464,7 @@ public class MAVR200PositionEstimator  {
 		});
 	}
 
-	private void overlayFeatures(Graphics ctx) {
+	private void overlayFeatures(Graphics ctx,long tms) {
 
 		AccessPointTracks3D points = (AccessPointTracks3D)visualOdometry;
 
@@ -487,7 +487,7 @@ public class MAVR200PositionEstimator  {
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED))
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000), 20, 20);
 
-		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG))
+		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG,tms))
 			ctx.drawString(model.msg.text, 10, info.height-5);
 
 	}

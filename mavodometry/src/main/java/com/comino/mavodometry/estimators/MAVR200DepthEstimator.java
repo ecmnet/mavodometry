@@ -182,9 +182,9 @@ public class MAVR200DepthEstimator {
 
 
 		if(stream!=null) {
-			stream.registerOverlayListener(ctx -> {
+			stream.registerOverlayListener((ctx,tms) -> {
 				if(enableStream) {
-					overlayFeatures(ctx);
+					overlayFeatures(ctx,tms);
 					if(DO_DEPTH_OVERLAY)
 						ctx.drawImage(img, 0, base, null);
 				}
@@ -332,7 +332,7 @@ public class MAVR200DepthEstimator {
 	}
 
 
-	private void overlayFeatures(Graphics ctx) {
+	private void overlayFeatures(Graphics ctx, long tms) {
 
 		if(!enableStream)
 			return;
@@ -353,7 +353,7 @@ public class MAVR200DepthEstimator {
 			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000f), 10, 20);
 		}
 
-		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG))
+		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG, tms))
 			ctx.drawString(model.msg.text, 10, height-5);
 
 	}
