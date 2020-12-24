@@ -602,7 +602,7 @@ private void overlayFeatures(Graphics ctx, long tms) {
 		ctx.drawString(String.format("%#.2fm",-precision_lock.z), width-40, 20);
 
 	if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-		ctx.drawString(String.format("%.1fsec",model.sys.t_armed_ms/1000f), 20, 20);
+		ctx.drawString(String.format("%.1fs",model.sys.t_armed_ms/1000f), 20, 20);
 	}
 
 	// TODO: To be refactored

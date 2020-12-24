@@ -40,7 +40,7 @@ public class SimulationOverlayListener implements IOverlayListener {
 		ctx.setColor(Color.white);
 		
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-			ctx.drawString(String.format("%.1fsec",model.sys.t_armed_ms/1000f), 20, 20);
+			ctx.drawString(String.format("%.1fs",model.sys.t_armed_ms/1000f), 20, 20);
 		}
 		
 		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO,tms))
