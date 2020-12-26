@@ -39,12 +39,20 @@ import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.BufferedOutputStream;
+import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
+import java.util.Iterator;
 import java.util.List;
+import java.util.Locale;
 
+import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
+import javax.imageio.ImageWriteParam;
+import javax.imageio.ImageWriter;
+import javax.imageio.plugins.jpeg.JPEGImageWriteParam;
+import javax.imageio.stream.ImageOutputStream;
 
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.video.IOverlayListener;
@@ -58,7 +66,7 @@ import boofcv.struct.image.Planar;
 
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
-	private static final int MAX_VIDEO_RATE_MS = 50;
+	private static final int MAX_VIDEO_RATE_MS = 33;
 
 	private List<IOverlayListener> listeners = null;
 	private BufferedImage image = null;
@@ -66,11 +74,11 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	private Graphics2D ctx;
 
 	private T input_image;
-	private BufferedImage black_image;
-	
+
 	private boolean is_running = false;
 
 	private long last_image_tms = 0;
+	private float quality = 0.20f;
 
 	@SuppressWarnings("unchecked")
 	public HttpMJPEGHandler(int width, int height, DataModel model) {
@@ -80,7 +88,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		this.ctx = image.createGraphics();
 		this.ctx.setFont(new Font("Monospaced", Font.PLAIN, 10));
 
-		ImageIO.setUseCache(false);
+		//ImageIO.setUseCache(false);
 
 	}
 
@@ -102,34 +110,46 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 		is_running = true;
 
-        long tms = 0;
+		ImageWriter writer = null;
+		Iterator<ImageWriter> iter = ImageIO.getImageWritersByFormatName("jpg");
+		if (iter.hasNext())
+			writer = (ImageWriter) iter.next();
+		
+		ImageOutputStream ios = ImageIO.createImageOutputStream(os);
+		writer.setOutput(ios);
+		ImageWriteParam iwparam = new JPEGImageWriteParam(Locale.getDefault());
+		iwparam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
+		iwparam.setCompressionQuality(quality);
+		iwparam.setProgressiveMode(ImageWriteParam.MODE_DEFAULT);
+	
+
+		long tms = 0;
 		while(is_running) {
 
 			try {
 
 				synchronized(this) {
-				  tms = System.currentTimeMillis();
-				  if(input_image==null) {
-						wait(100);
-				  }	  
+					tms = System.currentTimeMillis();
+					if(input_image==null) {
+						wait(2000);
+					}	  
 				}
-				
-
 				os.write(("--BoundaryString\r\nContent-type:image/jpeg content-length:1\r\n\r\n").getBytes());
 
-				if((System.currentTimeMillis()-tms) > 80) {
+				if((System.currentTimeMillis()-tms) >1950) {
 					ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-					ctx.drawString("No video available", 110 , image.getHeight()/2);
+				//	ctx.drawString("No video available", 110 , image.getHeight()/2);
 					if(listeners.size()>0) {
 						for(IOverlayListener listener : listeners)
 							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 					}
-					ImageIO.write(image, "jpg", os );
+					
+					writer.write(null, new IIOImage(image, null, null), iwparam);
 					os.write("\r\n\r\n".getBytes());
 					os.flush();
 					//is_running = false;
 					continue;
-		        }
+				}
 
 				if(input_image instanceof Planar) {
 					ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input_image, image, true);
@@ -141,18 +161,20 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 					for(IOverlayListener listener : listeners)
 						listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 				}
-
-				ImageIO.write(image, "jpg", os );
+				
+				writer.write(null, new IIOImage(image, null, null), iwparam);
 				os.write("\r\n\r\n".getBytes());
-				os.flush();
 
 				input_image = null;
 
 			} catch (Exception e) { is_running = false; }
 		}
-        he.close();
+		writer.dispose(); 
+		ios.flush();
+		ios.close();
+		he.close();
 	}
-	
+
 
 	@Override
 	public void registerOverlayListener(IOverlayListener listener) {
@@ -171,6 +193,12 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 			input_image = input;
 			notify();
 		}
-
 	}
+
+	@Override
+	public void setQuality(int percent) {
+		this.quality = percent/100f;
+		
+	}
+
 }

@@ -335,7 +335,10 @@ public class MAVT265PositionEstimator {
 				is_fiducial = false;
 
 				// IDEA: Publish Dummy Vision with LIDAR-Z to PX4
-
+				
+				if(stream!=null && enableStream) {
+					stream.addToStream(img, model, tms);
+				}
 				return;
 			}
 
@@ -592,8 +595,8 @@ private void overlayFeatures(Graphics ctx, long tms) {
 		ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
 	} 
 		
-	ctx.drawLine(95, height/2, width/2-25, height/2); ctx.drawLine(width/2+25, height/2, width-95, height/2);
-	ctx.drawLine(width/2, 60, width/2, height/2-20); ctx.drawLine(width/2, height/2+20, width/2, height-60);
+	ctx.drawLine(100, height/2, width/2-20, height/2); ctx.drawLine(width/2+20, height/2, width-1, height/2);
+	ctx.drawLine(width/2, 100, width/2, height/2-20); ctx.drawLine(width/2, height/2+20, width/2, height-100);
 
 	ctx.setPaintMode();
 	ctx.setColor(Color.white);
@@ -605,13 +608,13 @@ private void overlayFeatures(Graphics ctx, long tms) {
 		ctx.drawString(String.format("%.1fs",model.sys.t_armed_ms/1000f), 20, 20);
 	}
 
-	// TODO: To be refactored
-//	if(model.msg.text != null && (DataModel.getSynchronizedPX4Time_us()-model.msg.tms) < 1000000 
-//			&& !model.msg.text.contains("[logger]")
-//			&& model.msg.severity < MAV_SEVERITY.MAV_SEVERITY_DEBUG)
-	
-	if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO,tms))
-		ctx.drawString(model.msg.text, 10, height-5);
+
+	if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO,tms)) {
+		ctx.setColor(bgColor_header);
+		ctx.fillRect(5, height-21, width-10, 19);
+		ctx.setColor(Color.white);
+		ctx.drawString(model.msg.text, 10, height-8);
+	}
 
 }
 
