@@ -585,9 +585,6 @@ public void stop() {
 private void overlayFeatures(Graphics ctx, long tms) {
 
 
-	ctx.setColor(bgColor_header);
-	ctx.fillRect(5, 5, width-10, 21);
-
 	ctx.setXORMode(Color.white);  
 
 	if(is_fiducial) {	
@@ -595,26 +592,12 @@ private void overlayFeatures(Graphics ctx, long tms) {
 		ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
 	} 
 		
-	ctx.drawLine(100, height/2, width/2-20, height/2); ctx.drawLine(width/2+20, height/2, width-1, height/2);
-	ctx.drawLine(width/2, 100, width/2, height/2-20); ctx.drawLine(width/2, height/2+20, width/2, height-100);
 
 	ctx.setPaintMode();
 	ctx.setColor(Color.white);
 	
 	if(is_fiducial && Double.isFinite(precision_lock.z))
 		ctx.drawString(String.format("%#.2fm",-precision_lock.z), width-40, 20);
-
-	if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-		ctx.drawString(String.format("%.1fs",model.sys.t_armed_ms/1000f), 20, 20);
-	}
-
-
-	if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO,tms)) {
-		ctx.setColor(bgColor_header);
-		ctx.fillRect(5, height-21, width-10, 19);
-		ctx.setColor(Color.white);
-		ctx.drawString(model.msg.text, 10, height-8);
-	}
 
 }
 
