@@ -337,24 +337,10 @@ public class MAVR200DepthEstimator {
 		if(!enableStream)
 			return;
 
-		ctx.setColor(bgColor);
-		ctx.fillRect(5, 5, width-10, 21);
-
 		if(!DO_DEPTH_OVERLAY) {
 			ctx.setColor(depthColor);
 			ctx.fillRect(0, base, width, top-base);
 		}
-
-		ctx.setColor(Color.white);
-		//	ctx.drawString(String.format("%2.1f fps (obs.)",(float)model.slam.fps), width-95, 20);
-
-
-		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-			ctx.drawString(String.format("%.1f sec",model.sys.t_armed_ms/1000f), 10, 20);
-		}
-
-		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG, tms))
-			ctx.drawString(model.msg.text, 10, height-5);
 
 	}
 
