@@ -46,13 +46,9 @@ public class DefaultOverlayListener implements IOverlayListener {
 	
 	private DataModel model;
 	
-	
 	private final Color	bgColor_header    = new Color(128,128,128,130);
 
-
 	private int width;
-
-
 	private int height;
 	
 	public DefaultOverlayListener(int width, int height, DataModel model) {
