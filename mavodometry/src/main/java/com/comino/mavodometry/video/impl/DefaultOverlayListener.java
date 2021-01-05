@@ -35,6 +35,7 @@ package com.comino.mavodometry.video.impl;
 
 import java.awt.Color;
 import java.awt.Graphics;
+import java.text.DecimalFormat;
 
 import org.mavlink.messages.MAV_SEVERITY;
 
@@ -47,6 +48,7 @@ public class DefaultOverlayListener implements IOverlayListener {
 	private DataModel model;
 	
 	private final Color	bgColor_header    = new Color(128,128,128,130);
+	private final DecimalFormat time      = new DecimalFormat("#0.0s");
 
 	private int width;
 	private int height;
@@ -74,7 +76,7 @@ public class DefaultOverlayListener implements IOverlayListener {
 		
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-			ctx.drawString(String.format("%.1fs",model.sys.t_armed_ms/1000f), 20, 20);
+			ctx.drawString(time.format(model.sys.t_armed_ms/1000f), 20, 20);
 		}
 
 
@@ -82,7 +84,7 @@ public class DefaultOverlayListener implements IOverlayListener {
 			ctx.setColor(bgColor_header);
 			ctx.fillRect(5, height-21, width-10, 19);
 			ctx.setColor(Color.white);
-			ctx.drawString(model.msg.text, 10, height-8);
+			ctx.drawString(model.msg.text, 10, height-6);
 		}
 		
 	}

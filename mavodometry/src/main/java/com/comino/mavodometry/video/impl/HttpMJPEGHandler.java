@@ -67,9 +67,9 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	private static final int 		MAX_VIDEO_RATE_MS     = 33;
 	private static final float		DEFAULT_VIDEO_QUALITY = 0.4f;
 
-	private List<IOverlayListener> listeners = null;
-	private BufferedImage image = null;
-	private Graphics2D ctx;
+	private final List<IOverlayListener> listeners;
+	private final BufferedImage image;
+	private final Graphics2D ctx;
 
 	private T input_image;
 
@@ -77,15 +77,14 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 	private long last_image_tms = 0;
 	private float quality = DEFAULT_VIDEO_QUALITY;
+	private IIOImage ioimage;
 
 	public HttpMJPEGHandler(int width, int height, DataModel model) {
 		this.listeners = new ArrayList<IOverlayListener>();
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		this.ctx = image.createGraphics();
-		this.ctx.setFont(new Font("Monospaced", Font.PLAIN, 10));
-
-		//ImageIO.setUseCache(false);
-
+		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
+		this.ioimage = new IIOImage(image, null, null);
 	}
 
 	public void stop() {
@@ -140,7 +139,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 					}
 					
-					writer.write(null, new IIOImage(image, null, null), iwparam);
+					writer.write(null, ioimage , iwparam);
 					os.write("\r\n\r\n".getBytes());
 					os.flush();
 					//is_running = false;
