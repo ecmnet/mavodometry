@@ -1,6 +1,6 @@
 /****************************************************************************
  *
- *   Copyright (c) 2017 Eike Mansfeld ecm@gmx.de. All rights reserved.
+ *   Copyright (c) 2017,2021 Eike Mansfeld ecm@gmx.de. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -34,12 +34,10 @@
 
 package com.comino.mavodometry.video.impl;
 
-import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.BufferedOutputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
@@ -66,11 +64,11 @@ import boofcv.struct.image.Planar;
 
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
-	private static final int MAX_VIDEO_RATE_MS = 33;
+	private static final int 		MAX_VIDEO_RATE_MS     = 33;
+	private static final float		DEFAULT_VIDEO_QUALITY = 0.4f;
 
 	private List<IOverlayListener> listeners = null;
 	private BufferedImage image = null;
-	private DataModel model = null;
 	private Graphics2D ctx;
 
 	private T input_image;
@@ -78,11 +76,9 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	private boolean is_running = false;
 
 	private long last_image_tms = 0;
-	private float quality = 0.20f;
+	private float quality = DEFAULT_VIDEO_QUALITY;
 
-	@SuppressWarnings("unchecked")
 	public HttpMJPEGHandler(int width, int height, DataModel model) {
-		this.model = model;
 		this.listeners = new ArrayList<IOverlayListener>();
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		this.ctx = image.createGraphics();
@@ -97,7 +93,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	}
 
 	@Override @SuppressWarnings("unchecked")
-	public void handle(@SuppressWarnings("restriction") HttpExchange he) throws IOException {
+	public void handle(HttpExchange he) throws IOException {
 
 
 		if(is_running) {
