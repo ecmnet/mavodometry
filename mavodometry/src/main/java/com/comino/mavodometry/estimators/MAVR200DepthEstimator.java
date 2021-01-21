@@ -37,34 +37,25 @@ import static boofcv.factory.distort.LensDistortionFactory.narrow;
 
 import java.awt.Color;
 import java.awt.Graphics;
-import java.awt.Image;
 import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
-
-import org.mavlink.messages.MAV_SEVERITY;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
+import com.comino.mavmap.map.map3D.LocalMap3D;
 import com.comino.mavodometry.libnano.detetction.NanoObjectDetection;
 import com.comino.mavodometry.libnano.segmentation.NanoSegmentation;
 import com.comino.mavodometry.libnano.trail.NanoTrailDetection;
 import com.comino.mavodometry.libnano.utils.ImageConversionUtil;
-import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
 import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth.Listener;
-import com.comino.mavodometry.utils.DepthUtils;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.hw.HardwareAbstraction;
-import com.sun.jna.ptr.PointerByReference;
 
-import boofcv.alg.distort.PointToPixelTransform_F32;
-import boofcv.alg.filter.blur.GBlurImageOps;
-import boofcv.alg.sfm.DepthSparse3D;
-import boofcv.struct.distort.DoNothing2Transform2_F32;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -128,8 +119,8 @@ public class MAVR200DepthEstimator {
 
 
 	@SuppressWarnings("unused")
-	public <T> MAVR200DepthEstimator(IMAVMSPController control, ITargetListener targetListener, MSPConfig config, int width, int height,
-			IMAVMapper mapper, IVisualStreamHandler<Planar<GrayU8>> stream) {
+	public <T> MAVR200DepthEstimator(IMAVMSPController control, ITargetListener targetListener, LocalMap3D map, MSPConfig config, int width, int height,
+			IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		this.width   = width;
 		this.height  = height;
@@ -295,10 +286,10 @@ public class MAVR200DepthEstimator {
 						ned_pt.set(body_pt);
 					}
 
-					// put into map if map available
-					if(mapper!=null) {
-						mapper.update(model.state.l_x, model.state.l_y, ned_pt);
-					}
+//					// put into map if map available
+//					if(mapper!=null) {
+//						mapper.update(model.state.l_x, model.state.l_y, ned_pt);
+//					}
 				}
 				model.slam.quality = quality * 100 / width;
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
