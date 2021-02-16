@@ -65,7 +65,7 @@ import boofcv.struct.image.Planar;
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
 	private static final int 		MAX_VIDEO_RATE_MS     = 33;
-	private static final float		DEFAULT_VIDEO_QUALITY = 0.4f;
+	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
 
 	private final List<IOverlayListener> listeners;
 	private final BufferedImage image;
@@ -133,11 +133,11 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 				if((System.currentTimeMillis()-tms) >1950) {
 					ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-				//	ctx.drawString("No video available", 110 , image.getHeight()/2);
-					if(listeners.size()>0) {
-						for(IOverlayListener listener : listeners)
-							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
-					}
+					ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
+//					if(listeners.size()>0) {
+//						for(IOverlayListener listener : listeners)
+//							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+//					}
 					
 					writer.write(null, ioimage , iwparam);
 					os.write("\r\n\r\n".getBytes());
