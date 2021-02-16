@@ -109,7 +109,7 @@ public class StreamRealSenseT265Pose {
 	private int mount;
 	private int dev_count = 0;
 
-	private DMatrixRMaj   rtX90  = CommonOps_DDRM.identity( 3 );
+	private DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
 	private DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
 
 
@@ -126,7 +126,7 @@ public class StreamRealSenseT265Pose {
 		this.mount = mount;
 		
 		
-		ConvertRotation3D_F64.rotX(Math.PI/2,rtX90);
+		ConvertRotation3D_F64.rotY(Math.PI/2,rtY90);
 
 
 		ctx = Realsense2Library.INSTANCE.rs2_create_context(Realsense2Library.RS2_API_VERSION, error);
@@ -341,20 +341,20 @@ public class StreamRealSenseT265Pose {
 
 				case POS_DOWNWARD:
 
-					current_pose.getTranslation().set( -rawpose.translation.x, -rawpose.translation.z, - rawpose.translation.y);
-
+					current_pose.getTranslation().set( -rawpose.translation.z, rawpose.translation.x, - rawpose.translation.y);
+					
 					ConvertRotation3D_F64.quaternionToMatrix(
-							rawpose.rotation.x,
 							rawpose.rotation.w,
-							-rawpose.rotation.y,
-							rawpose.rotation.z, tmp);
+							-rawpose.rotation.z,
+							rawpose.rotation.x,
+							-rawpose.rotation.y, tmp);
 
-					CommonOps_DDRM.mult(tmp, rtX90 , current_pose.getRotation());
+					CommonOps_DDRM.mult(tmp, rtY90 , current_pose.getRotation());
 
-					current_speed.getTranslation().set(- rawpose.velocity.x, -rawpose.velocity.z, - rawpose.velocity.y);
+					current_speed.getTranslation().set( -rawpose.velocity.z, rawpose.velocity.x, - rawpose.velocity.y);
 					current_speed.getRotation().set(current_pose.getRotation());
 
-					current_acceleration.getTranslation().set(- rawpose.acceleration.x, -rawpose.acceleration.z, - rawpose.acceleration.y);
+					current_acceleration.getTranslation().set(- rawpose.acceleration.z, rawpose.acceleration.x, - rawpose.acceleration.y);
 
 					break;
 				}

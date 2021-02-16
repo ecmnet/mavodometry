@@ -46,7 +46,7 @@ import org.mavlink.messages.MAV_SEVERITY;
 import org.mavlink.messages.MSP_AUTOCONTROL_MODE;
 import org.mavlink.messages.MSP_CMD;
 import org.mavlink.messages.MSP_COMPONENT_CTRL;
-import org.mavlink.messages.lquac.msg_debug_vect;
+
 import org.mavlink.messages.lquac.msg_msp_command;
 import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
@@ -76,6 +76,7 @@ import boofcv.factory.filter.binary.ConfigThreshold;
 import boofcv.factory.filter.binary.ThresholdType;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
+import georegression.geometry.ConvertRotation3D_F64;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Vector3D_F64;
@@ -134,6 +135,8 @@ public class MAVT265PositionEstimator {
 	private Se3_F64          to_ned              = new Se3_F64();
 	private Se3_F64          to_fiducial_ned     = new Se3_F64();
 	private Se3_F64          to_body             = new Se3_F64();
+	private Se3_F64          to_rotz90           = new Se3_F64();
+	private Se3_F64          to_tmp              = new Se3_F64();
 
 	private Se3_F64          ned      = new Se3_F64();
 	private Se3_F64          ned_s    = new Se3_F64();
@@ -191,10 +194,6 @@ public class MAVT265PositionEstimator {
 	private int   width;
 	private int   height;
 
-	private final Color	bgColor_header    = new Color(128,128,128,130);
-//	private final msg_debug_vect  debug   = new msg_debug_vect(1,2);
-
-
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		this.control = control;
@@ -212,6 +211,8 @@ public class MAVT265PositionEstimator {
 
 		fiducial_size   = config.getFloatProperty(T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
 		System.out.println("Fiducial size: "+fiducial_size+"m");
+		
+		ConvertRotation3D_F64.rotZ(-Math.PI/2,to_rotz90.R);
 
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
@@ -284,9 +285,9 @@ public class MAVT265PositionEstimator {
 					//					MSP3DUtils.convertCurrentState(model, to_ned.T);
 					//					to_ned.T.plusIP(tmpv);
 
-					to_ned.T.z = - model.raw.di - offset_r.z;
+			//		to_ned.T.z = - model.raw.di - offset_r.z;
 
-					control.writeLogMessage(new LogMessage("[vio] T265 NED Translation init. (Z update)", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+//					control.writeLogMessage(new LogMessage("[vio] T265 NED Translation init. (Z update)", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 					//					printMatricesDebug("After",p);
 				}
 				break;
@@ -301,7 +302,6 @@ public class MAVT265PositionEstimator {
 
 			// Note: This takes 1.5sec for T265
 			if((System.currentTimeMillis() - tms_reset) < 2500) {
-				model.vision.setStatus(Vision.RESETTING, true);
 				quality = 0; error_count=0; tms_reset = 0; confidence_old = 0;
 
 				// set initial T265 pose as origin
@@ -334,11 +334,19 @@ public class MAVT265PositionEstimator {
 
 				is_fiducial = false;
 
-				// IDEA: Publish Dummy Vision with LIDAR-Z to PX4
+				// During reset phase publish dummy odometry, if Flow and Lidar is available
+				if(model.sys.isSensorAvailable(Status.MSP_PIX4FLOW_AVAILABILITY) &&
+						model.sys.isSensorAvailable(Status.MSP_LIDAR_AVAILABILITY)) {
+					// Eventually correct offset
+					if(!model.vision.isStatus(Vision.RESETTING))
+						control.writeLogMessage(new LogMessage("[vio] Sending lidar-based dummy Odometry.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+				    publishPX4DummyOdometry(model.state.l_x, model.state.l_y,-model.raw.di,MAV_FRAME.MAV_FRAME_LOCAL_FRD,tms);	
+				}
 				
 				if(stream!=null && enableStream) {
 					stream.addToStream(img, model, tms);
 				}
+				model.vision.setStatus(Vision.RESETTING, true);
 				return;
 			}
 
@@ -391,10 +399,10 @@ public class MAVT265PositionEstimator {
 
 			// Speed check: Is visual XY speed acceptable
 			if(avg_xy_speed_dev.getMeanAbs() > MAX_SPEED_DEVIATION) {
-				//	control.writeLogMessage(new LogMessage("[vio] T265 XY speed vs local", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 				if(check_speed_xy) {
+					control.writeLogMessage(new LogMessage("[vio] T265 XY speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 					error_count++;
-					init("speedXY");
+		//			init("speedXY");
 					return;
 				}
 			}
@@ -404,10 +412,10 @@ public class MAVT265PositionEstimator {
 
 			// Speed check: Is visual Z speed acceptable
 			if(avg_z_speed_dev.getMeanAbs() > MAX_SPEED_DEVIATION) {
-				//	control.writeLogMessage(new LogMessage("[vio] T265 Z speed vs local: "+f2.format(avg_z_speed_dev.getMean())+"m/s", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 				if(check_speed_z) {
+					control.writeLogMessage(new LogMessage("[vio] T265 Z speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 					error_count++;
-					init("speedZ");
+		//			init("speedZ");
 					return;
 				}
 			}
@@ -440,13 +448,18 @@ public class MAVT265PositionEstimator {
 
 					if(is_fiducial) {
 
-						if(detector.getFiducialToCamera(fiducial_idx, targetToSensor)) {
+						if(detector.getFiducialToCamera(fiducial_idx, to_tmp)) {
+
 
 							detector.computeStability(fiducial_idx, 0.25f, stability);
-
+							
+							// rotate into YX axis (Sensor orientation)
+							to_tmp.concat(to_rotz90, targetToSensor);
+							
 							targetToSensor.T.z = - targetToSensor.T.z;
 							detector.getCenter(fiducial_idx, fiducial_cen);
 
+							// check attitude because of rotated camera
 							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
 							GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
 
@@ -483,9 +496,10 @@ public class MAVT265PositionEstimator {
 
 
 			// Publish position NED
-			if(do_odometry)
+			if(do_odometry) {
 				publishPX4VisionPos(ned,tms);
-			publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
+			    publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
+			}
 
 			break;
 
@@ -493,9 +507,10 @@ public class MAVT265PositionEstimator {
 
 
 			// Publish position data NED frame, speed body frame; No Z update
-			if(do_odometry)
-				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-			publishMSPVision(p,ned,ned_s,precision_lock,tms);
+			if(do_odometry) {
+				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
+			    publishMSPVision(p,ned,ned_s,precision_lock,tms);
+			}
 
 			break;
 
@@ -503,9 +518,10 @@ public class MAVT265PositionEstimator {
 
 
 			// Publish position and speed data body frame
-			if(do_odometry)
-				publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,true,tms);
-			publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
+			if(do_odometry) {
+				publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
+			    publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
+			}
 
 			break;
 
@@ -602,7 +618,7 @@ private void overlayFeatures(Graphics ctx, long tms) {
 }
 
 
-private void publishPX4Odometry(Se3_F64 pose, Se3_F64 speed, int frame, boolean pose_is_valid, boolean z_valid,long tms) {
+private void publishPX4Odometry(Se3_F64 pose, Se3_F64 speed, int frame, boolean pose_is_valid, long tms) {
 
 	odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
 	odo.frame_id       = frame;
@@ -614,10 +630,7 @@ private void publishPX4Odometry(Se3_F64 pose, Se3_F64 speed, int frame, boolean 
 	if(pose_is_valid) {
 		odo.x = (float) pose.T.x;
 		odo.y = (float) pose.T.y;
-		if(z_valid)
-			odo.z = (float) pose.T.z;
-		else
-			odo.z = model.state.l_z;
+		odo.z = (float) pose.T.z;
 	} else {
 		odo.x = Float.NaN;
 		odo.y = Float.NaN;
@@ -647,6 +660,32 @@ private void publishPX4Odometry(Se3_F64 pose, Se3_F64 speed, int frame, boolean 
 	control.sendMAVLinkMessage(odo);
 
 	model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
+
+}
+
+private void publishPX4DummyOdometry(float x_pos, float y_pos, float z_pos, int frame, long tms) {
+
+	odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
+	odo.frame_id       = frame;
+	odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
+
+	odo.time_usec = tms * 1000;
+
+		odo.x = x_pos;
+		odo.y = y_pos;
+		odo.z = z_pos;
+	
+
+	// Use EKF params
+	odo.pose_covariance[0] = Float.NaN;
+	odo.velocity_covariance[0] = Float.NaN;
+
+	// do not use twist
+	odo.q[0] = Float.NaN;
+
+	odo.reset_counter = reset_count;
+
+	control.sendMAVLinkMessage(odo);
 
 }
 
