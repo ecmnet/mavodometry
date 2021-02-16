@@ -45,7 +45,7 @@ import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
-import com.comino.mavmap.map.map3D.LocalMap3D;
+import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.libnano.detetction.NanoObjectDetection;
 import com.comino.mavodometry.libnano.segmentation.NanoSegmentation;
 import com.comino.mavodometry.libnano.trail.NanoTrailDetection;
@@ -75,7 +75,7 @@ public class MAVR200DepthEstimator {
 
 	private static final boolean DO_DEPTH_OVERLAY   = true;
 
-	private static final float MAX_DISTANCE         = 10.0f;
+	private static final float MAX_DISTANCE         = 6.0f;
 
 
 	// mounting offset in m
@@ -113,9 +113,6 @@ public class MAVR200DepthEstimator {
 	private BufferedImage             img = null;
 	private boolean          enableStream = false;
 
-	private float depth_window_switch_alt = 9999.0f;
-
-	private int[] depth_a                 = null;   // Mean Buffer depth;
 
 
 	@SuppressWarnings("unused")
@@ -125,13 +122,8 @@ public class MAVR200DepthEstimator {
 		this.width   = width;
 		this.height  = height;
 		this.model   = control.getCurrentModel();
-		this.depth_a = new int[width];
 
-		// Vertical window for obstacle detection
-		this.base    = height * 2 / 3 - 70;
-		this.top     = height * 2 / 3 + 10;
-
-		this.img = new BufferedImage(width, top-base, BufferedImage.TYPE_BYTE_INDEXED, ColorMap.setAlpha(ColorMap.JET,0.4));
+		this.img = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_INDEXED, ColorMap.setAlpha(ColorMap.JET,0.4));
 
 
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
@@ -177,7 +169,7 @@ public class MAVR200DepthEstimator {
 				if(enableStream) {
 					overlayFeatures(ctx,tms);
 					if(DO_DEPTH_OVERLAY)
-						ctx.drawImage(img, 0, base, null);
+						ctx.drawImage(img, 0, 0, null);
 				}
 			});
 		}
@@ -194,10 +186,7 @@ public class MAVR200DepthEstimator {
 
 			@Override
 			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
-				
 
-				// Idea: make depth window y-alignment dependent on flight hight to avoid ground detected as
-				// obstacle
 
 				quality = 0;
 				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
@@ -205,13 +194,10 @@ public class MAVR200DepthEstimator {
 
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
-				// Switch Depth window according to altitude
-				determineDepthWindow(depth_window_switch_alt);
 
+//				if(DO_DEPTH_OVERLAY && enableStream)
+//					overlayDepth(depth, img);
 
-				if(DO_DEPTH_OVERLAY && enableStream)
-					overlayDepth(depth.subimage(0, base, width, top), img);
-				
 				if(!model.sys.isStatus(Status.MSP_LPOS_VALID)) {
 					if(stream!=null && enableStream) {
 						stream.addToStream(rgb, model, timeDepth);
@@ -219,79 +205,69 @@ public class MAVR200DepthEstimator {
 					return;
 				}
 
-				// AI networks to be processed
-				if(detect!=null || trail!=null || segment!=null) {
-					ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
-
-					if(detect!=null) {
-						detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-						if(detect.hasObjectsDetected()) {
-							targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
-						}
-					}
-
-					if(trail!=null) {
-						trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-					}
-
-					if(segment!=null) {
-						segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-					}
-				}
+//				// AI networks to be processed
+//				if(detect!=null || trail!=null || segment!=null) {
+//					ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
+//
+//					if(detect!=null) {
+//						detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+//						if(detect.hasObjectsDetected()) {
+//							targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
+//						}
+//					}
+//
+//					if(trail!=null) {
+//						trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+//					}
+//
+//					if(segment!=null) {
+//						segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+//					}
+//				}
 
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
 					stream.addToStream(rgb, model, timeDepth);
 				}
 
-
-				// Read minimum depth in a band
-				for( x = 0; x < width; x++ ) {
-					depth_z = Integer.MAX_VALUE;
-					for( y = base; y < top; y++ ) {
-						raw_z = depth.unsafe_get(x, y);
-						if(raw_z > 20 && raw_z < depth_z && raw_z < 15000) {
-							depth_z =  raw_z; y0 = y;
-						}
-					}
-
-					if(depth_z == Integer.MAX_VALUE) {
-						continue;
-					}
-
-					// build depth mean with previous value
-					depth_z = (depth_a[x] + depth_z) / 2;
-					depth_a[x] = depth_z;
-
-					// transform to 3D coordinates
-					p2n.compute(x,y0,norm);
-					raw_pt.z =  depth_z*1e-3;
-					raw_pt.x =  raw_pt.z*norm.x;
-					raw_pt.y = -raw_pt.z*norm.y;
-
-					quality++;
-
-
-					if(raw_pt.z > MAX_DISTANCE)
-						raw_pt.z = 20;
-
-					body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
-					body_pt.plusIP(offset);
-
-					// rotate in NED frame if NED available
-					if(!to_ned.T.isNaN() &&  !control.isSimulation()) {
-						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
-						ned_pt.plusIP(to_ned.T);
-					} else {
-						ned_pt.set(body_pt);
-					}
-
-//					// put into map if map available
-//					if(mapper!=null) {
-//						mapper.update(model.state.l_x, model.state.l_y, ned_pt);
+//				for( x = 0; x < width; x = x + 2 ) {
+//					for( y = 0; y < height; y = y +2 ) {
+//						raw_z = depth.unsafe_get(x, y);
+//
+//						if(raw_z < 20 || raw_z >= 10000)
+//							continue;
+//
+//						quality++;
+//
+//						// transform to 3D coordinates
+//						p2n.compute(x,y,norm);
+//						raw_pt.z =  raw_z*1e-3;
+//						raw_pt.x =  raw_pt.z*norm.x;
+//						raw_pt.y = -raw_pt.z*norm.y;
+//						
+//						if(raw_pt.z > MAX_DISTANCE)
+//							continue;
+//
+//
+//
+//						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
+//						body_pt.plusIP(offset);
+//
+//						// rotate in NED frame if NED available
+//						if(!to_ned.T.isNaN() &&  !control.isSimulation()) {
+//							GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
+//							ned_pt.plusIP(to_ned.T);
+//						} else {
+//							ned_pt.set(body_pt);
+//						}
+//
+//											// put into map if map available
+//											if(map!=null) {
+//												map.update(to_ned.T, ned_pt);
+//											}
 //					}
-				}
-				model.slam.quality = quality * 100 / width;
+//				}
+				model.slam.quality = quality * 400 / ( width * height );
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
 
 			}
@@ -327,23 +303,12 @@ public class MAVR200DepthEstimator {
 
 		if(!enableStream)
 			return;
+//
+//		if(!DO_DEPTH_OVERLAY) {
+//			ctx.setColor(depthColor);
+//			ctx.fillRect(0, base, width, height);
+//		}
 
-		if(!DO_DEPTH_OVERLAY) {
-			ctx.setColor(depthColor);
-			ctx.fillRect(0, base, width, top-base);
-		}
-
-	}
-
-	private void determineDepthWindow(float z_pos1) {
-
-		if(model.state.l_z < z_pos1) {
-			base    = height * 2 / 3 - 70;
-			top     = height * 2 / 3 + 10;
-		} else {
-			base    = height / 5 ;
-			top     = height / 5 + 80;
-		}
 	}
 
 
@@ -351,7 +316,7 @@ public class MAVR200DepthEstimator {
 		WritableRaster raster = image.getRaster(); int[] pixel = new int[1];
 		for(int x=0;x<depth_area.width;x++) {
 			for(int y=0;y<depth_area.height;y++) {
-				pixel[0] = depth_area.get(x, y)/50;
+				pixel[0] = depth_area.get(x, y) / 50;
 				raster.setPixel(x,y,pixel);
 			}
 		}
