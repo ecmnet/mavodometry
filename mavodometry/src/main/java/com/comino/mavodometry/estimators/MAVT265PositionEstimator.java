@@ -62,6 +62,7 @@ import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
+import com.comino.mavcom.utils.SimpleComplementaryFilter;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.video.IVisualStreamHandler;
@@ -168,8 +169,9 @@ public class MAVT265PositionEstimator {
 	private boolean    check_speed_xy = false;
 	private boolean    check_speed_z  = false;
 
-	private SimpleLowPassFilter   avg_z_speed_dev  = new SimpleLowPassFilter(0.75);
-	private SimpleLowPassFilter  avg_xy_speed_dev  = new SimpleLowPassFilter(0.75);
+	private SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.75);
+	private SimpleLowPassFilter        avg_xy_speed_dev = new SimpleLowPassFilter(0.75);
+	private SimpleComplementaryFilter  com_z_fusion     = new SimpleComplementaryFilter(0.75);
 
 	private boolean          is_fiducial        = false;
 	private float            fiducial_size      = FIDUCIAL_SIZE;
@@ -296,6 +298,9 @@ public class MAVT265PositionEstimator {
 			}
 
 			confidence_old = raw.tracker_confidence;
+			
+			com_z_fusion.add(ned.T.z, - model.raw.di);
+			model.debug.z = (float)com_z_fusion.getMean();
 
 
 			// Reset procedure 
