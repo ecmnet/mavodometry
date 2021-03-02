@@ -229,7 +229,8 @@ public class MAVT265PositionEstimator {
 						do_odometry = true; 
 						break;
 					case MSP_COMPONENT_CTRL.DISABLE:
-						do_odometry = false; break;
+						do_odometry = false; 
+						break;
 					case MSP_COMPONENT_CTRL.RESET:
 						if(!t265.isRunning())
 							start();
@@ -250,9 +251,10 @@ public class MAVT265PositionEstimator {
 			}
 		});
 
-		// reset vision when absolute position lost
+		// reset vision when absolute position lost if odometry if published
 		control.getStatusManager().addListener(StatusManager.TYPE_ESTIMATOR, ESTIMATOR_STATUS_FLAGS.ESTIMATOR_POS_HORIZ_ABS, StatusManager.EDGE_FALLING, (n) -> {
-			init("Est.LPOS(abs)");
+			if(do_odometry)
+			  init("Est.LPOS(abs)");
 		});
 
 		model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK,config.getBoolProperty(T265_PRECISION_LOCK, "true"));
@@ -483,6 +485,12 @@ public class MAVT265PositionEstimator {
 			// Publishing data
 
 			if(!do_odometry) {
+
+				// Add left camera to stream
+				if(stream!=null && enableStream) {
+					stream.addToStream(img, model, tms);
+				}
+				
 				model.vision.setStatus(Vision.PUBLISHED, false);
 				publishMSPGroundTruth(ned);
 				return;
