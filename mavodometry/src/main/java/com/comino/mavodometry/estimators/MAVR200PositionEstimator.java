@@ -190,7 +190,7 @@ public class MAVR200PositionEstimator  {
 		this.do_odometry = config.getBoolProperty("vision_enable", "true");
 		System.out.println("Vision Odometry enabled: "+do_odometry);
 
-//		this.do_odometry = false;
+		//		this.do_odometry = false;
 
 		this.do_xy_position = config.getBoolProperty("vision_pub_pos_xy", "true");
 		System.out.println("Vision publishes XY position: "+do_xy_position);
@@ -442,16 +442,14 @@ public class MAVR200PositionEstimator  {
 						detector_tms = System.currentTimeMillis();
 						model.sys.setSensor(Status.MSP_SLAM_AVAILABILITY, true);
 
-					//	ExecutorService.submit(() -> {
-							for(IMAVDetector d : detectors) {
-								try {
-									d.process(visualOdometry, depth, gray);
-								} catch(Exception e) {
-									model.sys.setSensor(Status.MSP_SLAM_AVAILABILITY, false);
-									//System.out.println(timeDepth+"[vis] SLAM exception: "+e.getMessage());
-								}
+						for(IMAVDetector d : detectors) {
+							try {
+								d.process(visualOdometry, depth, gray);
+							} catch(Exception e) {
+								model.sys.setSensor(Status.MSP_SLAM_AVAILABILITY, false);
+								//System.out.println(timeDepth+"[vis] SLAM exception: "+e.getMessage());
 							}
-				//		}, ExecutorService.LOW);
+						}
 					}
 				}
 

@@ -35,7 +35,6 @@ package com.comino.mavodometry.estimators;
 
 import java.awt.Color;
 import java.awt.Graphics;
-import java.util.concurrent.TimeUnit;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
@@ -46,7 +45,6 @@ import org.mavlink.messages.MAV_SEVERITY;
 import org.mavlink.messages.MSP_AUTOCONTROL_MODE;
 import org.mavlink.messages.MSP_CMD;
 import org.mavlink.messages.MSP_COMPONENT_CTRL;
-
 import org.mavlink.messages.lquac.msg_msp_command;
 import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
@@ -62,11 +60,10 @@ import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
-import com.comino.mavcom.utils.SimpleComplementaryFilter;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.video.IVisualStreamHandler;
-import com.comino.mavutils.legacy.ExecutorService;
+import com.comino.mavutils.workqueue.WorkQueue;
 
 import boofcv.abst.fiducial.FiducialDetector;
 import boofcv.abst.fiducial.FiducialStability;
@@ -83,7 +80,6 @@ import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.point.Vector4D_F64;
 import georegression.struct.se.Se3_F64;
-import georegression.struct.so.Quaternion_F64;
 
 public class MAVT265PositionEstimator {
 
@@ -121,6 +117,8 @@ public class MAVT265PositionEstimator {
 
 	// MessageBus -> maybe used for failsafe actions
 	// private static final MessageBus bus = MessageBus.getInstance();
+
+	private final WorkQueue wq = WorkQueue.getInstance();
 
 	// MAVLink messages
 	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
@@ -254,7 +252,7 @@ public class MAVT265PositionEstimator {
 		// reset vision when absolute position lost if odometry if published
 		control.getStatusManager().addListener(StatusManager.TYPE_ESTIMATOR, ESTIMATOR_STATUS_FLAGS.ESTIMATOR_POS_HORIZ_ABS, StatusManager.EDGE_FALLING, (n) -> {
 			if(do_odometry)
-			  init("Est.LPOS(abs)");
+				init("Est.LPOS(abs)");
 		});
 
 		model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK,config.getBoolProperty(T265_PRECISION_LOCK, "true"));
@@ -305,10 +303,11 @@ public class MAVT265PositionEstimator {
 
 			// Reset procedure 
 
-			// Note: This takes 1.5sec for T265
+			// Note: This takes 1.5sec for T265;
+
 			if((System.currentTimeMillis() - tms_reset) < 2000) {
 				quality = 0; error_count=0; tms_reset = 0; confidence_old = 0;
-				
+
 				model.vision.setStatus(Vision.POS_VALID, false);
 
 				// set initial T265 pose as origin
@@ -418,6 +417,7 @@ public class MAVT265PositionEstimator {
 				}
 			}
 
+
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
 
@@ -425,7 +425,7 @@ public class MAVT265PositionEstimator {
 			if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK) && 
 					( (System.currentTimeMillis() - fiducial_tms) > FIDUCIAL_RATE)) {
 				fiducial_tms = System.currentTimeMillis();
-		
+
 
 				if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT) {
 					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
@@ -490,13 +490,13 @@ public class MAVT265PositionEstimator {
 				if(stream!=null && enableStream) {
 					stream.addToStream(img, model, tms);
 				}
-				
+
 				model.vision.setStatus(Vision.PUBLISHED, false);
 				publishMSPGroundTruth(ned);
 				return;
 			}
-		
-			
+
+
 
 			switch(mode) {
 
@@ -572,8 +572,10 @@ public class MAVT265PositionEstimator {
 	public void init(String s) {
 		tms_reset = System.currentTimeMillis();
 		reset_count++;
-		t265.reset();
-		control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+		if(t265!=null) {
+			t265.reset();
+			control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+		}
 	}
 
 
@@ -583,9 +585,9 @@ public class MAVT265PositionEstimator {
 		t265.start();
 		System.out.println("[vio] Starting T265....");
 		t265.printDeviceInfo();
-		ExecutorService.get().schedule(() -> {
-			init("init");
-		}, 5, TimeUnit.SECONDS);
+
+		wq.addSingleTask("LP", 5000, () -> init("init"));
+
 	}
 
 	public void stop() {
@@ -665,8 +667,8 @@ public class MAVT265PositionEstimator {
 
 
 		sms.usec = DataModel.getSynchronizedPX4Time_us();
-		
-//		sms.usec = tms * 1000;
+
+		//		sms.usec = tms * 1000;
 
 		sms.x = (float) pose.T.x;
 		sms.y = (float) pose.T.y;
@@ -682,22 +684,22 @@ public class MAVT265PositionEstimator {
 		sms.covariance[0] = Float.NaN;
 
 		control.sendMAVLinkMessage(sms);
-		
+
 
 		model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
 		model.vision.setStatus(Vision.PUBLISHED, true);
 
 	}
-	
+
 	private void publishMSPGroundTruth(Se3_F64 pose) {
-		
+
 		model.vision.setGroundTruth(pose.T);
 		msg.gx    =  model.vision.gx;
 		msg.gy    =  model.vision.gy;
 		msg.gz    =  model.vision.gz;
 		msg.flags = model.vision.flags;
 		control.sendMAVLinkMessage(msg);
-		
+
 	}
 
 
@@ -711,9 +713,9 @@ public class MAVT265PositionEstimator {
 		msg.vy =  (float) speed.T.y;
 		msg.vz =  (float) speed.T.z;
 
-//		msg.gx =  (float) orig.T.x;
-//		msg.gy =  (float) orig.T.y;
-//		msg.gz =  (float) orig.T.z;
+		//		msg.gx =  (float) orig.T.x;
+		//		msg.gy =  (float) orig.T.y;
+		//		msg.gz =  (float) orig.T.z;
 
 		msg.px =  (float)offset.x;
 		msg.py =  (float)offset.y;
