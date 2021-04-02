@@ -122,8 +122,8 @@ public class MAVT265PositionEstimator {
 
 	// MAVLink messages
 	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
-	private final msg_vision_position_estimate sms = new msg_vision_position_estimate(1,2);
-	private final msg_odometry                 odo = new msg_odometry(1,2);
+	private final msg_vision_position_estimate sms = new msg_vision_position_estimate(1,1);
+	private final msg_odometry                 odo = new msg_odometry(1,1);
 
 	// Controls
 	private StreamRealSenseT265Pose t265;
@@ -205,7 +205,7 @@ public class MAVT265PositionEstimator {
 		offset.x = -config.getFloatProperty(T265_OFFSET_X, String.valueOf(OFFSET_X));
 		offset.y = -config.getFloatProperty(T265_OFFSET_Y, String.valueOf(OFFSET_Y));
 		offset.z = -config.getFloatProperty(T265_OFFSET_Z, String.valueOf(OFFSET_Z));
-
+		
 		check_speed_xy = config.getBoolProperty(T265_CHECK_SPEED_XY, "false");
 		check_speed_z  = config.getBoolProperty(T265_CHECK_SPEED_Z, "false");
 
@@ -300,7 +300,7 @@ public class MAVT265PositionEstimator {
 			}
 
 			confidence_old = raw.tracker_confidence;
-
+			
 			// Reset procedure 
 
 			// Note: This takes 1.5sec for T265;
@@ -317,6 +317,7 @@ public class MAVT265PositionEstimator {
 
 				if(!is_originset) {
 					to_ned.T.set(0,0,0);
+					publishPX4OdometryZero(MAV_FRAME.MAV_FRAME_LOCAL_FRD,tms);
 				}
 
 				// Rotate offset to NED
@@ -573,6 +574,9 @@ public class MAVT265PositionEstimator {
 		tms_reset = System.currentTimeMillis();
 		reset_count++;
 		if(t265!=null) {
+			if(s.contains("init")) {
+				is_originset = false;
+			}
 			t265.reset();
 			control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 		}
@@ -586,7 +590,7 @@ public class MAVT265PositionEstimator {
 		System.out.println("[vio] Starting T265....");
 		t265.printDeviceInfo();
 
-		wq.addSingleTask("LP", 5000, () -> init("init"));
+		wq.addSingleTask("LP", 10000, () -> { init("init"); });
 
 	}
 
@@ -659,6 +663,37 @@ public class MAVT265PositionEstimator {
 
 		model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
 		model.vision.setStatus(Vision.PUBLISHED, true);
+
+	}
+	
+	private void publishPX4OdometryZero(int frame, long tms) {
+
+		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
+		odo.frame_id       = frame;
+		odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
+
+		odo.time_usec = tms * 1000;
+
+		odo.x = 0f;
+		odo.y = 0f;
+		odo.z = 0f;
+		
+
+		odo.vx = 0f;
+		odo.vy = 0f;
+		odo.vz = 0f;
+
+		// Use EKF params
+		odo.pose_covariance[0] = Float.NaN;
+		odo.velocity_covariance[0] = Float.NaN;
+
+		// do not use twist
+		odo.q[0] = Float.NaN;
+
+
+		odo.reset_counter = reset_count;
+
+		control.sendMAVLinkMessage(odo);
 
 	}
 
