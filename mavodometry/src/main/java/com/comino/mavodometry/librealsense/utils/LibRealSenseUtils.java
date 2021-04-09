@@ -31,11 +31,12 @@
  *
  ****************************************************************************/
 
-package com.comino.mavodometry.librealsense.r200.wrapper;
+package com.comino.mavodometry.librealsense.utils;
 
 import java.nio.IntBuffer;
 
-import com.comino.mavodometry.librealsense.r200.wrapper.LibRealSenseWrapper.rs_option;
+import com.comino.mavodometry.librealsense.lib.LibRealSense1Library;
+import com.comino.mavodometry.librealsense.lib.LibRealSense1Library.rs_option;
 import com.sun.jna.ptr.PointerByReference;
 
 public class LibRealSenseUtils {
@@ -75,7 +76,7 @@ public class LibRealSenseUtils {
 	public static void rs_apply_depth_control_preset(PointerByReference dev, int preset)
 	{
 	    IntBuffer options = IntBuffer.wrap(depth_control_options);
-	    LibRealSenseWrapper.INSTANCE.rs_set_device_options(dev,options, 10, depth_control_presets[preset], null);
+	    LibRealSense1Library.INSTANCE.rs_set_device_options(dev,options, 10, depth_control_presets[preset], null);
 	}
 
 

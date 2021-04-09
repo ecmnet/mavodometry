@@ -31,7 +31,7 @@ time *   Copyright (c) 2019 Eike Mansfeld ecm@gmx.de. All rights reserved.
  *
  ****************************************************************************/
 
-package com.comino.mavodometry.librealsense.r200.wrapper;
+package com.comino.mavodometry.librealsense.lib;
 
 import java.nio.DoubleBuffer;
 import java.nio.IntBuffer;
@@ -55,10 +55,10 @@ import com.sun.jna.ptr.PointerByReference;
  * a tool written by <a href="http://ochafik.com/">Olivier Chafik</a> that <a href="http://code.google.com/p/jnaerator/wiki/CreditsAndLicense">uses a few opensource projects.</a>.<br>
  * For help, please visit <a href="http://nativelibs4java.googlecode.com/">NativeLibs4Java</a> , <a href="http://rococoa.dev.java.net/">Rococoa</a>, or <a href="http://jna.dev.java.net/">JNA</a>.
  */
-public interface LibRealSenseWrapper extends Library {
-	public static final String JNA_LIBRARY_NAME = LibraryExtractor.getLibraryPath("realsense1", false, LibRealSenseWrapper.class);
-	public static final NativeLibrary JNA_NATIVE_LIB = NativeLibrary.getInstance(LibRealSenseWrapper.JNA_LIBRARY_NAME, MangledFunctionMapper.DEFAULT_OPTIONS);
-	public static final LibRealSenseWrapper INSTANCE = (LibRealSenseWrapper)Native.loadLibrary(LibRealSenseWrapper.JNA_LIBRARY_NAME, LibRealSenseWrapper.class, MangledFunctionMapper.DEFAULT_OPTIONS);
+public interface LibRealSense1Library extends Library {
+	public static final String JNA_LIBRARY_NAME = LibraryExtractor.getLibraryPath("realsense1", false, LibRealSense1Library.class);
+	public static final NativeLibrary JNA_NATIVE_LIB = NativeLibrary.getInstance(LibRealSense1Library.JNA_LIBRARY_NAME, MangledFunctionMapper.DEFAULT_OPTIONS);
+	public static final LibRealSense1Library INSTANCE = (LibRealSense1Library)Native.loadLibrary(LibRealSense1Library.JNA_LIBRARY_NAME, LibRealSense1Library.class, MangledFunctionMapper.DEFAULT_OPTIONS);
 	/** enum values */
 
 	public static interface rs_stream {
@@ -652,7 +652,7 @@ public interface LibRealSenseWrapper extends Library {
 	 * @deprecated use the safer method {@link #rs_get_device_extrinsics(com.sun.jna.ptr.PointerByReference, int, int, test.TestLibrary.rs_extrinsics, com.sun.jna.ptr.PointerByReference)} instead
 	 */
 	@Deprecated
-	void rs_get_device_extrinsics(Pointer device, int from_stream, int to_stream, LibRealSenseWrapper.rs_extrinsics extrin, PointerByReference error);
+	void rs_get_device_extrinsics(Pointer device, int from_stream, int to_stream, LibRealSense1Library.rs_extrinsics extrin, PointerByReference error);
 	/**
 	 * retrieve extrinsic transformation between the viewpoints of two different streams<br>
 	 * \param[in] from_stream  stream whose coordinate space we will transform from<br>
@@ -662,7 +662,7 @@ public interface LibRealSenseWrapper extends Library {
 	 * Original signature : <code>void rs_get_device_extrinsics(const rs_device*, rs_stream, rs_stream, rs_extrinsics*, rs_error**)</code><br>
 	 * <i>native declaration : line 197</i>
 	 */
-	void rs_get_device_extrinsics(PointerByReference device, int from_stream, int to_stream, LibRealSenseWrapper.rs_extrinsics extrin, PointerByReference error);
+	void rs_get_device_extrinsics(PointerByReference device, int from_stream, int to_stream, LibRealSense1Library.rs_extrinsics extrin, PointerByReference error);
 	/**
 	 * retrieve mapping between the units of the depth image and meters<br>
 	 * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored<br>
@@ -936,7 +936,7 @@ public interface LibRealSenseWrapper extends Library {
 	 * @deprecated use the safer method {@link #rs_get_stream_intrinsics(com.sun.jna.ptr.PointerByReference, int, test.TestLibrary.rs_intrinsics, com.sun.jna.ptr.PointerByReference)} instead
 	 */
 	@Deprecated
-	void rs_get_stream_intrinsics(Pointer device, int stream, LibRealSenseWrapper.rs_intrinsics intrin, PointerByReference error);
+	void rs_get_stream_intrinsics(Pointer device, int stream, LibRealSense1Library.rs_intrinsics intrin, PointerByReference error);
 	/**
 	 * retrieve intrinsic camera parameters for a specific stream<br>
 	 * \param[in] stream   the stream whose parameters to retrieve<br>
@@ -945,7 +945,7 @@ public interface LibRealSenseWrapper extends Library {
 	 * Original signature : <code>void rs_get_stream_intrinsics(const rs_device*, rs_stream, rs_intrinsics*, rs_error**)</code><br>
 	 * <i>native declaration : line 306</i>
 	 */
-	void rs_get_stream_intrinsics(PointerByReference device, int stream, LibRealSenseWrapper.rs_intrinsics intrin, PointerByReference error);
+	void rs_get_stream_intrinsics(PointerByReference device, int stream, LibRealSense1Library.rs_intrinsics intrin, PointerByReference error);
 	/**
 	 * begin streaming on all enabled streams for this device<br>
 	 * \param[out] error  if non-null, receives any error that occurs during this call, otherwise, errors are ignored<br>

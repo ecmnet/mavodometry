@@ -40,8 +40,9 @@ import org.ejml.dense.row.CommonOps_DDRM;
  ****************************************************************************/
 
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.t265.wrapper.Realsense2Library;
-import com.comino.mavodometry.librealsense.t265.wrapper.Realsense2Library.rs2_camera_info;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_extension;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
@@ -142,9 +143,14 @@ public class StreamRealSenseT265Pose {
 			is_running = false;
 			throw new IllegalArgumentException("No device found");
 		}
+		
+		for(int i=0;i<dev_count;i++) {
+			if(Realsense2Library.INSTANCE.rs2_is_sensor_extendable_to(sensor, rs2_extension.RS2_EXTENSION_POSE, error)==0) {
+				dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, i, error);
+				break;
+			}
+		}
 
-		dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, 0, error);
-		checkError(error);
 
 		// Settings some options
 		PointerByReference sensor_list = Realsense2Library.INSTANCE.rs2_query_sensors(dev, error);

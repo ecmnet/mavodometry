@@ -31,7 +31,7 @@
  *
  ****************************************************************************/
 
-package com.comino.mavodometry.librealsense.r200;
+package com.comino.mavodometry.librealsense.utils;
 
 public class RealSenseInfo {
 

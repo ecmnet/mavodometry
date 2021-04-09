@@ -50,9 +50,9 @@ import com.comino.mavodometry.libnano.detetction.NanoObjectDetection;
 import com.comino.mavodometry.libnano.segmentation.NanoSegmentation;
 import com.comino.mavodometry.libnano.trail.NanoTrailDetection;
 import com.comino.mavodometry.libnano.utils.ImageConversionUtil;
-import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
-import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
-import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth.Listener;
+import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseR200Depth;
+import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseR200Depth.Listener;
+import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.hw.HardwareAbstraction;
 
@@ -83,7 +83,7 @@ public class MAVR200DepthEstimator {
 	private static final double        OFFSET_Y     =  0.00;
 	private static final double        OFFSET_Z     =  0.00;
 
-	private StreamRealSenseVisDepth 	realsense	= null;
+	private StreamRealSenseR200Depth 	realsense	= null;
 	private RealSenseInfo               info        = null;
 	private DataModel                   model       = null;
 
@@ -129,7 +129,7 @@ public class MAVR200DepthEstimator {
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
 		try {
-			this.realsense = new StreamRealSenseVisDepth(0,info);
+			this.realsense = new StreamRealSenseR200Depth(0,info);
 		} catch( IllegalArgumentException e) {
 			System.out.println("No R200 device found");
 			return;

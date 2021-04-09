@@ -1,6 +1,6 @@
 package com.comino.mavodometry.librealsense.t265.boofcv;
 
-import com.comino.mavodometry.librealsense.t265.wrapper.Realsense2Library;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library;
 
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;

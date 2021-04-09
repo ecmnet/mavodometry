@@ -1,4 +1,4 @@
-package com.comino.mavodometry.librealsense.t265.wrapper;
+package com.comino.mavodometry.librealsense.lib;
 import java.nio.FloatBuffer;
 import java.nio.IntBuffer;
 import java.util.Arrays;

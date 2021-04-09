@@ -31,9 +31,10 @@
  *
  ****************************************************************************/
 
-package com.comino.mavodometry.librealsense.r200.wrapper;
+package com.comino.mavodometry.librealsense.utils;
 
-import com.comino.mavodometry.librealsense.r200.wrapper.LibRealSenseWrapper.rs_intrinsics;
+import com.comino.mavodometry.librealsense.lib.LibRealSense1Library.rs_intrinsics;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
 
 import boofcv.struct.calib.CameraPinholeBrown;
 
@@ -64,6 +65,28 @@ public class LibRealSenseIntrinsics extends CameraPinholeBrown {
        this.t2 = 0;
 
 	}
+	
+	public LibRealSenseIntrinsics(rs2_intrinsics intrinsics) {
+
+		   this.model = intrinsics.model;
+
+	       this.cx = intrinsics.ppx;
+	       this.cy = intrinsics.ppy;
+
+	       this.width  = intrinsics.width;
+	       this.height = intrinsics.height;
+
+	       this.fx = intrinsics.fx;
+	       this.fy = intrinsics.fy;
+
+	       this.radial = new double[5];
+	       for(int i=0;i<intrinsics.coeffs.length;i++)
+	    	   this.radial[i] = intrinsics.coeffs[i];
+
+	       this.t1 = 0;
+	       this.t2 = 0;
+
+		}
 
 
 	public String toString() {

@@ -53,11 +53,11 @@ import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.status.StatusManager;
-import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
-import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
-import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth.Listener;
+import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseR200Depth;
+import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseR200Depth.Listener;
 import com.comino.mavodometry.librealsense.r200.vio.FactoryMAVOdometryVIO;
 import com.comino.mavodometry.librealsense.r200.vio.odometry.MAVDepthVisualOdometry;
+import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;
 
@@ -105,7 +105,7 @@ public class MAVR200PositionEstimator  {
 	// private final Point3D_F64 mounting_offset = new Point3D_F64(0.015,-0.057,0.068);
 
 
-	private StreamRealSenseVisDepth 				    realsense			= null;
+	private StreamRealSenseR200Depth 				    realsense			= null;
 	private MAVDepthVisualOdometry<GrayU8,GrayU16>    	visualOdometry		= null;
 	private RealSenseInfo 						    	info				= null;
 
@@ -267,7 +267,7 @@ public class MAVR200PositionEstimator  {
 		}
 
 		try {
-			realsense = new StreamRealSenseVisDepth(0,info);
+			realsense = new StreamRealSenseR200Depth(0,info);
 		} catch(Exception e) {
 			this.do_odometry = false;
 			this.detector_cycle_ms = 0;

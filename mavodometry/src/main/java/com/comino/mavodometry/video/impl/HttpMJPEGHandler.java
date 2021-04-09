@@ -129,6 +129,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 						wait(2000);
 					}	  
 				}
+				
 				os.write(("--BoundaryString\r\nContent-type:image/jpeg content-length:1\r\n\r\n").getBytes());
 
 				if((System.currentTimeMillis()-tms) >1950) {
