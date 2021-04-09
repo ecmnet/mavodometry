@@ -103,22 +103,26 @@ public class StreamRealSenseD455Depth {
 			is_running = false;
 			throw new IllegalArgumentException("No device found");
 		}
+
+		dev = null;
 		for(int i=0;i<dev_count;i++) {
-			if(Realsense2Library.INSTANCE.rs2_is_sensor_extendable_to(sensor, rs2_extension.RS2_EXTENSION_DEPTH_SENSOR, error)==0) {
-				dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, i, error);
+			dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, i, error);
+			if(Realsense2Library.INSTANCE.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_NAME, error).getString(0).contains("D455")) {
+				printDeviceInfo();
 				break;
 			}
+			dev = null;
 		}
 
 		// No depth sensor found => do not use this driver
 		if(dev==null) {
-			return;
+			throw new IllegalArgumentException("No device found");
 		}
 
 		// Settings some options
 		PointerByReference sensor_list = Realsense2Library.INSTANCE.rs2_query_sensors(dev, error);
 		sensor = Realsense2Library.INSTANCE.rs2_create_sensor(sensor_list, 0, error);
-		
+
 		Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_EMITTER_ALWAYS_ON, OPTION_ENABLE, error);
 
 		scale = Realsense2Library.INSTANCE.rs2_get_option(sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
@@ -157,7 +161,7 @@ public class StreamRealSenseD455Depth {
 		checkError(error);
 
 		Realsense2Library.INSTANCE.rs2_pipeline_start_with_config(pipeline, config, error);
-	
+
 
 		System.out.println("D455 depth estimation started");
 		is_running = true;
@@ -166,7 +170,7 @@ public class StreamRealSenseD455Depth {
 	}
 
 	public void stop() {
-		
+
 		if(dev == null)
 			return;
 		is_running = false;
@@ -292,8 +296,9 @@ public class StreamRealSenseD455Depth {
 		}
 	}
 
-	public void printDeviceInfo() {
-
+	public void printDeviceInfo() {	
+		if(dev == null)
+			return;
 		try {
 
 			System.out.println(Realsense2Library.INSTANCE

@@ -76,7 +76,7 @@ public class StreamRealSenseTestBoof extends Application  {
 	private BufferedImage o_rgb;
 	private final ImageView ivrgb = new ImageView();
 	private WritableImage wirgb;
-	
+
 	private BufferedImage o_depth;
 	private final ImageView ivdepth = new ImageView();
 	private WritableImage widepth;
@@ -107,26 +107,25 @@ public class StreamRealSenseTestBoof extends Application  {
 		});
 
 
-	//	RealSenseInfo info = new RealSenseInfo(640,480, RealSenseInfo.MODE_RGB);
+		//	RealSenseInfo info = new RealSenseInfo(640,480, RealSenseInfo.MODE_RGB);
 		RealSenseInfo info = new RealSenseInfo(480,270, RealSenseInfo.MODE_RGB);
 
 		try {
 
-		realsense = new StreamRealSenseD455Depth(0,info);
+			realsense = new StreamRealSenseD455Depth(0,info);
 
 		} catch(Exception e) {
 			System.out.println("REALSENSE D455: "+e.getMessage());
 			return;
 		}
-		
-       realsense.printDeviceInfo();
+
 
 		mouse_x = info.width/2;
 		mouse_y = info.height/2;
 
 		primaryStage.setScene(new Scene(root, info.width*2,info.height));
 		primaryStage.show();
-	
+
 		try {
 			Thread.sleep(100);
 		} catch (InterruptedException e) {
@@ -135,7 +134,7 @@ public class StreamRealSenseTestBoof extends Application  {
 		}
 
 
-	//	visualOdometry.setCalibration(realsense.getIntrinsics(),new DoNothing2Transform2_F32());
+		//	visualOdometry.setCalibration(realsense.getIntrinsics(),new DoNothing2Transform2_F32());
 
 		Runtime.getRuntime().addShutdownHook(new Thread() {
 			public void run() {
@@ -147,7 +146,7 @@ public class StreamRealSenseTestBoof extends Application  {
 		o_rgb = new BufferedImage(info.width, info.height, BufferedImage.TYPE_INT_RGB);
 		wirgb = new WritableImage(info.width, info.height);
 		ivrgb.setImage(wirgb);
-		
+
 		o_depth = new BufferedImage(info.width, info.height, BufferedImage.TYPE_BYTE_GRAY);
 		widepth = new WritableImage(info.width, info.height);
 		ivdepth.setImage(widepth);
@@ -163,16 +162,16 @@ public class StreamRealSenseTestBoof extends Application  {
 				if((System.currentTimeMillis() - tms) > 250) {
 					tms = System.currentTimeMillis();
 					if(mf>0)
-					  fps = fpm/mf;
+						fps = fpm/mf;
 					if(mc>0)
-					   mouse_depth = md / mc;
+						mouse_depth = md / mc;
 					mc = 0; md = 0; mf=0; fpm=0;
 				}
 				mf++;
 				fpm += (int)(1f/((timeRgb - oldTimeDepth)/1000f)+0.5f);
 				oldTimeDepth = timeRgb;
-			
-				
+
+
 				ConvertBufferedImage.convertTo_U8(rgb, o_rgb, true);
 				ConvertBufferedImage.convertTo(depth, o_depth, true);
 

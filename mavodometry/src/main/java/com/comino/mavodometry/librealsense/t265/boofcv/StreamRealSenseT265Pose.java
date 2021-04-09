@@ -125,8 +125,8 @@ public class StreamRealSenseT265Pose {
 		this.x1 = x0 + width;
 		this.y1 = y0 + height;
 		this.mount = mount;
-		
-		
+
+
 		ConvertRotation3D_F64.rotY(Math.PI/2,rtY90);
 
 
@@ -143,12 +143,21 @@ public class StreamRealSenseT265Pose {
 			is_running = false;
 			throw new IllegalArgumentException("No device found");
 		}
-		
+
+		dev = null;
 		for(int i=0;i<dev_count;i++) {
-			if(Realsense2Library.INSTANCE.rs2_is_sensor_extendable_to(sensor, rs2_extension.RS2_EXTENSION_POSE, error)==0) {
-				dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, i, error);
+			dev = Realsense2Library.INSTANCE.rs2_create_device(device_list, i, error);
+			if(Realsense2Library.INSTANCE.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_NAME, error).getString(0).contains("T265")) {
+				printDeviceInfo();
 				break;
 			}
+			dev = null;
+		}
+
+
+		// No depth sensor found => do not use this driver
+		if(dev==null) {
+			throw new IllegalArgumentException("No device found");
 		}
 
 
@@ -157,7 +166,7 @@ public class StreamRealSenseT265Pose {
 		sensor = Realsense2Library.INSTANCE.rs2_create_sensor(sensor_list, 0, error);
 
 		Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, OPTION_DISABLE, error);
-    	Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, OPTION_DISABLE, error);
+		Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, OPTION_DISABLE, error);
 		Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_MAPPING, OPTION_DISABLE, error);
 		Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, OPTION_DISABLE, error);
 
@@ -173,8 +182,8 @@ public class StreamRealSenseT265Pose {
 	}
 
 	public void start() {
-		
-		if(dev_count < 1)
+
+		if(dev == null)
 			return;
 
 		if(Realsense2Library.INSTANCE
@@ -192,6 +201,8 @@ public class StreamRealSenseT265Pose {
 	}
 
 	public void stop() {
+		if(dev == null)
+			return;
 		is_running = false;
 		OdometryPool.close();
 	}
@@ -224,17 +235,20 @@ public class StreamRealSenseT265Pose {
 
 	public void printDeviceInfo() {
 		
+		if(dev == null)
+			return;
+
 		try {
 
-		System.out.println(Realsense2Library.INSTANCE
-				.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_NAME, error).getString(0));
-		System.out.println(Realsense2Library.INSTANCE
-				.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error)
-				.getString(0));
-		System.out.println(Realsense2Library.INSTANCE
-				.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_FIRMWARE_VERSION, error)
-				.getString(0));
-		System.out.println("API version "+Realsense2Library.RS2_API_VERSION_STR);
+			System.out.println(Realsense2Library.INSTANCE
+					.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_NAME, error).getString(0));
+			System.out.println(Realsense2Library.INSTANCE
+					.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error)
+					.getString(0));
+			System.out.println(Realsense2Library.INSTANCE
+					.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_FIRMWARE_VERSION, error)
+					.getString(0));
+			System.out.println("API version "+Realsense2Library.RS2_API_VERSION_STR);
 		} catch(Exception e ) { }
 
 	}
@@ -348,7 +362,7 @@ public class StreamRealSenseT265Pose {
 				case POS_DOWNWARD:
 
 					current_pose.getTranslation().set( -rawpose.translation.z, rawpose.translation.x, - rawpose.translation.y);
-					
+
 					ConvertRotation3D_F64.quaternionToMatrix(
 							rawpose.rotation.w,
 							-rawpose.rotation.z,
@@ -380,7 +394,7 @@ public class StreamRealSenseT265Pose {
 
 				if(is_initialized)
 					for(IPoseCallback callback : callbacks)
-					  callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
+						callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 
 
 			}
