@@ -38,24 +38,16 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.lib.LibRealSense1Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library;
-import com.comino.mavodometry.librealsense.lib.LibRealSense1Library.rs_intrinsics;
-import com.comino.mavodometry.librealsense.lib.LibRealSense1Library.rs_stream;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_extension;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_format;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream;
-import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseR200Depth.Listener;
-import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsics;
-import com.comino.mavodometry.librealsense.utils.LibRealSenseUtils;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
-import boofcv.struct.calib.CameraKannalaBrandt;
 import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -63,7 +55,6 @@ import boofcv.struct.image.Planar;
 
 public class StreamRealSenseD455Depth {
 
-	private static final long MAX_RATE = 50;
 
 	private static final float OPTION_ENABLE  = 1.0f;
 	private static final float OPTION_DISABLE = 0.0f;
@@ -74,8 +65,6 @@ public class StreamRealSenseD455Depth {
 	// image with depth information
 	private GrayU16 depth        = new GrayU16(1,1);
 	private Planar<GrayU8> rgb	 = new Planar<GrayU8>(GrayU8.class,1,1,3);
-
-	private CameraPinholeBrown model;
 
 	private PointerByReference error= new PointerByReference();
 	private Realsense2Library.rs2_context ctx;
@@ -94,8 +83,6 @@ public class StreamRealSenseD455Depth {
 	private boolean is_running;
 
 	private long   tms;
-
-	private Realsense2Library.rs2_intrinsics intrinsics = new Realsense2Library.rs2_intrinsics();
 
 	public StreamRealSenseD455Depth(int devno , RealSenseInfo info)
 	{
@@ -135,8 +122,6 @@ public class StreamRealSenseD455Depth {
 		Realsense2Library.INSTANCE.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_EMITTER_ALWAYS_ON, OPTION_ENABLE, error);
 
 		scale = Realsense2Library.INSTANCE.rs2_get_option(sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
-
-		System.out.println("Depth scale: "+scale);
 
 		depth.reshape(info.width,info.height);
 		rgb.reshape(info.width,info.height);
