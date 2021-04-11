@@ -37,14 +37,15 @@
 //import java.awt.Graphics;
 //import java.awt.image.BufferedImage;
 //
-//import com.comino.mavodometry.librealsense.r200.RealSenseInfo;
+//import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseR200Depth;
 //import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth;
-//import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseVisDepth.Listener;
+//import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 //
 //import boofcv.abst.feature.detect.interest.ConfigGeneralDetector;
 //import boofcv.abst.feature.tracker.PointTrackerTwoPass;
 //import boofcv.abst.sfm.AccessPointTracks3D;
 //import boofcv.abst.sfm.d3.DepthVisualOdometry;
+//import boofcv.alg.geo.calibration.CalibrationPlanarGridZhang99.Listener;
 //import boofcv.alg.sfm.DepthSparse3D;
 //import boofcv.alg.tracker.klt.PkltConfig;
 //import boofcv.core.image.ConvertImage;
@@ -85,7 +86,7 @@
 //	private final ImageView ivrgb = new ImageView();
 //	private WritableImage wirgb;
 //
-//	private StreamRealSenseVisDepth realsense;
+//	private StreamRealSenseR200Depth realsense;
 //
 //	private GrayU8 gray 			= null;
 //	private Se3_F64 pose            = new Se3_F64();
@@ -120,7 +121,7 @@
 //
 //		try {
 //
-//		realsense = new StreamRealSenseVisDepth(0,info);
+//		realsense = new StreamRealSenseR200Depth(0,info);
 //
 //		} catch(Exception e) {
 //			System.out.println("REALSENSE:"+e.getMessage());

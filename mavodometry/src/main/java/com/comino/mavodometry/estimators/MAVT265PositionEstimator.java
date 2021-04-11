@@ -65,6 +65,7 @@ import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.workqueue.WorkQueue;
 
+import boofcv.abst.distort.FDistort;
 import boofcv.abst.fiducial.FiducialDetector;
 import boofcv.abst.fiducial.FiducialStability;
 import boofcv.alg.distort.pinhole.LensDistortionPinhole;
@@ -181,6 +182,7 @@ public class MAVT265PositionEstimator {
 	private Attitude3D_F64   fiducial_att       = new Attitude3D_F64();
 	private Point2D_F64      fiducial_cen       = new Point2D_F64();
 	private Vector4D_F64     precision_lock     = new Vector4D_F64();
+	private GrayU8           img_fiducial       = new GrayU8(1,1);
 
 	private  LensDistortionPinhole lensDistortion = null;
 
@@ -200,6 +202,8 @@ public class MAVT265PositionEstimator {
 		this.width   = width;
 		this.height  = height;
 		this.model   = control.getCurrentModel();
+		
+		img_fiducial.reshape(width/2, height/2);
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty(T265_OFFSET_X, String.valueOf(OFFSET_X));
@@ -427,14 +431,17 @@ public class MAVT265PositionEstimator {
 					( (System.currentTimeMillis() - fiducial_tms) > FIDUCIAL_RATE)) {
 				fiducial_tms = System.currentTimeMillis();
 
-
 				if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT) {
 					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 				}
 
 				try {
-					detector.detect(img.bands[0]);
+				//	detector.detect(img.bands[0]);
+					
+					new FDistort(img, img_fiducial).scaleExt().apply();
+					detector.detect(img_fiducial);
+					
 					if(detector.totalFound()>0 && detector.is3D()) {
 						for(int i = 0; i < detector.totalFound();i++ ) {
 							is_fiducial = false;

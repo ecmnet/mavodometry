@@ -88,7 +88,7 @@ public class StreamRealSenseR200Depth {
 
 		if(LibRealSense1Library.INSTANCE.rs_get_device_count(ctx, error)<1) {
 			LibRealSense1Library.INSTANCE.rs_delete_context(ctx, error);
-			System.out.println(error.toString());
+			System.out.println("DEVICE NOT FOUND"+error.toString());
 			throw new IllegalArgumentException("No device found");
 		}
 		this.listeners = new ArrayList<Listener>();

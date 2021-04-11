@@ -22,6 +22,7 @@ import com.sun.jna.ptr.PointerByReference;
  * For help, please visit <a href="http://nativelibs4java.googlecode.com/">NativeLibs4Java</a> , <a href="http://rococoa.dev.java.net/">Rococoa</a>, or <a href="http://jna.dev.java.net/">JNA</a>.
  */
 public interface Realsense2Library extends Library {
+	
 	public static final String JNA_LIBRARY_NAME = "realsense2";
 	public static final NativeLibrary JNA_NATIVE_LIB = NativeLibrary.getInstance(Realsense2Library.JNA_LIBRARY_NAME);
 	public static final Realsense2Library INSTANCE = (Realsense2Library)Native.loadLibrary(Realsense2Library.JNA_LIBRARY_NAME, Realsense2Library.class);
@@ -30,6 +31,8 @@ public interface Realsense2Library extends Library {
 	public static final int RS2_API_MAJOR_VERSION = (int)2;
 	public static final int RS2_API_MINOR_VERSION = (int)30;
 	public static final int RS2_API_VERSION = (int)(((RS2_API_MAJOR_VERSION) * 10000) + ((RS2_API_MINOR_VERSION) * 100) + (0));
+	
+	public static rs2_context ctx = Realsense2Library.INSTANCE.rs2_create_context(Realsense2Library.RS2_API_VERSION, null);
 
 	public static interface rs2_notification_category {
 		/**

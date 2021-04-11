@@ -69,7 +69,7 @@ import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class MAVD455DepthEstimator {
+public class MAVD455DepthEstimator  {
 
 	private static final boolean DO_DETECT          = false;
 	private static final boolean DO_TRAIL           = false;
@@ -288,14 +288,8 @@ public class MAVD455DepthEstimator {
 	}
 
 	public void stop() {
-		if(isRunning && realsense!=null) {
+		if(realsense!=null) {
 			realsense.stop();
-			try {
-				Thread.sleep(500);
-			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
 		}
 		isRunning=false;
 	}

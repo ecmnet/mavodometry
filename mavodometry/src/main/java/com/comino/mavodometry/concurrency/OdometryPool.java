@@ -7,7 +7,7 @@ import java.util.concurrent.ForkJoinPool;
 
 public class OdometryPool {
 
-	private static ForkJoinPool pool = new ForkJoinPool(2);
+	private static ForkJoinPool pool = new ForkJoinPool(3);
 
 	public static int getMaxThreads() {
 		return pool.getParallelism();
