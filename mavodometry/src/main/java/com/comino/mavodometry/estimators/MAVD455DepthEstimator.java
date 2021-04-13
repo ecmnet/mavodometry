@@ -58,6 +58,7 @@ import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.hw.HardwareAbstraction;
 
+import boofcv.core.image.ConvertImage;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -75,9 +76,9 @@ public class MAVD455DepthEstimator  {
 	private static final boolean DO_TRAIL           = false;
 	private static final boolean DO_SEGMENT         = false;
 
-	private static final boolean DO_DEPTH_OVERLAY   = true;
+	private static final boolean DO_DEPTH_OVERLAY   = false;
 
-	private static final float MAX_DISTANCE         = 6.0f;
+	private static final float MAX_DISTANCE         = 12.0f;
 
 
 	// mounting offset in m
@@ -191,15 +192,23 @@ public class MAVD455DepthEstimator  {
 
 
 				quality = 0;
-				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
-				tms = System.currentTimeMillis();
+				
+				// Bug in CB; sometimes called twice
+				if((timeRgb-tms) < 10)
+					return;
+				
+				//System.out.println(timeRgb-tms);
+				
+				model.slam.fps = model.slam.fps * 0.7f +(float)Math.round(10000.0f / (timeRgb - tms))/10.0f *0.3f;
+				tms = timeRgb;
 
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 				
 
-
-//				if(DO_DEPTH_OVERLAY && enableStream)
-//					overlayDepth(depth, img);
+//
+				if(DO_DEPTH_OVERLAY && enableStream)
+					overlayDepth(depth, img);
+				
 
 				if(!model.sys.isStatus(Status.MSP_LPOS_VALID)) {
 					if(stream!=null && enableStream) {

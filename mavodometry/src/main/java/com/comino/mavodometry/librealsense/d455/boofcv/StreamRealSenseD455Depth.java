@@ -91,12 +91,16 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 			throw new IllegalArgumentException("No device found");
 		}
 
+		//		rs2.rs2_hardware_reset(dev, error);
+		//		try { Thread.sleep(200); } catch (InterruptedException e) {  }
+
 		// Settings some options
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);	
 		sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
 		checkError("Sensors",error);
 
 		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_EMITTER_ALWAYS_ON, OPTION_ENABLE, error);
+		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
 
 		scale = rs2.rs2_get_option(sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
 
@@ -168,6 +172,8 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 			try { Thread.sleep(200); } catch (InterruptedException e) {  }
 
+			System.out.println("D455 pipeline started");
+
 			while( is_running ) {
 
 				try {
@@ -190,12 +196,14 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 					rs2.rs2_release_frame(frame);
 
-					rs2.rs2_release_frame(frames);
-
-					if(listeners.size()>0) {
-						for(IDepthCallback listener : listeners)
-							listener.process(rgb, depth, tms, tms);
+					synchronized(this) {
+						if(listeners.size()>0) {
+							for(IDepthCallback listener : listeners)
+								listener.process(rgb, depth, tms, tms);
+						}
 					}
+
+					rs2.rs2_release_frame(frames);
 
 				} catch(Exception e) {
 					e.printStackTrace();

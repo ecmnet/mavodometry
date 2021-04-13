@@ -189,7 +189,7 @@ public class MAVR200DepthEstimator {
 
 
 				quality = 0;
-				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
+//				model.slam.fps = (float)Math.round(10000.0f / (System.currentTimeMillis() - tms))/10.0f;
 				tms = System.currentTimeMillis();
 
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);

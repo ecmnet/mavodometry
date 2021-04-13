@@ -96,7 +96,11 @@ public class MAVT265PositionEstimator {
 
 	private static final int         FIDUCIAL            = 284;
 	private static final float       FIDUCIAL_SIZE       = 0.168f;
-	private static final int         FIDUCIAL_RATE       = 100;
+	private static final int         FIDUCIAL_RATE       = 200;
+	
+	private static final int         FIDUCIAL_HEIGHT     = 360;
+	private static final int         FIDUCIAL_WIDTH      = 480;
+	
 
 	private static final int     	 MAX_ERRORS          = 15;
 
@@ -182,7 +186,10 @@ public class MAVT265PositionEstimator {
 	private Attitude3D_F64   fiducial_att       = new Attitude3D_F64();
 	private Point2D_F64      fiducial_cen       = new Point2D_F64();
 	private Vector4D_F64     precision_lock     = new Vector4D_F64();
-	private GrayU8           img_fiducial       = new GrayU8(1,1);
+	private int              fiducial_x_offs    = 0;
+	private int              fiducial_y_offs    = 0;
+	
+	
 
 	private  LensDistortionPinhole lensDistortion = null;
 
@@ -203,7 +210,9 @@ public class MAVT265PositionEstimator {
 		this.height  = height;
 		this.model   = control.getCurrentModel();
 		
-		img_fiducial.reshape(width/2, height/2);
+		// Subimage-Offsets for fiducial img
+		this.fiducial_x_offs = (width - FIDUCIAL_WIDTH ) / 2;
+		this.fiducial_y_offs = (height - FIDUCIAL_HEIGHT ) / 2;
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty(T265_OFFSET_X, String.valueOf(OFFSET_X));
@@ -273,6 +282,10 @@ public class MAVT265PositionEstimator {
 
 
 		t265.registerCallback((tms, raw, p, s, a, img) ->  {
+			
+			// Bug in CB; sometimes called twice
+			if((tms-tms_old) < 10)
+				return;
 
 			switch(raw.tracker_confidence) {
 			case StreamRealSenseT265Pose.CONFIDENCE_FAILED:
@@ -437,10 +450,10 @@ public class MAVT265PositionEstimator {
 				}
 
 				try {
-				//	detector.detect(img.bands[0]);
 					
-					new FDistort(img, img_fiducial).scaleExt().apply();
-					detector.detect(img_fiducial);
+					detector.detect(img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs));
+//					detector.detect(img.bands[0]);
+				
 					
 					if(detector.totalFound()>0 && detector.is3D()) {
 						for(int i = 0; i < detector.totalFound();i++ ) {
@@ -555,8 +568,11 @@ public class MAVT265PositionEstimator {
 			if(stream!=null && enableStream) {
 				stream.addToStream(img, model, tms);
 			}
+			
+			tms_old = tms;
 
 		});
+		
 
 		if(stream != null && t265!=null){
 			stream.registerOverlayListener((ctx,tms) -> {
@@ -773,11 +789,8 @@ public class MAVT265PositionEstimator {
 		msg.tms     = tms * 1000;
 		msg.flags   = model.vision.flags;
 
-		if(tms_old != tms) {
-			msg.fps = 1000 / (tms - tms_old);
-		}
-		tms_old = tms;
-
+		msg.fps = 1000f / (tms - tms_old);
+		
 		control.sendMAVLinkMessage(msg);
 
 
