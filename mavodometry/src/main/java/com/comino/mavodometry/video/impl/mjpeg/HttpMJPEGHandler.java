@@ -32,7 +32,7 @@
  ****************************************************************************/
 
 
-package com.comino.mavodometry.video.impl;
+package com.comino.mavodometry.video.impl.mjpeg;
 
 import java.awt.Font;
 import java.awt.Graphics2D;
@@ -59,32 +59,40 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import boofcv.io.image.ConvertBufferedImage;
+import boofcv.io.video.VideoMjpegCodec;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
-	private static final int 		MAX_VIDEO_RATE_MS     = 33;
-	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
+	private static final int 		MAX_VIDEO_RATE_MS     = 25;
+	private static final float		DEFAULT_VIDEO_QUALITY = 0.5f;
 
 	private final List<IOverlayListener> listeners;
 	private final BufferedImage image;
 	private final Graphics2D ctx;
 
-	private T input_image;
+	private boolean isReady = false;
 
 	private boolean is_running = false;
 
 	private long last_image_tms = 0;
+	private float  fps = 0;
+
 	private float quality = DEFAULT_VIDEO_QUALITY;
 	private IIOImage ioimage;
+	private final DataModel model;
 
 	public HttpMJPEGHandler(int width, int height, DataModel model) {
+		this.model = model;
 		this.listeners = new ArrayList<IOverlayListener>();
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		this.ctx = image.createGraphics();
 		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
 		this.ioimage = new IIOImage(image, null, null);
+		ImageIO.setUseCache(false);
+
+		last_image_tms = System.currentTimeMillis();
 	}
 
 	public void stop() {
@@ -109,14 +117,15 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		Iterator<ImageWriter> iter = ImageIO.getImageWritersByFormatName("jpg");
 		if (iter.hasNext())
 			writer = (ImageWriter) iter.next();
-		
+
 		ImageOutputStream ios = ImageIO.createImageOutputStream(os);
 		writer.setOutput(ios);
 		ImageWriteParam iwparam = new JPEGImageWriteParam(Locale.getDefault());
 		iwparam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 		iwparam.setCompressionQuality(quality);
 		iwparam.setProgressiveMode(ImageWriteParam.MODE_DEFAULT);
-	
+
+
 
 		long tms = 0;
 		while(is_running) {
@@ -125,43 +134,33 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 				synchronized(this) {
 					tms = System.currentTimeMillis();
-					if(input_image==null) {
+					if(!isReady) {
 						wait(2000);
 					}	  
 				}
-				
+
 				os.write(("--BoundaryString\r\nContent-type:image/jpeg content-length:1\r\n\r\n").getBytes());
 
 				if((System.currentTimeMillis()-tms) >1950) {
 					ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 					ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-//					if(listeners.size()>0) {
-//						for(IOverlayListener listener : listeners)
-//							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
-//					}
-					
-					writer.write(null, ioimage , iwparam);
+					writer.write(null, ioimage , iwparam);			
 					os.write("\r\n\r\n".getBytes());
 					os.flush();
 					//is_running = false;
 					continue;
 				}
 
-				if(input_image instanceof Planar) {
-					ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input_image, image, true);
-				}
-				else if(input_image instanceof GrayU8)
-					ConvertBufferedImage.convertTo((GrayU8)input_image, image, true);
-
 				if(listeners.size()>0) {
 					for(IOverlayListener listener : listeners)
 						listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 				}
-				
-				writer.write(null, new IIOImage(image, null, null), iwparam);
-				os.write("\r\n\r\n".getBytes());
+				ioimage.setRenderedImage(image);
+				writer.write(null, ioimage, iwparam);
+	            os.write("\r\n\r\n".getBytes());
+	       
 
-				input_image = null;
+				isReady = false;
 
 			} catch (Exception e) { is_running = false; }
 		}
@@ -177,16 +176,26 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		this.listeners.add(listener);
 	}
 
+	@SuppressWarnings("unchecked")
 	@Override
-	public  void addToStream(T input, DataModel model, long tms_us) {
-
-
-		if((System.currentTimeMillis()-last_image_tms)<MAX_VIDEO_RATE_MS )//|| !model.sys.isStatus(Status.MSP_GCL_CONNECTED))
-			return;
-		last_image_tms = System.currentTimeMillis();
+	public void addToStream(T input, DataModel model, long tms_us) {
 
 		synchronized(this) {
-			input_image = input;
+
+			if((System.currentTimeMillis()-last_image_tms) < MAX_VIDEO_RATE_MS || !is_running)
+				return;
+
+
+			fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
+
+			if(input instanceof Planar) {
+				ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input, image, true);
+			}
+			else if(input instanceof GrayU8)
+				ConvertBufferedImage.convertTo((GrayU8)input, image, true);
+			
+			isReady = true;
+			last_image_tms = System.currentTimeMillis();
 			notify();
 		}
 	}
@@ -194,7 +203,11 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	@Override
 	public void setQuality(int percent) {
 		this.quality = percent/100f;
-		
+
+	}
+
+	public float getFps() {
+		return fps;
 	}
 
 }

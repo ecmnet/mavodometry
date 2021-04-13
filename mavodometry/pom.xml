@@ -19,6 +19,7 @@
 	</properties>
 
 	<dependencies>
+	   
 		<dependency>
 			<groupId>junit</groupId>
 			<artifactId>junit</artifactId>
@@ -49,6 +50,11 @@
 			<groupId>com.comino</groupId>
 			<artifactId>mavmap</artifactId>
 			<version>0.0.1</version>
+		</dependency>
+		<dependency>
+			<groupId>org.jcodec</groupId>
+			<artifactId>jcodec</artifactId>
+			<version>0.1.9</version>
 		</dependency>
 	</dependencies>
 
