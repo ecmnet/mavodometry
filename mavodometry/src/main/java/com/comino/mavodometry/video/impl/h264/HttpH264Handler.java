@@ -209,10 +209,4 @@ public class HttpH264Handler<T> implements HttpHandler, IVisualStreamHandler<T> 
 		}
 	}
 
-	@Override
-	public void setQuality(int percent) {
-		this.quality = percent/100f;
-		
-	}
-
 }

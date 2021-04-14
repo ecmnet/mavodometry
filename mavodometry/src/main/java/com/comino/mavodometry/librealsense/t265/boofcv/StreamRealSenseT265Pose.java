@@ -92,7 +92,6 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private int    fps;
 
 	private boolean is_running;
-	private boolean is_initialized;
 	private boolean reset_request;
 
 	private int x0,y0,x1,y1;
@@ -363,9 +362,12 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	}
 
 	private void bufferGrayToU8(Pointer input , Planar<GrayU8> output ) {
-		output.bands[0].data = input.getByteArray(0, 678400);
-		output.bands[1].data = input.getByteArray(0, 678400);
-		output.bands[2].data = input.getByteArray(0, 678400);
+		input.read(0, output.bands[0].data, 0, output.bands[0].data.length);
+		output.bands[1].data = output.bands[0].data;
+		output.bands[2].data = output.bands[0].data;
+//		output.bands[0].data = input.getByteArray(0, 678400);
+//		output.bands[1].data = input.getByteArray(0, 678400);
+//		output.bands[2].data = input.getByteArray(0, 678400);
 	}
 
 

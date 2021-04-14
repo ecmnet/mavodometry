@@ -90,7 +90,7 @@ public class LibRealSenseIntrinsics extends CameraPinholeBrown {
 
 
 	public String toString() {
-		return "cx="+cx+" cy="+cy+" fx="+fx+" fy="+fy;
+		return "cx="+cx+" cy="+cy+" fx="+fx+" fy="+fy+" width="+width+" height="+height;
 	}
 
 }

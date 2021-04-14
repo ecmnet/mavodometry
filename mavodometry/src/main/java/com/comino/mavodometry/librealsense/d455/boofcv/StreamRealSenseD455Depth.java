@@ -38,16 +38,22 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.comino.mavodometry.concurrency.OdometryPool;
+import com.comino.mavodometry.librealsense.lib.LibRealSense1Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_format;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream_profile_list;
 import com.comino.mavodometry.librealsense.lib.RealsenseDevice;
+import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsics;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
+import boofcv.concurrency.BoofConcurrency;
+import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
@@ -65,10 +71,10 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	private volatile Realsense2Library.rs2_pipeline pipeline;
 	private volatile Realsense2Library.rs2_config config;
 
-
 	private PointerByReference sensor = null;
 
-	private RealSenseInfo info;
+	private RealSenseInfo          info;
+	private LibRealSenseIntrinsics intrinsics;
 	private float scale;
 
 	private boolean is_running;
@@ -83,7 +89,6 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		this.listeners = new ArrayList<IDepthCallback>();
 		this.info = info;
 
-
 		dev = getDeviceByName("D455");
 
 		// No depth sensor found => do not use this driver
@@ -91,8 +96,6 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 			throw new IllegalArgumentException("No device found");
 		}
 
-		//		rs2.rs2_hardware_reset(dev, error);
-		//		try { Thread.sleep(200); } catch (InterruptedException e) {  }
 
 		// Settings some options
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);	
@@ -103,11 +106,13 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
 
 		scale = rs2.rs2_get_option(sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
+		
 
 		depth.reshape(info.width,info.height);
 		rgb.reshape(info.width,info.height);
 
 		printDeviceInfo();
+		
 
 	}
 
@@ -134,6 +139,14 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		checkError("ColorStream",error);
 		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_DEPTH, 0, info.width, info.height, rs2_format.RS2_FORMAT_Z16, 30, error);
 		checkError("DepthStream",error);
+		
+//		PointerByReference profile_list = rs2.rs2_get_stream_profiles(sensor, error);
+//		PointerByReference profile = rs2.rs2_get_stream_profile(profile_list, 11, error);
+//		
+//		rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
+//		rs2.rs2_get_video_stream_intrinsics(profile, rs_intrinsics, error);
+//		intrinsics = new LibRealSenseIntrinsics(rs_intrinsics);
+//		System.out.println(intrinsics);
 
 		is_running = true;
 
@@ -156,6 +169,10 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	public float getScale() {
 		return scale;
 	}
+	
+	public boolean isInitialized() {
+		return is_initialized;
+	}
 
 
 	private class CombineD455Thread extends Thread {
@@ -166,12 +183,12 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 		@Override
 		public void run() {
-
+			rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
 
 			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
 
 			try { Thread.sleep(200); } catch (InterruptedException e) {  }
-
+			
 			System.out.println("D455 pipeline started");
 
 			while( is_running ) {
@@ -193,11 +210,18 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 					frame = rs2.rs2_extract_frame(frames, 0, error);
 					if(rs2.rs2_get_frame_data_size(frame, error) > 0) 
 						bufferDepthToU16(rs2.rs2_get_frame_data(frame, error),depth);
+					
+					if(intrinsics==null) {
+						PointerByReference mode = rs2.rs2_get_frame_stream_profile(frame,error);
+						rs2.rs2_get_video_stream_intrinsics(mode, rs_intrinsics, error);
+						intrinsics = new LibRealSenseIntrinsics(rs_intrinsics);
+						is_initialized = true;
+					}
 
 					rs2.rs2_release_frame(frame);
 
 					synchronized(this) {
-						if(listeners.size()>0) {
+						if(listeners.size()>0 && is_initialized) {
 							for(IDepthCallback listener : listeners)
 								listener.process(rgb, depth, tms, tms);
 						}
@@ -213,6 +237,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 			System.out.println("D455 stopped.");
 		}
 	}
+	
 
 	public void bufferGrayToU8(Pointer input , GrayU8 output ) {
 		byte[] inp = input.getByteArray(0, output.width * output.height );
@@ -221,49 +246,35 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 
 	public void bufferDepthToU16(Pointer input , GrayU16 output ) {
-
-		output.data = input.getShortArray(0, 678400);
-
+	//	output.data = input.getShortArray(0, 678400);
+		input.read(0, output.data, 0, output.data.length);
 	}
-
-
-	private int x,y,indexOut, indexIn;
-	private byte[] input;
 
 	public void bufferRgbToMsU8( Pointer inp , Planar<GrayU8> output ) {
 
-		GrayU8 b0 = output.getBand(0);
-		GrayU8 b1 = output.getBand(1);
-		GrayU8 b2 = output.getBand(2);
+		byte[] b0 = output.getBand(0).data;
+		byte[] b1 = output.getBand(1).data;
+		byte[] b2 = output.getBand(2).data;
 
-		input = inp.getByteArray(0, output.width * output.height * 3);
+		byte[] input = inp.getByteArray(0, output.width * output.height * 3);
 
-		indexIn = 0;//output.width * output.height * 3 -1;
-
-		for( y = 0; y < output.height; y++ ) {
-			indexOut = output.startIndex + y*output.stride;
-			for( x = 0; x < output.width; x++ , indexOut++ ) {
-				b0.data[indexOut] = input[indexIn++];
-				b1.data[indexOut] = input[indexIn++];
-				b2.data[indexOut] = input[indexIn++];
+//    	for( y = 0; y < output.height; y++ ) {
+		BoofConcurrency.loopFor(0, output.height, y -> {
+			int indexIn  = y*output.stride * 3;
+			int indexOut = output.startIndex + y*output.stride;
+			for( int x = 0; x < output.width; x++ , indexOut++ ) {
+				b0[indexOut] = input[indexIn++];
+				b1[indexOut] = input[indexIn++];
+				b2[indexOut] = input[indexIn++];
 			}
-		}
+		});
+//		}
 	}
 
-	public void bufferGrayToMsU8( Pointer inp , Planar<GrayU8> output ) {
-
-		input = inp.getByteArray(0, output.width * output.height);
-
-
-		indexIn = 0;//output.width * output.height  -1;
-		for(y = 0; y < output.height; y++ ) {
-			int indexOut = output.startIndex + y*output.stride;
-			for(x = 0; x < output.width; x++ , indexOut++ ) {
-				output.getBand(0).data[indexOut] = input[indexIn];
-				output.getBand(1).data[indexOut] = input[indexIn];
-				output.getBand(2).data[indexOut] = input[indexIn++];
-			}
-		}
+	
+	
+	public CameraPinholeBrown getIntrinsics() {
+		return intrinsics;
 	}
 
 	public void printDeviceInfo() {	

@@ -69,6 +69,14 @@ public class CameraKannalaBrandt extends CameraPinhole {
 	{
 		this(5,3,4);
 	}
+	
+	// For subimages
+	public void set(int width, int height) {
+		this.width  = width;
+		this.height = height;
+		this.cx = width / 2.0;
+		this.cy = height / 2.0;
+	}
 
 	public CameraKannalaBrandt fsetSymmetric( double... coefs ) {
 		this.coefSymm = coefs.clone();

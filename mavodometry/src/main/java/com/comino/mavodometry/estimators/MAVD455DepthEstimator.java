@@ -138,26 +138,26 @@ public class MAVD455DepthEstimator  {
 			return;
 
 		}
-//		this.p2n = (narrow(realsense.getIntrinsics())).undistort_F64(true,false);
-//
-//		this.realsense.setAutoExposureArea(0, height-base, width, top - base);
-//
-//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_DETECT) {
-//			this.detect = new NanoObjectDetection(width,height,stream);
-//			this.detect.configure(narrow(realsense.getIntrinsics()), NanoObjectDetection.CLASS_PERSON);
-//			ImageConversionUtil.getInstance(width, height);
-//		}
-//
-//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_TRAIL) {
-//			this.trail = new NanoTrailDetection(width,height,stream);
-//			this.trail.configure(narrow(realsense.getIntrinsics()));
-//			ImageConversionUtil.getInstance(width, height);
-//		}
-//
-//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_SEGMENT) {
-//			this.segment = new NanoSegmentation(width,height,stream);
-//			ImageConversionUtil.getInstance(width, height);
-//		}
+		//		this.p2n = (narrow(realsense.getIntrinsics())).undistort_F64(true,false);
+		//
+		//		this.realsense.setAutoExposureArea(0, height-base, width, top - base);
+		//
+		//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_DETECT) {
+		//			this.detect = new NanoObjectDetection(width,height,stream);
+		//			this.detect.configure(narrow(realsense.getIntrinsics()), NanoObjectDetection.CLASS_PERSON);
+		//			ImageConversionUtil.getInstance(width, height);
+		//		}
+		//
+		//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_TRAIL) {
+		//			this.trail = new NanoTrailDetection(width,height,stream);
+		//			this.trail.configure(narrow(realsense.getIntrinsics()));
+		//			ImageConversionUtil.getInstance(width, height);
+		//		}
+		//
+		//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_SEGMENT) {
+		//			this.segment = new NanoSegmentation(width,height,stream);
+		//			ImageConversionUtil.getInstance(width, height);
+		//		}
 
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
@@ -192,23 +192,27 @@ public class MAVD455DepthEstimator  {
 
 
 				quality = 0;
-				
+
 				// Bug in CB; sometimes called twice
 				if((timeRgb-tms) < 10)
 					return;
-				
-				//System.out.println(timeRgb-tms);
-				
+
+				// Initializing with Intrinsics
+				if(p2n==null) {	
+					p2n = (narrow(realsense.getIntrinsics())).undistort_F64(true,false);
+
+				}
+
 				model.slam.fps = model.slam.fps * 0.7f +(float)Math.round(10000.0f / (timeRgb - tms))/10.0f *0.3f;
 				tms = timeRgb;
 
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
-				
 
-//
+
+				//
 				if(DO_DEPTH_OVERLAY && enableStream)
 					overlayDepth(depth, img);
-				
+
 
 				if(!model.sys.isStatus(Status.MSP_LPOS_VALID)) {
 					if(stream!=null && enableStream) {
@@ -217,25 +221,25 @@ public class MAVD455DepthEstimator  {
 					return;
 				}
 
-//				// AI networks to be processed
-//				if(detect!=null || trail!=null || segment!=null) {
-//					ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
-//
-//					if(detect!=null) {
-//						detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-//						if(detect.hasObjectsDetected()) {
-//							targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
-//						}
-//					}
-//
-//					if(trail!=null) {
-//						trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-//					}
-//
-//					if(segment!=null) {
-//						segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-//					}
-//				}
+				//				// AI networks to be processed
+				//				if(detect!=null || trail!=null || segment!=null) {
+				//					ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
+				//
+				//					if(detect!=null) {
+				//						detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				//						if(detect.hasObjectsDetected()) {
+				//							targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
+				//						}
+				//					}
+				//
+				//					if(trail!=null) {
+				//						trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				//					}
+				//
+				//					if(segment!=null) {
+				//						segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				//					}
+				//				}
 
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
@@ -243,24 +247,23 @@ public class MAVD455DepthEstimator  {
 				}
 
 //				for( x = 0; x < width; x = x + 2 ) {
-//					for( y = 0; y < height; y = y +2 ) {
+//					for( y = 0; y < height; y = y + 2 ) {
 //						raw_z = depth.unsafe_get(x, y);
 //
-//						if(raw_z < 20 || raw_z >= 10000)
+//						if(raw_z < 20 || raw_z >= 20000)
 //							continue;
 //
 //						quality++;
 //
-//						// transform to 3D coordinates
+//						// transform to 3D body frame
 //						p2n.compute(x,y,norm);
+//				        raw_pt.y = -raw_pt.z*norm.y;
 //						raw_pt.z =  raw_z*1e-3;
 //						raw_pt.x =  raw_pt.z*norm.x;
-//						raw_pt.y = -raw_pt.z*norm.y;
 //						
+//
 //						if(raw_pt.z > MAX_DISTANCE)
 //							continue;
-//
-//
 //
 //						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
 //						body_pt.plusIP(offset);
@@ -273,10 +276,10 @@ public class MAVD455DepthEstimator  {
 //							ned_pt.set(body_pt);
 //						}
 //
-//											// put into map if map available
-//											if(map!=null) {
-//												map.update(to_ned.T, ned_pt);
-//											}
+////						// put into map if map available
+////						if(map!=null) {
+////							map.update(to_ned.T, ned_pt);
+////						}
 //					}
 //				}
 				model.slam.quality = quality * 400 / ( width * height );
@@ -315,11 +318,11 @@ public class MAVD455DepthEstimator  {
 
 		if(!enableStream)
 			return;
-//
-//		if(!DO_DEPTH_OVERLAY) {
-//			ctx.setColor(depthColor);
-//			ctx.fillRect(0, base, width, height);
-//		}
+		//
+		//		if(!DO_DEPTH_OVERLAY) {
+		//			ctx.setColor(depthColor);
+		//			ctx.fillRect(0, base, width, height);
+		//		}
 
 	}
 

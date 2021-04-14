@@ -44,6 +44,7 @@
 //import boofcv.abst.sfm.d3.DepthVisualOdometry;
 //import boofcv.alg.sfm.DepthSparse3D;
 //import boofcv.alg.tracker.klt.PkltConfig;
+//import boofcv.concurrency.BoofConcurrency;
 //import boofcv.factory.feature.tracker.FactoryPointTrackerTwoPass;
 //import boofcv.factory.sfm.FactoryVisualOdometry;
 //import boofcv.io.image.ConvertBufferedImage;
@@ -95,6 +96,8 @@
 //		primaryStage.setTitle("BoofCV RealSense Demo");
 //
 //		FlowPane root = new FlowPane();
+//		
+//		BoofConcurrency.setMaxThreads(4);
 //
 //		root.getChildren().add(ivrgb);
 //		root.getChildren().add(ivdepth);

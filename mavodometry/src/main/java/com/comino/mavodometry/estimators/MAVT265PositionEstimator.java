@@ -73,6 +73,7 @@ import boofcv.factory.fiducial.ConfigFiducialBinary;
 import boofcv.factory.fiducial.FactoryFiducial;
 import boofcv.factory.filter.binary.ConfigThreshold;
 import boofcv.factory.filter.binary.ThresholdType;
+import boofcv.struct.calib.CameraKannalaBrandt;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.ConvertRotation3D_F64;
@@ -347,9 +348,13 @@ public class MAVT265PositionEstimator {
 				CommonOps_DDRM.transpose(p.R, tmp);
 				CommonOps_DDRM.mult( to_ned.R, tmp , initial_rot );
 
-				if(lensDistortion == null)
-					lensDistortion = new LensDistortionPinhole(t265.getLeftModel());
-				detector.setLensDistortion(lensDistortion,width, height);
+				if(lensDistortion == null) {
+					CameraKannalaBrandt model = t265.getLeftModel();
+					// Adjust intrinsics as fiducial size is changed
+					model.set(FIDUCIAL_WIDTH,FIDUCIAL_HEIGHT);
+					lensDistortion = new LensDistortionPinhole(model);
+				}
+				detector.setLensDistortion(lensDistortion,FIDUCIAL_WIDTH, FIDUCIAL_HEIGHT);
 
 				precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);

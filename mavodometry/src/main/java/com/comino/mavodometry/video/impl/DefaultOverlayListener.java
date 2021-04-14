@@ -79,7 +79,6 @@ public class DefaultOverlayListener implements IOverlayListener {
 			ctx.drawString(time.format(model.sys.t_armed_ms/1000f), 20, 20);
 		}
 
-
 		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO,tms)) {
 			ctx.setColor(bgColor_header);
 			ctx.fillRect(5, height-21, width-10, 19);

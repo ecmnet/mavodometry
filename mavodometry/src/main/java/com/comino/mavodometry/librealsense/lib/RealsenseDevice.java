@@ -17,12 +17,14 @@ public class RealsenseDevice  {
 	protected static Realsense2Library.rs2_device[] devices;
 	protected static int dev_count = 0;
 	
+	protected boolean is_initialized = false;
 
 	public RealsenseDevice() {
+		
+		is_initialized = false;
 
 		if(ctx == null) {
 
-			
 			System.out.println("Using realsense device driver");
 
 			ctx = rs2.rs2_create_context(Realsense2Library.RS2_API_VERSION, error);
@@ -40,6 +42,10 @@ public class RealsenseDevice  {
 				System.out.println("-> "+rs2.rs2_get_device_info(devices[i], rs2_camera_info.RS2_CAMERA_INFO_NAME, error).getString(0));
 			}
 		}
+	}
+	
+	public boolean isInitialized() {
+		return is_initialized;
 	}
 
 	protected Realsense2Library.rs2_device getDeviceByName(String name) {

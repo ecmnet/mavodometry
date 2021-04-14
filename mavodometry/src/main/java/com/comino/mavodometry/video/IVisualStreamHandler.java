@@ -41,7 +41,7 @@ public  interface  IVisualStreamHandler<T> {
 	public final static int FILE = 1;
 
 	public void addToStream(T image, DataModel model, long tms_us);
-	public void setQuality(int percent);
+//	public void setQuality(int percent);
 	public void registerOverlayListener(IOverlayListener listener);
 
 
