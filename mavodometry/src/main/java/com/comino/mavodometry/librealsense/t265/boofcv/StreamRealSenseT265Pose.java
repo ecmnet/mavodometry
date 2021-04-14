@@ -1,5 +1,6 @@
 package com.comino.mavodometry.librealsense.t265.boofcv;
 
+import java.awt.Color;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -256,13 +257,13 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 					frame = rs2.rs2_extract_frame(frames, 0, error);
 					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
-						// get left image
-						bufferGrayToU8(rs2.rs2_get_frame_data(frame, error),img);
 
 						if(mode_left==null) {
 							mode_left = rs2.rs2_get_frame_stream_profile(frame,error);
 							rs2.rs2_get_video_stream_intrinsics(mode_left, intrinsics_left, error);
 							left_model = createFisheyeModel(intrinsics_left);
+						} else {
+							bufferGrayToU8(rs2.rs2_get_frame_data(frame, error),img);
 						}
 
 					}
@@ -365,9 +366,6 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		input.read(0, output.bands[0].data, 0, output.bands[0].data.length);
 		output.bands[1].data = output.bands[0].data;
 		output.bands[2].data = output.bands[0].data;
-//		output.bands[0].data = input.getByteArray(0, 678400);
-//		output.bands[1].data = input.getByteArray(0, 678400);
-//		output.bands[2].data = input.getByteArray(0, 678400);
 	}
 
 

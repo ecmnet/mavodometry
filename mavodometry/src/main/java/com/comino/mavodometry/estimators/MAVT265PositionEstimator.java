@@ -98,10 +98,10 @@ public class MAVT265PositionEstimator {
 	private static final int         FIDUCIAL            = 284;
 	private static final float       FIDUCIAL_SIZE       = 0.168f;
 	private static final int         FIDUCIAL_RATE       = 200;
-	
+
 	private static final int         FIDUCIAL_HEIGHT     = 360;
-	private static final int         FIDUCIAL_WIDTH      = 480;
-	
+	private static final int         FIDUCIAL_WIDTH      = 360;
+
 
 	private static final int     	 MAX_ERRORS          = 15;
 
@@ -168,7 +168,6 @@ public class MAVT265PositionEstimator {
 	private boolean      enableStream = false;
 	private boolean    is_originset   = false;
 
-
 	// Validity checks
 	private boolean    check_speed_xy = false;
 	private boolean    check_speed_z  = false;
@@ -189,8 +188,8 @@ public class MAVT265PositionEstimator {
 	private Vector4D_F64     precision_lock     = new Vector4D_F64();
 	private int              fiducial_x_offs    = 0;
 	private int              fiducial_y_offs    = 0;
-	
-	
+
+
 
 	private  LensDistortionPinhole lensDistortion = null;
 
@@ -210,7 +209,7 @@ public class MAVT265PositionEstimator {
 		this.width   = width;
 		this.height  = height;
 		this.model   = control.getCurrentModel();
-		
+
 		// Subimage-Offsets for fiducial img
 		this.fiducial_x_offs = (width - FIDUCIAL_WIDTH ) / 2;
 		this.fiducial_y_offs = (height - FIDUCIAL_HEIGHT ) / 2;
@@ -219,7 +218,7 @@ public class MAVT265PositionEstimator {
 		offset.x = -config.getFloatProperty(T265_OFFSET_X, String.valueOf(OFFSET_X));
 		offset.y = -config.getFloatProperty(T265_OFFSET_Y, String.valueOf(OFFSET_Y));
 		offset.z = -config.getFloatProperty(T265_OFFSET_Z, String.valueOf(OFFSET_Z));
-		
+
 		check_speed_xy = config.getBoolProperty(T265_CHECK_SPEED_XY, "false");
 		check_speed_z  = config.getBoolProperty(T265_CHECK_SPEED_Z, "false");
 
@@ -283,9 +282,9 @@ public class MAVT265PositionEstimator {
 
 
 		t265.registerCallback((tms, raw, p, s, a, img) ->  {
-			
+
 			// Bug in CB; sometimes called twice
-			if((tms-tms_old) < 10)
+			if((tms-tms_old) < 3)
 				return;
 
 			switch(raw.tracker_confidence) {
@@ -318,7 +317,7 @@ public class MAVT265PositionEstimator {
 			}
 
 			confidence_old = raw.tracker_confidence;
-			
+
 			// Reset procedure 
 
 			// Note: This takes 1.5sec for T265;
@@ -455,11 +454,11 @@ public class MAVT265PositionEstimator {
 				}
 
 				try {
-					
+
 					detector.detect(img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs));
-//					detector.detect(img.bands[0]);
-				
-					
+					//					detector.detect(img.bands[0]);
+
+
 					if(detector.totalFound()>0 && detector.is3D()) {
 						for(int i = 0; i < detector.totalFound();i++ ) {
 							is_fiducial = false;
@@ -573,11 +572,11 @@ public class MAVT265PositionEstimator {
 			if(stream!=null && enableStream) {
 				stream.addToStream(img, model, tms);
 			}
-			
+
 			tms_old = tms;
 
 		});
-		
+
 
 		if(stream != null && t265!=null){
 			stream.registerOverlayListener((ctx,tms) -> {
@@ -630,20 +629,39 @@ public class MAVT265PositionEstimator {
 
 	private void overlayFeatures(Graphics ctx, long tms) {
 
-
-		ctx.setXORMode(Color.white);  
-
-		if(is_fiducial) {	
-			ctx.drawLine((int)fiducial_cen.x-10, (int)fiducial_cen.y, (int)fiducial_cen.x+10, (int)fiducial_cen.y);
-			ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
-		} 
-
-
-		ctx.setPaintMode();
 		ctx.setColor(Color.white);
+		
+		if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK)) {
 
+			drawFiducialArea(ctx,fiducial_x_offs,fiducial_y_offs,fiducial_x_offs+FIDUCIAL_WIDTH,fiducial_y_offs+FIDUCIAL_HEIGHT);
+
+			if(is_fiducial) {	
+				ctx.drawLine((int)fiducial_cen.x-10, (int)fiducial_cen.y, (int)fiducial_cen.x+10, (int)fiducial_cen.y);
+				ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
+			} 
+		}
+
+		
 		if(is_fiducial && Double.isFinite(precision_lock.z))
 			ctx.drawString(String.format("%#.2fm",-precision_lock.z), width-40, 20);
+
+	}
+
+	private void drawFiducialArea(Graphics ctx, int x0, int y0, int x1, int y1) {
+
+		final int ln = 20;
+
+		ctx.drawLine(x0,y0,x0+ln,y0);
+		ctx.drawLine(x0,y0,x0,y0+ln);
+
+		ctx.drawLine(x0,y1,x0,y1-ln);
+		ctx.drawLine(x0,y1,x0+ln,y1);
+
+		ctx.drawLine(x1,y0,x1-ln,y0);
+		ctx.drawLine(x1,y0,x1,y0+ln);
+
+		ctx.drawLine(x1,y1,x1-ln,y1);
+		ctx.drawLine(x1,y1,x1,y1-ln);
 
 	}
 
@@ -693,7 +711,7 @@ public class MAVT265PositionEstimator {
 		model.vision.setStatus(Vision.PUBLISHED, true);
 
 	}
-	
+
 	private void publishPX4OdometryZero(int frame, long tms) {
 
 		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
@@ -705,7 +723,7 @@ public class MAVT265PositionEstimator {
 		odo.x = 0f;
 		odo.y = 0f;
 		odo.z = 0f;
-		
+
 
 		odo.vx = 0f;
 		odo.vy = 0f;
@@ -795,7 +813,7 @@ public class MAVT265PositionEstimator {
 		msg.flags   = model.vision.flags;
 
 		msg.fps = 1000f / (tms - tms_old);
-		
+
 		control.sendMAVLinkMessage(msg);
 
 

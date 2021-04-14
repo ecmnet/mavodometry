@@ -44,6 +44,7 @@ import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
 import java.util.Locale;
+import java.util.concurrent.locks.LockSupport;
 
 import javax.imageio.IIOImage;
 import javax.imageio.ImageIO;
@@ -66,12 +67,14 @@ import boofcv.struct.image.Planar;
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
 	private static final int 		MAX_VIDEO_RATE_MS     = 25;
-	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
+	private static final float		DEFAULT_VIDEO_QUALITY = 0.5f;
 	private static final float		LOW_VIDEO_QUALITY     = 0.3f;
 
 	private final List<IOverlayListener> listeners;
 	private final BufferedImage image;
 	private final Graphics2D ctx;
+
+	private final byte[] header = "--BoundaryString\r\nContent-type:image/jpeg content-length:1\r\n\r\n".getBytes();
 
 	private boolean isReady = false;
 
@@ -81,9 +84,9 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	private float  fps = 0;
 
 	private IIOImage ioimage;
+	private T input;
 	private final DataModel model;
 	private ImageWriteParam iwparam = new JPEGImageWriteParam(Locale.getDefault());
-
 
 	public HttpMJPEGHandler(int width, int height, DataModel model) {
 		this.model = model;
@@ -92,7 +95,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		this.ctx = image.createGraphics();
 		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
 		this.ioimage = new IIOImage(image, null, null);
-		ImageIO.setUseCache(true);
+		ImageIO.setUseCache(false);
 
 		last_image_tms = System.currentTimeMillis();
 	}
@@ -111,7 +114,6 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 		he.getResponseHeaders().add("content-type","multipart/x-mixed-replace; boundary=--BoundaryString");
 		he.sendResponseHeaders(200, 0);
-		OutputStream os = new BufferedOutputStream(he.getResponseBody());
 
 		is_running = true;
 
@@ -120,13 +122,13 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		if (iter.hasNext())
 			writer = (ImageWriter) iter.next();
 
-		ImageOutputStream ios = ImageIO.createImageOutputStream(os);
+		ImageOutputStream ios = ImageIO.createImageOutputStream(he.getResponseBody());
 		writer.setOutput(ios);
 		iwparam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 		iwparam.setCompressionQuality(DEFAULT_VIDEO_QUALITY);
 		iwparam.setProgressiveMode(ImageWriteParam.MODE_DEFAULT);
 
-
+		ioimage.setRenderedImage(image);
 
 		long tms = 0;
 		while(is_running) {
@@ -140,22 +142,36 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 					}	  
 				}
 
-				os.write(("--BoundaryString\r\nContent-type:image/jpeg content-length:1\r\n\r\n").getBytes());
+				ios.write(header);
 
 				if((System.currentTimeMillis()-tms) >1950) {
 					ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 					ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
 					writer.write(null, ioimage , iwparam);			
-					os.write("\r\n\r\n".getBytes());
-					os.flush();
+					ios.write("\r\n\r\n".getBytes());
+					ios.flush();
 					//is_running = false;
 					continue;
 				}
 
-				ioimage.setRenderedImage(image);
-				writer.write(null, ioimage, iwparam);
-				os.write("\r\n\r\n".getBytes());
-                os.flush();
+				if(input instanceof Planar) {
+					ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input, image, true);
+				}
+				else if(input instanceof GrayU8)
+					ConvertBufferedImage.convertTo((GrayU8)input, image, true);
+
+
+				if(listeners.size()>0) {
+					for(IOverlayListener listener : listeners)
+						listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+				}
+
+				synchronized(this) {
+
+					writer.write(null, ioimage, iwparam);
+					ios.write("\r\n\r\n".getBytes());
+
+				}
 
 				isReady = false;
 
@@ -175,36 +191,16 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public void addToStream(T input, DataModel model, long tms_us) {
-
+	public void addToStream(T in, DataModel model, long tms_us) {
 
 
 		if((System.currentTimeMillis()-last_image_tms) < MAX_VIDEO_RATE_MS || !is_running)
 			return;
-		
-//		System.out.println(model.sys.wifi_quality);
-//		
-//		if(model.sys.wifi_quality < 0.3)
-//			iwparam.setCompressionQuality(LOW_VIDEO_QUALITY);
-//		else
-//			iwparam.setCompressionQuality(DEFAULT_VIDEO_QUALITY);
-
 
 		fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
 
-		if(input instanceof Planar) {
-			ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input, image, true);
-		}
-		else if(input instanceof GrayU8)
-			ConvertBufferedImage.convertTo((GrayU8)input, image, true);
-
-		if(listeners.size()>0) {
-			for(IOverlayListener listener : listeners)
-				listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
-		}
-
 		synchronized(this) {
-
+			input = in;
 			isReady = true;
 			last_image_tms = System.currentTimeMillis();
 			notify();
