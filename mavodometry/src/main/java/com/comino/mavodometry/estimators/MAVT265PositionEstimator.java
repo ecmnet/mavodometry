@@ -97,7 +97,7 @@ public class MAVT265PositionEstimator {
 
 	private static final int         FIDUCIAL            = 284;
 	private static final float       FIDUCIAL_SIZE       = 0.168f;
-	private static final int         FIDUCIAL_RATE       = 200;
+	private static final int         FIDUCIAL_RATE       = 50;
 
 	private static final int         FIDUCIAL_HEIGHT     = 360;
 	private static final int         FIDUCIAL_WIDTH      = 360;
@@ -491,6 +491,8 @@ public class MAVT265PositionEstimator {
 							fiducial_att.setFromMatrix(targetToSensor.R);
 							precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
 									fiducial_att.getYaw()+model.attitude.y);
+							
+							// TODO: Check consistency of lock with LIDAR data or altitude above ground
 
 							model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
 							locking_tms = System.currentTimeMillis();
@@ -636,8 +638,10 @@ public class MAVT265PositionEstimator {
 			drawFiducialArea(ctx,fiducial_x_offs,fiducial_y_offs,fiducial_x_offs+FIDUCIAL_WIDTH,fiducial_y_offs+FIDUCIAL_HEIGHT);
 
 			if(is_fiducial) {	
-				ctx.drawLine((int)fiducial_cen.x-10, (int)fiducial_cen.y, (int)fiducial_cen.x+10, (int)fiducial_cen.y);
-				ctx.drawLine((int)fiducial_cen.x, (int)fiducial_cen.y-10, (int)fiducial_cen.x, (int)fiducial_cen.y+10);
+				int fx = (int)fiducial_cen.x + fiducial_x_offs;
+				int fy = (int)fiducial_cen.y + fiducial_y_offs;
+				ctx.drawLine(fx-10,fy,fx+10,fy);
+				ctx.drawLine(fx,fy-10,fx,fy+10);
 			} 
 		}
 

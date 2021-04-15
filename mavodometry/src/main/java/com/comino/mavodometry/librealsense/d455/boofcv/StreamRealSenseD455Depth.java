@@ -72,6 +72,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	private volatile Realsense2Library.rs2_config config;
 
 	private PointerByReference sensor = null;
+	private  byte[] input;
 
 	private RealSenseInfo          info;
 	private LibRealSenseIntrinsics intrinsics;
@@ -85,6 +86,8 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	{
 
 		super();
+		
+		this.input = new byte[info.width * info.height * 3];
 
 		this.listeners = new ArrayList<IDepthCallback>();
 		this.info = info;
@@ -255,11 +258,11 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		byte[] b0 = output.getBand(0).data;
 		byte[] b1 = output.getBand(1).data;
 		byte[] b2 = output.getBand(2).data;
+		
+		inp.read(0, input, 0, input.length);
 
-		byte[] input = inp.getByteArray(0, output.width * output.height * 3);
-
-//    	for( y = 0; y < output.height; y++ ) {
-		BoofConcurrency.loopFor(0, output.height, y -> {
+    	for(int  y = 0; y < output.height; y++ ) {
+//		BoofConcurrency.loopFor(0, output.height, y -> {
 			int indexIn  = y*output.stride * 3;
 			int indexOut = output.startIndex + y*output.stride;
 			for( int x = 0; x < output.width; x++ , indexOut++ ) {
@@ -267,8 +270,8 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 				b1[indexOut] = input[indexIn++];
 				b2[indexOut] = input[indexIn++];
 			}
-		});
-//		}
+//		});
+		}
 	}
 
 	

@@ -64,6 +64,7 @@ import boofcv.io.video.VideoMjpegCodec;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
+
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
 	private static final int 		MAX_VIDEO_RATE_MS     = 25;
@@ -98,6 +99,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		ImageIO.setUseCache(false);
 
 		last_image_tms = System.currentTimeMillis();
+		
 	}
 
 	public void stop() {
