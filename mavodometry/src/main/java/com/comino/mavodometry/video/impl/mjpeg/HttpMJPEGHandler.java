@@ -60,7 +60,6 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
 import boofcv.io.image.ConvertBufferedImage;
-import boofcv.io.video.VideoMjpegCodec;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
@@ -68,8 +67,9 @@ import boofcv.struct.image.Planar;
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
 	private static final int 		MAX_VIDEO_RATE_MS     = 25;
-	private static final float		DEFAULT_VIDEO_QUALITY = 0.5f;
-	private static final float		LOW_VIDEO_QUALITY     = 0.3f;
+	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
+	private static final float		LOW_VIDEO_QUALITY     = 0.2f;
+	private static final float      LOW_VIDEO_THERSHOLD   = 0.25f;
 
 	private final List<IOverlayListener> listeners;
 	private final BufferedImage image;
@@ -99,7 +99,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		ImageIO.setUseCache(false);
 
 		last_image_tms = System.currentTimeMillis();
-		
+
 	}
 
 	public void stop() {
@@ -130,6 +130,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		iwparam.setCompressionQuality(DEFAULT_VIDEO_QUALITY);
 		iwparam.setProgressiveMode(ImageWriteParam.MODE_DEFAULT);
 
+
 		ioimage.setRenderedImage(image);
 
 		long tms = 0;
@@ -143,6 +144,12 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 						wait(2000);
 					}	  
 				}
+
+				if(model.sys.wifi_quality < LOW_VIDEO_THERSHOLD) {
+					iwparam.setCompressionQuality(LOW_VIDEO_QUALITY);
+				}
+				else
+					iwparam.setCompressionQuality(DEFAULT_VIDEO_QUALITY);
 
 				ios.write(header);
 
