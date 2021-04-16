@@ -52,6 +52,7 @@ import org.mavlink.messages.lquac.msg_vision_position_estimate;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
+import com.comino.mavcom.core.ControlModule;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.LogMessage;
@@ -83,7 +84,7 @@ import georegression.struct.point.Vector3D_F64;
 import georegression.struct.point.Vector4D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class MAVT265PositionEstimator {
+public class MAVT265PositionEstimator extends ControlModule {
 
 	private static final String T265_PRECISION_LOCK      = "t265_precision_lock";
 	private static final String T265_FIDUCIAL_SIZE       = "t265_fiducial_size";
@@ -133,8 +134,6 @@ public class MAVT265PositionEstimator {
 
 	// Controls
 	private StreamRealSenseT265Pose t265;
-	private IMAVMSPController       control;
-	private DataModel               model;
 
 	// 3D transformation matrices
 	private Se3_F64          to_ned              = new Se3_F64();
@@ -205,10 +204,10 @@ public class MAVT265PositionEstimator {
 
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
-		this.control = control;
+		super(control);
+		
 		this.width   = width;
 		this.height  = height;
-		this.model   = control.getCurrentModel();
 
 		// Subimage-Offsets for fiducial img
 		this.fiducial_x_offs = (width - FIDUCIAL_WIDTH ) / 2;
@@ -254,6 +253,11 @@ public class MAVT265PositionEstimator {
 			}
 		});
 
+		control.getStatusManager().addListener(StatusManager.TYPE_MSP_AUTOPILOT,
+				MSP_AUTOCONTROL_MODE.PRECISION_LOCK, StatusManager.EDGE_RISING, (n) -> {
+				if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK))
+			       writeLogMessage(new LogMessage("[vio] PrecisionLock enabled", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
+		});
 
 		// reset vision when armed
 		control.getStatusManager().addListener( Status.MSP_ARMED, (n) -> {
@@ -419,7 +423,7 @@ public class MAVT265PositionEstimator {
 			// Speed check: Is visual XY speed acceptable
 			if(avg_xy_speed_dev.getMeanAbs() > MAX_SPEED_DEVIATION) {
 				if(check_speed_xy) {
-					control.writeLogMessage(new LogMessage("[vio] T265 XY speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+					writeLogMessage(new LogMessage("[vio] T265 XY speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 					error_count++;
 					//			init("speedXY");
 					return;
@@ -432,7 +436,7 @@ public class MAVT265PositionEstimator {
 			// Speed check: Is visual Z speed acceptable
 			if(avg_z_speed_dev.getMeanAbs() > MAX_SPEED_DEVIATION) {
 				if(check_speed_z) {
-					control.writeLogMessage(new LogMessage("[vio] T265 Z speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+					writeLogMessage(new LogMessage("[vio] T265 Z speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 					error_count++;
 					//			init("speedZ");
 					return;
@@ -501,7 +505,7 @@ public class MAVT265PositionEstimator {
 					}
 
 				} catch(Exception e ) {
-					control.writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+					writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
 					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 					return;
