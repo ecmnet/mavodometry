@@ -42,6 +42,7 @@ import java.awt.image.WritableRaster;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
+import com.comino.mavcom.core.ControlModule;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
@@ -70,7 +71,7 @@ import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class MAVD455DepthEstimator  {
+public class MAVD455DepthEstimator extends ControlModule  {
 
 	private static final boolean DO_DETECT          = false;
 	private static final boolean DO_TRAIL           = false;
@@ -88,7 +89,6 @@ public class MAVD455DepthEstimator  {
 
 	private StreamRealSenseD455Depth 	realsense	= null;
 	private RealSenseInfo               info        = null;
-	private DataModel                   model       = null;
 
 	private boolean                     isRunning   = false;
 
@@ -121,10 +121,11 @@ public class MAVD455DepthEstimator  {
 	@SuppressWarnings("unused")
 	public <T> MAVD455DepthEstimator(IMAVMSPController control, ITargetListener targetListener, LocalMap3D map, MSPConfig config, int width, int height,
 			IVisualStreamHandler<Planar<GrayU8>> stream) {
+		
+		super(control);
 
 		this.width   = width;
 		this.height  = height;
-		this.model   = control.getCurrentModel();
 
 		this.img = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_INDEXED, ColorMap.setAlpha(ColorMap.JET,0.4));
 
