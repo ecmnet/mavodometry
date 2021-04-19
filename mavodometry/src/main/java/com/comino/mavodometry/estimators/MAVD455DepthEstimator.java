@@ -64,17 +64,12 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVD455DepthEstimator extends ControlModule  {
 
-//	private static final boolean DO_DETECT          = false;
-//	private static final boolean DO_TRAIL           = false;
-//	private static final boolean DO_SEGMENT         = false;
-
 	private static final boolean DO_DEPTH_OVERLAY   = false;
 
-	private static final float MAX_DISTANCE         = 12.0f;
-	private static final float MIN_DISTANCE         = 1.0f;
+	private static final float MIN_ALTITUDE         = 0.3f;
 
-	private static final int         DEPTH_HEIGHT     = 60;
-	private static final int         DEPTH_WIDTH      = 580;
+	private static final int         DEPTH_HEIGHT   = 60;
+	private static final int         DEPTH_WIDTH    = 580;
 
 
 	// mounting offset in m
@@ -95,10 +90,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 	private Se3_F64       to_ned          = new Se3_F64();
 	private Vector3D_F64  offset          = new Vector3D_F64();
-
-//	private NanoObjectDetection detect    = null;
-//	private NanoTrailDetection  trail     = null;
-//	private NanoSegmentation    segment   = null;
 
 	private final Point2D_F64    norm     = new Point2D_F64();
 	private Point2Transform2_F64 p2n      = null;
@@ -130,27 +121,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 			return;
 
 		}
-		//		this.p2n = (narrow(realsense.getIntrinsics())).undistort_F64(true,false);
-		//
-		//		this.realsense.setAutoExposureArea(0, height-base, width, top - base);
-		//
-		//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_DETECT) {
-		//			this.detect = new NanoObjectDetection(width,height,stream);
-		//			this.detect.configure(narrow(realsense.getIntrinsics()), NanoObjectDetection.CLASS_PERSON);
-		//			ImageConversionUtil.getInstance(width, height);
-		//		}
-		//
-		//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_TRAIL) {
-		//			this.trail = new NanoTrailDetection(width,height,stream);
-		//			this.trail.configure(narrow(realsense.getIntrinsics()));
-		//			ImageConversionUtil.getInstance(width, height);
-		//		}
-		//
-		//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_SEGMENT) {
-		//			this.segment = new NanoSegmentation(width,height,stream);
-		//			ImageConversionUtil.getInstance(width, height);
-		//		}
-
 		// read offsets from config
 		offset.x = -config.getFloatProperty("r200_offset_x", String.valueOf(OFFSET_X));
 		offset.y = -config.getFloatProperty("r200_offset_y", String.valueOf(OFFSET_Y));
@@ -213,26 +183,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 					return;
 				}
 
-				//				// AI networks to be processed
-				//				if(detect!=null || trail!=null || segment!=null) {
-				//					ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
-				//
-				//					if(detect!=null) {
-				//						detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-				//						if(detect.hasObjectsDetected()) {
-				//							targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
-				//						}
-				//					}
-				//
-				//					if(trail!=null) {
-				//						trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-				//					}
-				//
-				//					if(segment!=null) {
-				//						segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
-				//					}
-				//				}
-
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
 					stream.addToStream(rgb, model, timeDepth);
@@ -244,7 +194,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 					for(y = 0; y < DEPTH_HEIGHT;y++) {
 						raw_z = depth.unsafe_get(x+depth_x_offs, y+depth_y_offs);
 
-						if(raw_z < 20 || raw_z >= 20000)
+						if(raw_z < 20 || raw_z >= 15000)
 							continue;
 						quality++;
 
@@ -253,7 +203,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 						raw_pt.z =  raw_z*1e-3;
 						raw_pt.x =  raw_pt.z*norm.x;
 						
-						if(raw_pt.z > MAX_DISTANCE && raw_pt.z < MIN_DISTANCE)
+						if(raw_pt.y < MIN_ALTITUDE)
 						    continue;
 						
 						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
