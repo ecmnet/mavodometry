@@ -88,6 +88,8 @@ import georegression.struct.se.Se3_F64;
 
 public class StreamRealSenseT265Pose extends RealsenseDevice {
 
+	private static StreamRealSenseT265Pose instance;
+
 	private static final int WIDTH  = 848;
 	private static final int HEIGHT = 800;
 
@@ -135,12 +137,13 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
 	private DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
 
-
-	public StreamRealSenseT265Pose(int mount) {
-		this(mount, WIDTH,HEIGHT);
+	public static StreamRealSenseT265Pose getInstance(int mount, int width, int height) {
+		if(instance==null)
+			instance = new StreamRealSenseT265Pose(mount,width,height);
+		return instance;
 	}
 
-	public StreamRealSenseT265Pose(int mount, int width, int height) {
+	private  StreamRealSenseT265Pose(int mount, int width, int height) {
 
 		super();
 
@@ -188,7 +191,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 			rs2.rs2_hardware_reset(dev, error);
 			try { Thread.sleep(200); } catch (InterruptedException e) {  }
 		}
-		
+
 		config = rs2.rs2_create_config(error);
 		rs2.rs2_config_enable_device(config, rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error),error);
 		pipeline = rs2.rs2_create_pipeline(ctx, error);
@@ -274,7 +277,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
 
 			try { Thread.sleep(200); } catch (InterruptedException e) {  }
-			
+
 
 			System.out.println("T265 pipeline started");
 

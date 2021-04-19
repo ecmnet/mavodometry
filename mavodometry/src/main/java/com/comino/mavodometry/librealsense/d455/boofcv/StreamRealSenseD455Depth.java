@@ -61,6 +61,8 @@ import boofcv.struct.image.Planar;
 public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 
+	private static StreamRealSenseD455Depth instance;
+	
 	private List<IDepthCallback> listeners;
 
 	// image with depth information
@@ -81,12 +83,18 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	private boolean is_running;
 
 	private long   tms;
+	
+	public static StreamRealSenseD455Depth getInstance(RealSenseInfo info) {
+		if(instance==null)
+			instance = new StreamRealSenseD455Depth(info);
+		return instance;
+	}
 
-	public StreamRealSenseD455Depth(int devno , RealSenseInfo info)
+	private StreamRealSenseD455Depth(RealSenseInfo info)
 	{
 
 		super();
-		
+
 		this.input = new byte[info.width * info.height * 3];
 
 		this.listeners = new ArrayList<IDepthCallback>();
@@ -109,13 +117,13 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
 
 		scale = rs2.rs2_get_option(sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
-		
+
 
 		depth.reshape(info.width,info.height);
 		rgb.reshape(info.width,info.height);
 
 		printDeviceInfo();
-		
+
 
 	}
 
@@ -142,14 +150,14 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		checkError("ColorStream",error);
 		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_DEPTH, 0, info.width, info.height, rs2_format.RS2_FORMAT_Z16, 30, error);
 		checkError("DepthStream",error);
-		
-//		PointerByReference profile_list = rs2.rs2_get_stream_profiles(sensor, error);
-//		PointerByReference profile = rs2.rs2_get_stream_profile(profile_list, 11, error);
-//		
-//		rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
-//		rs2.rs2_get_video_stream_intrinsics(profile, rs_intrinsics, error);
-//		intrinsics = new LibRealSenseIntrinsics(rs_intrinsics);
-//		System.out.println(intrinsics);
+
+		//		PointerByReference profile_list = rs2.rs2_get_stream_profiles(sensor, error);
+		//		PointerByReference profile = rs2.rs2_get_stream_profile(profile_list, 11, error);
+		//		
+		//		rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
+		//		rs2.rs2_get_video_stream_intrinsics(profile, rs_intrinsics, error);
+		//		intrinsics = new LibRealSenseIntrinsics(rs_intrinsics);
+		//		System.out.println(intrinsics);
 
 		is_running = true;
 
@@ -172,7 +180,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	public float getScale() {
 		return scale;
 	}
-	
+
 	public boolean isInitialized() {
 		return is_initialized;
 	}
@@ -191,7 +199,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
 
 			try { Thread.sleep(200); } catch (InterruptedException e) {  }
-			
+
 			System.out.println("D455 pipeline started");
 
 			while( is_running ) {
@@ -213,7 +221,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 					frame = rs2.rs2_extract_frame(frames, 0, error);
 					if(rs2.rs2_get_frame_data_size(frame, error) > 0) 
 						bufferDepthToU16(rs2.rs2_get_frame_data(frame, error),depth);
-					
+
 					if(intrinsics==null) {
 						PointerByReference mode = rs2.rs2_get_frame_stream_profile(frame,error);
 						rs2.rs2_get_video_stream_intrinsics(mode, rs_intrinsics, error);
@@ -223,12 +231,12 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 					rs2.rs2_release_frame(frame);
 
-					synchronized(this) {
-						if(listeners.size()>0 && is_initialized) {
-							for(IDepthCallback listener : listeners)
-								listener.process(rgb, depth, tms, tms);
-						}
+
+					if(listeners.size()>0 && is_initialized) {
+						for(IDepthCallback listener : listeners)
+							listener.process(rgb, depth, tms, tms);
 					}
+
 
 					rs2.rs2_release_frame(frames);
 
@@ -240,16 +248,16 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 			System.out.println("D455 stopped.");
 		}
 	}
-	
 
-	public void bufferGrayToU8(Pointer input , GrayU8 output ) {
-		byte[] inp = input.getByteArray(0, output.width * output.height );
-		System.arraycopy(inp, 0, output.data, 0, output.width * output.height);
-	}
+
+//	public void bufferGrayToU8(Pointer input , GrayU8 output ) {
+//		byte[] inp = input.getByteArray(0, output.width * output.height );
+//		System.arraycopy(inp, 0, output.data, 0, output.width * output.height);
+//	}
 
 
 	public void bufferDepthToU16(Pointer input , GrayU16 output ) {
-	//	output.data = input.getShortArray(0, 678400);
+		//	output.data = input.getShortArray(0, 678400);
 		input.read(0, output.data, 0, output.data.length);
 	}
 
@@ -258,11 +266,11 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		byte[] b0 = output.getBand(0).data;
 		byte[] b1 = output.getBand(1).data;
 		byte[] b2 = output.getBand(2).data;
-		
+
 		inp.read(0, input, 0, input.length);
 
-    	for(int  y = 0; y < output.height; y++ ) {
-//		BoofConcurrency.loopFor(0, output.height, y -> {
+		for(int  y = 0; y < output.height; y++ ) {
+			//		BoofConcurrency.loopFor(0, output.height, y -> {
 			int indexIn  = y*output.stride * 3;
 			int indexOut = output.startIndex + y*output.stride;
 			for( int x = 0; x < output.width; x++ , indexOut++ ) {
@@ -270,12 +278,12 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 				b1[indexOut] = input[indexIn++];
 				b2[indexOut] = input[indexIn++];
 			}
-//		});
+			//		});
 		}
 	}
 
-	
-	
+
+
 	public CameraPinholeBrown getIntrinsics() {
 		return intrinsics;
 	}

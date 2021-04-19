@@ -1,4 +1,4 @@
-package com.comino.mavodometry.estimators;
+package com.comino.mavodometry.ai;
 
 /****************************************************************************
  *
@@ -38,7 +38,6 @@ import static boofcv.factory.distort.LensDistortionFactory.narrow;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
-import java.awt.image.WritableRaster;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
@@ -47,6 +46,7 @@ import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
+import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.librealsense.d455.boofcv.IDepthCallback;
 import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD455Depth;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
@@ -63,16 +63,18 @@ import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class MAVD455DepthEstimator extends ControlModule  {
+public class MAVExperimentalAIDetector extends ControlModule  {
 
-	private static final boolean DO_DEPTH_OVERLAY   = false;
+//	private static final boolean DO_DETECT          = false;
+//	private static final boolean DO_TRAIL           = false;
+//	private static final boolean DO_SEGMENT         = false;
 
-	private static final float MIN_ALTITUDE         = -0.3f;
+
+
+	private static final float MIN_ALTITUDE         = 0.3f;
 
 	private static final int         DEPTH_HEIGHT   = 60;
-	private static final int         DEPTH_WIDTH    = 540;
-
-	private static final float       quality_factor = 100f / ( DEPTH_WIDTH * DEPTH_HEIGHT) ;
+	private static final int         DEPTH_WIDTH    = 580;
 
 
 	// mounting offset in m
@@ -83,18 +85,20 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	private StreamRealSenseD455Depth 	realsense	= null;
 	private RealSenseInfo               info        = null;
 
-
 	// Window
 	private int              depth_x_offs    = 0;
 	private int              depth_y_offs    = 0;
 
-	//	private final Color	bgColor           = new Color(128,128,128,140);
-	//	private final Color	depthColor        = new Color(33, 100, 122,70);
+//	private final Color	bgColor           = new Color(128,128,128,140);
+//	private final Color	depthColor        = new Color(33, 100, 122,70);
 
 	private Se3_F64       to_ned          = new Se3_F64();
 	private Vector3D_F64  offset          = new Vector3D_F64();
 
-	private final Point2D_F64    norm     = new Point2D_F64();
+//	private NanoObjectDetection detect    = null;
+//	private NanoTrailDetection  trail     = null;
+//	private NanoSegmentation    segment   = null;
+
 	private Point2Transform2_F64 p2n      = null;
 
 	private BufferedImage             img = null;
@@ -103,7 +107,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 
 	@SuppressWarnings("unused")
-	public <T> MAVD455DepthEstimator(IMAVMSPController control, ITargetListener targetListener, LocalMap3D map, MSPConfig config, int width, int height,
+	public <T> MAVExperimentalAIDetector(IMAVMSPController control, ITargetListener targetListener, LocalMap3D map, MSPConfig config, int width, int height,
 			IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		super(control);
@@ -118,39 +122,44 @@ public class MAVD455DepthEstimator extends ControlModule  {
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
 		try {
+			
+			/// TODO: should not create a new instance
+			
 			this.realsense = StreamRealSenseD455Depth.getInstance(info);
 		} catch( IllegalArgumentException e) {
 			System.out.println("No D455 device found");
 			return;
 
 		}
-		// read offsets from config
-		offset.x = -config.getFloatProperty("d455_offset_x", String.valueOf(OFFSET_X));
-		offset.y = -config.getFloatProperty("d455_offset_y", String.valueOf(OFFSET_Y));
-		offset.z = -config.getFloatProperty("d455_offset_z", String.valueOf(OFFSET_Z));
+		//		this.p2n = (narrow(realsense.getIntrinsics())).undistort_F64(true,false);
+		//
+		//		this.realsense.setAutoExposureArea(0, height-base, width, top - base);
+		//
+		//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_DETECT) {
+		//			this.detect = new NanoObjectDetection(width,height,stream);
+		//			this.detect.configure(narrow(realsense.getIntrinsics()), NanoObjectDetection.CLASS_PERSON);
+		//			ImageConversionUtil.getInstance(width, height);
+		//		}
+		//
+		//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_TRAIL) {
+		//			this.trail = new NanoTrailDetection(width,height,stream);
+		//			this.trail.configure(narrow(realsense.getIntrinsics()));
+		//			ImageConversionUtil.getInstance(width, height);
+		//		}
+		//
+		//		if(HardwareAbstraction.instance().getArchId()==HardwareAbstraction.JETSON && DO_SEGMENT) {
+		//			this.segment = new NanoSegmentation(width,height,stream);
+		//			ImageConversionUtil.getInstance(width, height);
+		//		}
 
-
-
-
-		if(stream!=null) {
-			stream.registerOverlayListener((ctx,tms) -> {
-				if(enableStream) {
-					overlayFeatures(ctx,tms);
-					if(DO_DEPTH_OVERLAY)
-						ctx.drawImage(img, 0, 0, null);
-				}
-			});
-		}
-
+		
 		realsense.registerCallback(new IDepthCallback() {
 
 			int y0=0; int x; int y; int depth_z; int raw_z;
 
-			Point3D_F64 raw_pt      =  new Point3D_F64();
-			Point3D_F64 body_pt     =  new Point3D_F64();
-			Point3D_F64 ned_pt      =  new Point3D_F64();
-
-
+			Point3D_F64 raw_pt  =  new Point3D_F64();
+			Point3D_F64 body_pt =  new Point3D_F64();
+			Point3D_F64 ned_pt  =  new Point3D_F64();
 
 			long tms = 0; int quality = 0;
 
@@ -167,69 +176,43 @@ public class MAVD455DepthEstimator extends ControlModule  {
 				// Initializing with Intrinsics
 				if(p2n==null) {	
 					p2n = (narrow(realsense.getIntrinsics())).undistort_F64(true,false);
-					return;
 
 				}
 
-				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
-				model.slam.fps = model.slam.fps * 0.7f +(float)Math.round(10000.0f / (timeRgb - tms))/10.0f *0.3f;
-				tms = timeRgb;
+				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
 
-				if(!model.sys.isSensorAvailable(Status.MSP_OPCV_AVAILABILITY)) {
-					if(stream!=null && enableStream) {
-						stream.addToStream(rgb, model, timeDepth);
-					}
+				if(!model.sys.isStatus(Status.MSP_LPOS_VALID)) {
 					return;
 				}
+
+				//				// AI networks to be processed
+				//				if(detect!=null || trail!=null || segment!=null) {
+				//					ImageConversionUtil.getInstance().convertToByteBuffer(rgb);
+				//
+				//					if(detect!=null) {
+				//						detect.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				//						if(detect.hasObjectsDetected()) {
+				//							targetListener.update(detect.getFirstObject().getPosNED(), detect.getFirstObject().getPosBODY());
+				//						}
+				//					}
+				//
+				//					if(trail!=null) {
+				//						trail.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				//					}
+				//
+				//					if(segment!=null) {
+				//						segment.process(ImageConversionUtil.getInstance().getImage(), depth, to_ned);
+				//					}
+				//				}
+
 				
-//				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
-//
-//				
-//				// TODO: Eventually BOOF Concurrency here
-//				for(x = 0; x < DEPTH_WIDTH;x++) {
-//					for(y = 0; y < DEPTH_HEIGHT;y++) {
-//						raw_z = depth.unsafe_get(x+depth_x_offs, y+depth_y_offs);
-//
-//						if(raw_z < 20 || raw_z >= 6000)
-//							continue;
-//						
-//						quality++;
-//
-//						p2n.compute(x+depth_x_offs,y+depth_y_offs,norm);
-//						raw_pt.z =  raw_z*1e-3;
-//						raw_pt.y = -raw_pt.z*norm.y;
-//						raw_pt.x =  raw_pt.z*norm.x;
-//
-//						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
-//						body_pt.plusIP(offset);
-//						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
-//						ned_pt.plusIP(to_ned.T);
-//
-//						if(ned_pt.z > MIN_ALTITUDE)
-//							continue;
-//
-//						if(map!=null) {
-//							map.update(to_ned.T, ned_pt);
-//						}
-//
-//					}
-//				}
-
-				model.slam.quality = model.slam.quality * 0.7f + (quality * quality_factor ) * 0.3f;
-
-				// Add rgb image to stream
-				if(stream!=null && enableStream) {
-					stream.addToStream(rgb, model, timeDepth);
-				}
-				if(DO_DEPTH_OVERLAY && enableStream)
-					overlayDepth(depth, img);
 			}
 
 
 		});
 
-		System.out.println("D455 depth estimator initialized with offset:"+offset);
+		System.out.println("AI Detector initialized");
 	}
 
 	public void start() {
@@ -284,15 +267,15 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	}
 
 
-	private BufferedImage overlayDepth(GrayU16 depth_area, BufferedImage image) {
-		WritableRaster raster = image.getRaster(); int[] pixel = new int[1];
-		for(int x=0;x<DEPTH_WIDTH;x++) {
-			for(int y=0;y<DEPTH_HEIGHT;y++) {
-				pixel[0] = depth_area.get(x+depth_x_offs, y+depth_y_offs) / 50;
-				raster.setPixel(x+depth_x_offs,y+depth_y_offs,pixel);
-			}
-		}
-		return image;
-	}
+//	private BufferedImage overlayDepth(GrayU16 depth_area, BufferedImage image) {
+//		WritableRaster raster = image.getRaster(); int[] pixel = new int[1];
+//		for(int x=0;x<depth_area.width;x++) {
+//			for(int y=0;y<depth_area.height;y++) {
+//				pixel[0] = depth_area.get(x, y) / 50;
+//				raster.setPixel(x,y,pixel);
+//			}
+//		}
+//		return image;
+//	}
 
 }
