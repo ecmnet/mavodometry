@@ -38,7 +38,6 @@ import static boofcv.factory.distort.LensDistortionFactory.narrow;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
-import java.awt.image.WritableRaster;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
@@ -47,19 +46,11 @@ import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
-import com.comino.mavodometry.libnano.detetction.NanoObjectDetection;
-import com.comino.mavodometry.libnano.segmentation.NanoSegmentation;
-import com.comino.mavodometry.libnano.trail.NanoTrailDetection;
-import com.comino.mavodometry.libnano.utils.ImageConversionUtil;
 import com.comino.mavodometry.librealsense.d455.boofcv.IDepthCallback;
 import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD455Depth;
-import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseR200Depth;
-import com.comino.mavodometry.librealsense.r200.boofcv.StreamRealSenseR200Depth.Listener;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
-import com.comino.mavutils.hw.HardwareAbstraction;
 
-import boofcv.core.image.ConvertImage;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -73,13 +64,17 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVD455DepthEstimator extends ControlModule  {
 
-	private static final boolean DO_DETECT          = false;
-	private static final boolean DO_TRAIL           = false;
-	private static final boolean DO_SEGMENT         = false;
+//	private static final boolean DO_DETECT          = false;
+//	private static final boolean DO_TRAIL           = false;
+//	private static final boolean DO_SEGMENT         = false;
 
 	private static final boolean DO_DEPTH_OVERLAY   = false;
 
 	private static final float MAX_DISTANCE         = 12.0f;
+	private static final float MIN_DISTANCE         = 1.0f;
+
+	private static final int         DEPTH_HEIGHT     = 60;
+	private static final int         DEPTH_WIDTH      = 580;
 
 
 	// mounting offset in m
@@ -90,25 +85,20 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	private StreamRealSenseD455Depth 	realsense	= null;
 	private RealSenseInfo               info        = null;
 
-	private boolean                     isRunning   = false;
-
-	// Stream data
-	private int   width;
-	private int   height;
 
 	// Window
-	private int   base = 0;
-	private int   top  = 40;
+	private int              depth_x_offs    = 0;
+	private int              depth_y_offs    = 0;
 
-	private final Color	bgColor           = new Color(128,128,128,140);
-	private final Color	depthColor        = new Color(33, 100, 122,70);
+//	private final Color	bgColor           = new Color(128,128,128,140);
+//	private final Color	depthColor        = new Color(33, 100, 122,70);
 
 	private Se3_F64       to_ned          = new Se3_F64();
 	private Vector3D_F64  offset          = new Vector3D_F64();
 
-	private NanoObjectDetection detect    = null;
-	private NanoTrailDetection  trail     = null;
-	private NanoSegmentation    segment   = null;
+//	private NanoObjectDetection detect    = null;
+//	private NanoTrailDetection  trail     = null;
+//	private NanoSegmentation    segment   = null;
 
 	private final Point2D_F64    norm     = new Point2D_F64();
 	private Point2Transform2_F64 p2n      = null;
@@ -121,11 +111,12 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	@SuppressWarnings("unused")
 	public <T> MAVD455DepthEstimator(IMAVMSPController control, ITargetListener targetListener, LocalMap3D map, MSPConfig config, int width, int height,
 			IVisualStreamHandler<Planar<GrayU8>> stream) {
-		
+
 		super(control);
 
-		this.width   = width;
-		this.height  = height;
+
+		this.depth_x_offs = (width - DEPTH_WIDTH ) / 2;
+		this.depth_y_offs = (height - DEPTH_HEIGHT ) / 2;
 
 		this.img = new BufferedImage(width, height, BufferedImage.TYPE_BYTE_INDEXED, ColorMap.setAlpha(ColorMap.JET,0.4));
 
@@ -211,8 +202,8 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 
 				//
-				if(DO_DEPTH_OVERLAY && enableStream)
-					overlayDepth(depth, img);
+//				if(DO_DEPTH_OVERLAY && enableStream)
+//					overlayDepth(depth, img);
 
 
 				if(!model.sys.isStatus(Status.MSP_LPOS_VALID)) {
@@ -247,43 +238,37 @@ public class MAVD455DepthEstimator extends ControlModule  {
 					stream.addToStream(rgb, model, timeDepth);
 				}
 
-//				for( x = 0; x < width; x = x + 2 ) {
-//					for( y = 0; y < height; y = y + 2 ) {
-//						raw_z = depth.unsafe_get(x, y);
-//
-//						if(raw_z < 20 || raw_z >= 20000)
-//							continue;
-//
-//						quality++;
-//
-//						// transform to 3D body frame
-//						p2n.compute(x,y,norm);
-//				        raw_pt.y = -raw_pt.z*norm.y;
-//						raw_pt.z =  raw_z*1e-3;
-//						raw_pt.x =  raw_pt.z*norm.x;
-//						
-//
-//						if(raw_pt.z > MAX_DISTANCE)
-//							continue;
-//
-//						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
-//						body_pt.plusIP(offset);
-//
-//						// rotate in NED frame if NED available
-//						if(!to_ned.T.isNaN() &&  !control.isSimulation()) {
-//							GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
-//							ned_pt.plusIP(to_ned.T);
-//						} else {
-//							ned_pt.set(body_pt);
-//						}
-//
-////						// put into map if map available
-////						if(map!=null) {
-////							map.update(to_ned.T, ned_pt);
-////						}
-//					}
-//				}
-				model.slam.quality = quality * 400 / ( width * height );
+
+				// TODO: Eventually BOOF Concurrency here
+				for(x = 0; x < DEPTH_WIDTH;x++) {
+					for(y = 0; y < DEPTH_HEIGHT;y++) {
+						raw_z = depth.unsafe_get(x+depth_x_offs, y+depth_y_offs);
+
+						if(raw_z < 20 || raw_z >= 20000)
+							continue;
+						quality++;
+
+						p2n.compute(x,y,norm);
+						raw_pt.y = -raw_pt.z*norm.y;
+						raw_pt.z =  raw_z*1e-3;
+						raw_pt.x =  raw_pt.z*norm.x;
+						
+						if(raw_pt.z > MAX_DISTANCE && raw_pt.z < MIN_DISTANCE)
+						    continue;
+						
+						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
+						body_pt.plusIP(offset);
+						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
+						ned_pt.plusIP(to_ned.T);
+						
+						if(map!=null) {
+							map.update(to_ned.T, ned_pt);
+						}
+
+					}
+				}
+
+				model.slam.quality = quality * 100 / ( DEPTH_WIDTH * DEPTH_HEIGHT );
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
 
 			}
@@ -295,7 +280,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	}
 
 	public void start() {
-		isRunning = true;
 		if(realsense!=null)
 			realsense.start();
 	}
@@ -304,7 +288,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 		if(realsense!=null) {
 			realsense.stop();
 		}
-		isRunning=false;
 	}
 
 	public void enableStream(boolean enable) {
@@ -319,6 +302,8 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 		if(!enableStream)
 			return;
+
+		drawDepthArea(ctx,depth_x_offs,depth_y_offs,depth_x_offs+DEPTH_WIDTH,depth_y_offs+DEPTH_HEIGHT);
 		//
 		//		if(!DO_DEPTH_OVERLAY) {
 		//			ctx.setColor(depthColor);
@@ -327,16 +312,34 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 	}
 
+	private void drawDepthArea(Graphics ctx, int x0, int y0, int x1, int y1) {
 
-	private BufferedImage overlayDepth(GrayU16 depth_area, BufferedImage image) {
-		WritableRaster raster = image.getRaster(); int[] pixel = new int[1];
-		for(int x=0;x<depth_area.width;x++) {
-			for(int y=0;y<depth_area.height;y++) {
-				pixel[0] = depth_area.get(x, y) / 50;
-				raster.setPixel(x,y,pixel);
-			}
-		}
-		return image;
+		final int ln = 20;
+
+		ctx.drawLine(x0,y0,x0+ln,y0);
+		ctx.drawLine(x0,y0,x0,y0+ln);
+
+		ctx.drawLine(x0,y1,x0,y1-ln);
+		ctx.drawLine(x0,y1,x0+ln,y1);
+
+		ctx.drawLine(x1,y0,x1-ln,y0);
+		ctx.drawLine(x1,y0,x1,y0+ln);
+
+		ctx.drawLine(x1,y1,x1-ln,y1);
+		ctx.drawLine(x1,y1,x1,y1-ln);
+
 	}
+
+
+//	private BufferedImage overlayDepth(GrayU16 depth_area, BufferedImage image) {
+//		WritableRaster raster = image.getRaster(); int[] pixel = new int[1];
+//		for(int x=0;x<depth_area.width;x++) {
+//			for(int y=0;y<depth_area.height;y++) {
+//				pixel[0] = depth_area.get(x, y) / 50;
+//				raster.setPixel(x,y,pixel);
+//			}
+//		}
+//		return image;
+//	}
 
 }
