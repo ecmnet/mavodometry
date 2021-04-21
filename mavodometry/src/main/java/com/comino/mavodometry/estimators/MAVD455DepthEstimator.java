@@ -58,7 +58,9 @@ import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import edu.mines.jtk.awt.ColorMap;
 import georegression.geometry.GeometryMath_F64;
+import georegression.struct.point.Point2D_F32;
 import georegression.struct.point.Point2D_F64;
+import georegression.struct.point.Point2D_I32;
 import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
@@ -96,6 +98,8 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 	private final Point2D_F64    norm     = new Point2D_F64();
 	private Point2Transform2_F64 p2n      = null;
+	
+	private Point2D_I32 mindist_pt        =  new Point2D_I32();
 
 	private BufferedImage             img = null;
 	private boolean          enableStream = false;
@@ -149,9 +153,12 @@ public class MAVD455DepthEstimator extends ControlModule  {
 			Point3D_F64 raw_pt      =  new Point3D_F64();
 			Point3D_F64 body_pt     =  new Point3D_F64();
 			Point3D_F64 ned_pt      =  new Point3D_F64();
-
-
-
+			Point3D_F64 body_pt_n   =  new Point3D_F64();
+			Point3D_F64 ned_pt_n    =  new Point3D_F64();
+			
+			double min_distance;
+			double distance;
+			
 			long tms = 0; int quality = 0;
 
 			@Override
@@ -182,39 +189,59 @@ public class MAVD455DepthEstimator extends ControlModule  {
 					}
 					return;
 				}
-				
-//				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
-//
-//				
-//				// TODO: Eventually BOOF Concurrency here
-//				for(x = 0; x < DEPTH_WIDTH;x++) {
-//					for(y = 0; y < DEPTH_HEIGHT;y++) {
-//						raw_z = depth.unsafe_get(x+depth_x_offs, y+depth_y_offs);
-//
-//						if(raw_z < 20 || raw_z >= 6000)
-//							continue;
-//						
-//						quality++;
-//
-//						p2n.compute(x+depth_x_offs,y+depth_y_offs,norm);
-//						raw_pt.z =  raw_z*1e-3;
-//						raw_pt.y = -raw_pt.z*norm.y;
-//						raw_pt.x =  raw_pt.z*norm.x;
-//
-//						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
-//						body_pt.plusIP(offset);
-//						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
-//						ned_pt.plusIP(to_ned.T);
-//
-//						if(ned_pt.z > MIN_ALTITUDE)
-//							continue;
-//
-//						if(map!=null) {
-//							map.update(to_ned.T, ned_pt);
-//						}
-//
-//					}
-//				}
+
+				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
+
+				min_distance = Double.MAX_VALUE;
+				// TODO: Eventually BOOF Concurrency here
+				for(x = 0; x < DEPTH_WIDTH;x++) {
+					for(y = 0; y < DEPTH_HEIGHT;y++) {
+						raw_z = depth.unsafe_get(x+depth_x_offs, y+depth_y_offs);
+
+						if(raw_z < 20 || raw_z >= 6000)
+							continue;
+
+						quality++;
+
+						p2n.compute(x+depth_x_offs,y+depth_y_offs,norm);
+						raw_pt.z =  raw_z*1e-3;
+						raw_pt.y = -raw_pt.z*norm.y;
+						raw_pt.x =  raw_pt.z*norm.x;
+
+						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
+						body_pt.plusIP(offset);
+						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
+						ned_pt.plusIP(to_ned.T);
+						
+                 
+						distance = body_pt.norm();
+						if(distance < min_distance) {
+							mindist_pt.set(x,y);
+							min_distance = distance;
+							body_pt_n.set(body_pt);
+						}
+
+						//						if(ned_pt.z > MIN_ALTITUDE)
+						//							continue;
+						//
+						//						if(map!=null) {
+						//							map.update(to_ned.T, ned_pt);
+						//						}
+
+					}
+				}
+				if(min_distance < Double.MAX_VALUE) {
+					
+					GeometryMath_F64.mult(to_ned.R, body_pt_n, ned_pt_n );
+					ned_pt_n.plusIP(to_ned.T);
+					
+					model.slam.ox = (float)ned_pt_n.x;
+					model.slam.oy = (float)ned_pt_n.y;
+					model.slam.oz = (float)ned_pt_n.z;
+		
+					model.slam.dm = (float)min_distance; 
+				} else
+					model.slam.dm = Float.NaN; 
 
 				model.slam.quality = model.slam.quality * 0.7f + (quality * quality_factor ) * 0.3f;
 
@@ -257,6 +284,9 @@ public class MAVD455DepthEstimator extends ControlModule  {
 			return;
 
 		drawDepthArea(ctx,depth_x_offs,depth_y_offs,depth_x_offs+DEPTH_WIDTH,depth_y_offs+DEPTH_HEIGHT);
+		
+		if(Float.isFinite(model.slam.dm))
+			drawMinDist(ctx,depth_x_offs+mindist_pt.x,depth_y_offs+mindist_pt.y);
 		//
 		//		if(!DO_DEPTH_OVERLAY) {
 		//			ctx.setColor(depthColor);
@@ -280,7 +310,16 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 		ctx.drawLine(x1,y1,x1-ln,y1);
 		ctx.drawLine(x1,y1,x1,y1-ln);
+	}
+	
+	private void drawMinDist(Graphics ctx, int x0, int y0) {
 
+		final int ln = 10;
+
+		ctx.drawLine(x0-ln,y0,x0+ln,y0);
+		ctx.drawLine(x0,y0-ln,x0,y0+ln);
+
+		
 	}
 
 
