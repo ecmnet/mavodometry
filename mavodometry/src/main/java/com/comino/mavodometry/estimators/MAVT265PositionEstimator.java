@@ -235,7 +235,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 				case MSP_CMD.MSP_CMD_VISION:
 					switch((int)cmd.param1) {
 					case MSP_COMPONENT_CTRL.ENABLE:
-						init("enable"); 
+						if(!model.sys.isStatus(Status.MSP_ARMED))
+						  init("enable"); 
 						do_odometry = true; 
 						break;
 					case MSP_COMPONENT_CTRL.DISABLE:
@@ -245,7 +246,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 						if(!t265.isRunning())
 							start();
 						else
-							init("reset");
+							 init("reset");
 						break;
 					}
 					break;
