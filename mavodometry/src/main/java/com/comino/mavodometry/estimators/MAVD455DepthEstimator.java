@@ -230,7 +230,10 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 					}
 				}
-				if(min_distance < Double.MAX_VALUE) {
+				
+				model.slam.quality = model.slam.quality * 0.7f + (quality * quality_factor ) * 0.3f;
+				
+				if(model.slam.quality > 30) {
 					
 					GeometryMath_F64.mult(to_ned.R, body_pt_n, ned_pt_n );
 					ned_pt_n.plusIP(to_ned.T);
@@ -243,7 +246,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 				} else
 					model.slam.dm = Float.NaN; 
 
-				model.slam.quality = model.slam.quality * 0.7f + (quality * quality_factor ) * 0.3f;
 
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
@@ -278,6 +280,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	}
 
 
+	@SuppressWarnings("unused")
 	private void overlayFeatures(Graphics ctx, long tms) {
 
 		if(!enableStream)
@@ -285,7 +288,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 		drawDepthArea(ctx,depth_x_offs,depth_y_offs,depth_x_offs+DEPTH_WIDTH,depth_y_offs+DEPTH_HEIGHT);
 		
-		if(Float.isFinite(model.slam.dm))
+		if(DO_DEPTH_OVERLAY && Float.isFinite(model.slam.dm))
 			drawMinDist(ctx,depth_x_offs+mindist_pt.x,depth_y_offs+mindist_pt.y);
 		//
 		//		if(!DO_DEPTH_OVERLAY) {
