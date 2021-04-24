@@ -205,7 +205,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		super(control);
-		
+
 		this.width   = width;
 		this.height  = height;
 
@@ -235,8 +235,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 				case MSP_CMD.MSP_CMD_VISION:
 					switch((int)cmd.param1) {
 					case MSP_COMPONENT_CTRL.ENABLE:
-						if(!model.sys.isStatus(Status.MSP_ARMED))
-						  init("enable"); 
+						init("enable"); 
 						do_odometry = true; 
 						break;
 					case MSP_COMPONENT_CTRL.DISABLE:
@@ -246,7 +245,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 						if(!t265.isRunning())
 							start();
 						else
-							 init("reset");
+							init("reset");
 						break;
 					}
 					break;
@@ -256,15 +255,16 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		control.getStatusManager().addListener(StatusManager.TYPE_MSP_AUTOPILOT,
 				MSP_AUTOCONTROL_MODE.PRECISION_LOCK, StatusManager.EDGE_RISING, (n) -> {
-				if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK))
-			       writeLogMessage(new LogMessage("[vio] PrecisionLock enabled", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
-		});
+					if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK))
+						writeLogMessage(new LogMessage("[vio] PrecisionLock enabled", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
+				});
 
 		// reset vision when armed
 		control.getStatusManager().addListener( Status.MSP_ARMED, (n) -> {
 			if(n.isStatus(Status.MSP_ARMED)) {
+				is_originset = false;
 				init("armed");
-			}
+			} 
 		});
 
 		// reset vision when absolute position lost if odometry if published
@@ -339,7 +339,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 				if(!is_originset) {
 					to_ned.T.set(0,0,0);
-					publishPX4OdometryZero(MAV_FRAME.MAV_FRAME_LOCAL_FRD,tms);
+					publishPX4OdometryZero(MAV_FRAME.MAV_FRAME_LOCAL_NED,tms);
+					is_originset = true;
 				}
 
 				// Rotate offset to NED
@@ -367,6 +368,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 				avg_xy_speed_dev.clear();
 
 				is_fiducial = false;
+				error_count = 0;
 
 				if(stream!=null && enableStream) {
 					stream.addToStream(img, model, tms);
@@ -403,8 +405,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 			body.concat(to_ned, ned);
 			//	CommonOps_DDRM.mult( body.R, to_ned.R, ned_s.R );
 			GeometryMath_F64.mult(to_ned.R, body_s.T,ned_s.T);
-
-
 			GeometryMath_F64.mult(to_ned.R, offset, offset_r );
 
 			// add rotated offset
@@ -496,7 +496,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 							fiducial_att.setFromMatrix(targetToSensor.R);
 							precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
 									fiducial_att.getYaw()+model.attitude.y);
-							
+
 							// TODO: Check consistency of lock with LIDAR data or altitude above ground
 
 							model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
@@ -548,8 +548,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 			case LPOS_ODO_MODE_NED:
 
 
-				// Publish position data NED frame, speed body frame; No Z update
-				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_FRD,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
+				// Publish position data NED frame, speed body frame; 
+				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
 				publishMSPVision(p,ned,ned_s,precision_lock,tms);
 
 				break;
@@ -605,12 +605,9 @@ public class MAVT265PositionEstimator extends ControlModule {
 	}
 
 	public void init(String s) {
-		tms_reset = System.currentTimeMillis();
-		reset_count++;
 		if(t265!=null) {
-			if(s.contains("init")) {
-				is_originset = false;
-			}
+			tms_reset = System.currentTimeMillis();
+			reset_count++;
 			t265.reset();
 			control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 		}
@@ -637,7 +634,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private void overlayFeatures(Graphics ctx, long tms) {
 
 		ctx.setColor(Color.white);
-		
+
 		if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK)) {
 
 			drawFiducialArea(ctx,fiducial_x_offs,fiducial_y_offs,fiducial_x_offs+FIDUCIAL_WIDTH,fiducial_y_offs+FIDUCIAL_HEIGHT);
@@ -650,7 +647,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			} 
 		}
 
-		
+
 		if(is_fiducial && Double.isFinite(precision_lock.z))
 			ctx.drawString(String.format("%#.2fm",-precision_lock.z), width-40, 20);
 
@@ -744,7 +741,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		// do not use twist
 		odo.q[0] = Float.NaN;
-
 
 		odo.reset_counter = reset_count;
 

@@ -67,7 +67,7 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVD455DepthEstimator extends ControlModule  {
 
-	private static final boolean DO_DEPTH_OVERLAY   = false;
+	private static final boolean DO_DEPTH_OVERLAY   = false; // Control with ostacle avoidance
 
 	private static final float MIN_ALTITUDE         = -0.3f;
 
