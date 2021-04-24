@@ -289,7 +289,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 		t265.registerCallback((tms, raw, p, s, a, img) ->  {
 
 			// Bug in CB; sometimes called twice
-			if((tms-tms_old) < 3)
+			if((tms-tms_old) < 10)
 				return;
 
 			switch(raw.tracker_confidence) {
@@ -819,7 +819,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		msg.fps = 1000f / (tms - tms_old);
 
-		control.sendMAVLinkMessage(msg);
+	    control.sendMAVLinkMessage(msg);
 
 
 	}

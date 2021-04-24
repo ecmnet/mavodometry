@@ -67,7 +67,7 @@ import boofcv.struct.image.Planar;
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
 	private static final int 		MAX_VIDEO_RATE_MS     = 25;
-	private static final float		DEFAULT_VIDEO_QUALITY = 0.4f;
+	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
 	private static final float		LOW_VIDEO_QUALITY     = 0.2f;
 	private static final float      LOW_VIDEO_THERSHOLD   = 0.50f;
 
@@ -127,6 +127,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 			writer = (ImageWriter) iter.next();
 
 		ImageOutputStream ios = ImageIO.createImageOutputStream(he.getResponseBody());
+
 		writer.setOutput(ios);
 		iwparam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
 		iwparam.setCompressionQuality(DEFAULT_VIDEO_QUALITY);
@@ -183,7 +184,6 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 					no_video = false;
 					writer.write(null, ioimage, iwparam);
 					ios.write("\r\n\r\n".getBytes());
-
 				}
 
 				isReady = false;

@@ -44,6 +44,8 @@ import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_format;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_options;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_rs400_visual_preset;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream_profile_list;
 import com.comino.mavodometry.librealsense.lib.RealsenseDevice;
@@ -113,11 +115,12 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
 		checkError("Sensors",error);
 
-		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_EMITTER_ALWAYS_ON, OPTION_ENABLE, error);
-		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
+		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
+		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_EMITTER_ALWAYS_ON, OPTION_ENABLE, error);
+		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
+		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_HOLES_FILL, OPTION_ENABLE, error);
 
 		scale = rs2.rs2_get_option(sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
-
 
 		depth.reshape(info.width,info.height);
 		rgb.reshape(info.width,info.height);
