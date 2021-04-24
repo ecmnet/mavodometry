@@ -81,6 +81,8 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 	private boolean is_running = false;
 
+	private boolean no_video   = false;
+
 	private long last_image_tms = 0;
 	private float  fps = 0;
 
@@ -153,13 +155,15 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 				ios.write(header);
 
-				if((System.currentTimeMillis()-tms) >1950) {
-					ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-					ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-					writer.write(null, ioimage , iwparam);			
-					ios.write("\r\n\r\n".getBytes());
-					ios.flush();
-					//is_running = false;
+				if((System.currentTimeMillis()-tms) >1950 ) {
+					if(!no_video) {
+						no_video = true;
+						ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
+						ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
+						writer.write(null, ioimage , iwparam);			
+						ios.write("\r\n\r\n".getBytes());
+						//is_running = false;
+					}
 					continue;
 				}
 
@@ -176,7 +180,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 				}
 
 				synchronized(this) {
-
+					no_video = false;
 					writer.write(null, ioimage, iwparam);
 					ios.write("\r\n\r\n".getBytes());
 
