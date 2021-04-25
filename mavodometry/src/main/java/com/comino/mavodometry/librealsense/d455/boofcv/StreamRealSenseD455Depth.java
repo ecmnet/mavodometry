@@ -75,7 +75,9 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	private volatile Realsense2Library.rs2_pipeline pipeline;
 	private volatile Realsense2Library.rs2_config config;
 
-	private PointerByReference sensor = null;
+	private PointerByReference depth_sensor = null;
+	private PointerByReference rgb_sensor   = null;
+	
 	private  byte[] input;
 
 	private RealSenseInfo          info;
@@ -109,18 +111,32 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 			throw new IllegalArgumentException("No device found");
 		}
 
-
-		// Settings some options
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);	
-		sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
+		
+		int sensor_count = rs2.rs2_get_sensors_count(sensor_list, error);
+		System.out.println("D455 has "+sensor_count+" sensors");
+		
+		// Settings some options
+		depth_sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
 		checkError("Sensors",error);
+		
+		rgb_sensor = rs2.rs2_create_sensor(sensor_list, 1, error);
+		checkError("Sensors",error);
+		
 
-		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
-		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_EMITTER_ALWAYS_ON, OPTION_ENABLE, error);
-		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
-		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_HOLES_FILL, OPTION_ENABLE, error);
-
-		scale = rs2.rs2_get_option(sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
+		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
+		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_EMITTER_ENABLED, 2, error);
+		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
+		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_ENABLE, error);
+		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_HOLES_FILL, OPTION_ENABLE, error);
+		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE, OPTION_ENABLE, error);
+		
+		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
+		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_ENABLE, error);
+		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE, OPTION_ENABLE, error);
+		
+	
+		scale = rs2.rs2_get_option(depth_sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
 
 		depth.reshape(info.width,info.height);
 		rgb.reshape(info.width,info.height);
