@@ -53,11 +53,18 @@ public class DefaultOverlayListener implements IOverlayListener {
 	private int width;
 	private int height;
 	
+	private int width2;
+	private int height2;
+	
+	private String tmp;
+	
 	public DefaultOverlayListener(int width, int height, DataModel model) {
 		super();
-		this.model = model;
-		this.width = width;
-		this.height = height;
+		this.model   = model;
+		this.width   = width;
+		this.height  = height;
+		this.width2  = width / 2;
+		this.height2 = height / 2;
 	}
 
 
@@ -68,8 +75,8 @@ public class DefaultOverlayListener implements IOverlayListener {
 		ctx.setColor(bgColor_header);
 		ctx.fillRect(5, 5, width-10, 21);
 		
-		ctx.drawLine(100, height/2, width/2-20, height/2); ctx.drawLine(width/2+20, height/2, width-100, height/2);
-		ctx.drawLine(width/2, 100, width/2, height/2-20); ctx.drawLine(width/2, height/2+20, width/2, height-100);
+		ctx.drawLine(100, height2, width2-20, height2); ctx.drawLine(width2+20, height2, width-100, height2);
+		ctx.drawLine(width2, 100, width2, height2-20); ctx.drawLine(width2, height2+20, width2, height-100);
 
 		ctx.setPaintMode();
 		ctx.setColor(Color.white);
@@ -78,6 +85,9 @@ public class DefaultOverlayListener implements IOverlayListener {
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
 			ctx.drawString(time.format(model.sys.t_armed_ms/1000f), 20, 20);
 		}
+		
+		tmp = model.sys.getModeString();
+		ctx.drawString(tmp, width - ctx.getFontMetrics().stringWidth(tmp)-20, 20);
 
 		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO,tms)) {
 			ctx.setColor(bgColor_header);
