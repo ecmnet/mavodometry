@@ -117,7 +117,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	// Modes
 	public static final int  GROUNDTRUTH_MODE       = 1;
 	public static final int  LPOS_VIS_MODE_NED      = 2;
-	public static final int  LPOS_ODO_MODE_NED_GPS  = 3;
+	public static final int  LPOS_ODO_MODE_NED_GND  = 3;
 	public static final int  LPOS_ODO_MODE_NED_PREC = 4;
 
 
@@ -544,10 +544,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 				break;
 
-			case LPOS_ODO_MODE_NED_GPS:
+			case LPOS_ODO_MODE_NED_GND:
 
 
-				// Publish position data NED frame, speed body frame; 
+				// Publish position data NED frame, speed body frame;  with ground truth
 				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
 				publishMSPVision(gnd_ned,ned,ned_s,precision_lock,tms);
 
@@ -556,7 +556,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			case LPOS_ODO_MODE_NED_PREC:
 
 
-				// Publish position and speed data body frame
+				// Publish position and speed data body frame; with precision lock
 				publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
 				publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
 
