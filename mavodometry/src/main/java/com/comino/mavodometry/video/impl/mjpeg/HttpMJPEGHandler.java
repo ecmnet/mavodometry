@@ -66,7 +66,7 @@ import boofcv.struct.image.Planar;
 
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
-	private static final int 		MAX_VIDEO_RATE_MS     = 25;
+	private static final int 		MAX_VIDEO_RATE_MS     = 40;
 	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
 	private static final float		LOW_VIDEO_QUALITY     = 0.2f;
 	private static final float      LOW_VIDEO_THERSHOLD   = 0.50f;
@@ -205,7 +205,6 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	@SuppressWarnings("unchecked")
 	@Override
 	public void addToStream(T in, DataModel model, long tms_us) {
-
 
 		if((System.currentTimeMillis()-last_image_tms) < MAX_VIDEO_RATE_MS || !is_running)
 			return;
