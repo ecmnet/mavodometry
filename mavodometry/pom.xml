@@ -17,8 +17,17 @@
 		<maven.compiler.target>1.10</maven.compiler.target>
 		<maven.compiler.source>1.10</maven.compiler.source>
 	</properties>
+	
+	<repositories>
+	<repository>
+			<id>in-project</id>
+			<name>In Project Repo</name>
+			<url>file://${project.basedir}/lib</url>
+		</repository>
+     </repositories>
 
 	<dependencies>
+	
 	   
 		<dependency>
 			<groupId>junit</groupId>
@@ -55,6 +64,11 @@
 			<groupId>org.jcodec</groupId>
 			<artifactId>jcodec</artifactId>
 			<version>0.1.9</version>
+		</dependency>
+		<dependency>
+			<groupId>turbojpeg</groupId>
+			<artifactId>turbojpeg</artifactId>
+			<version>0.0.1</version>
 		</dependency>
 	</dependencies>
 

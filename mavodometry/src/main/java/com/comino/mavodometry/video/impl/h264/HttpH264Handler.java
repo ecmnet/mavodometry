@@ -209,4 +209,10 @@ public class HttpH264Handler<T> implements HttpHandler, IVisualStreamHandler<T> 
 		}
 	}
 
+	@Override
+	public float getFps() {
+		// TODO Auto-generated method stub
+		return 0;
+	}
+
 }

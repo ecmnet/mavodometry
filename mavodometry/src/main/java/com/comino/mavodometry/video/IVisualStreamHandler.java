@@ -43,6 +43,7 @@ public  interface  IVisualStreamHandler<T> {
 	public void addToStream(T image, DataModel model, long tms_us);
 //	public void setQuality(int percent);
 	public void registerOverlayListener(IOverlayListener listener);
+	public float getFps();
 
 
 }

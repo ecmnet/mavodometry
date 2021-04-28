@@ -8,7 +8,6 @@ import java.awt.event.ActionListener;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
-import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.io.InterruptedIOException;
@@ -20,20 +19,17 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
 import java.util.StringTokenizer;
 import java.util.UUID;
 
-import javax.imageio.IIOImage;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.plugins.jpeg.JPEGImageWriteParam;
-import javax.imageio.stream.ImageOutputStream;
 import javax.swing.Timer;
+
+import org.libjpegturbo.turbojpeg.TJ;
+import org.libjpegturbo.turbojpeg.TJCompressor;
+import org.libjpegturbo.turbojpeg.TJException;
 
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.video.IOverlayListener;
@@ -49,9 +45,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 
 
 	private static final int 		VIDEO_RATE_MS         = 40;
-	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
-	private static final float		LOW_VIDEO_QUALITY     = 0.2f;
-	private static final float      LOW_VIDEO_THERSHOLD   = 0.50f;
+	private static final float		DEFAULT_VIDEO_QUALITY = 0.5f;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
 
@@ -75,11 +69,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 	private boolean    is_ready = false;
 	private boolean    is_running = false;
 
-	private IIOImage   ioimage;
 	private T          input;
-	
-	private ImageWriteParam iwparam = new JPEGImageWriteParam(Locale.getDefault());
-
 
 	private DatagramSocket RTPsocket;         //socket to be used to send and receive UDP packets
 	private DatagramPacket senddp;            //UDP packet containing the video frames
@@ -96,28 +86,28 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 
 	private static BufferedReader RTSPBufferedReader;
 	private static BufferedWriter RTSPBufferedWriter;
-	private Socket RTSPsocket; //socket used to send/receive RTSP messages
+	
+	private Socket RTSPsocket;                //socket used to send/receive RTSP messages
 
 	private Timer timer;                      //timer used to send the images at the video frame rate
 	private int sendDelay;                    //the delay to send images over the wire. Ideally should be
-	//equal to the frame rate of the video file, but may be 
-	//adjusted when congestion is detected.
+	            						      //equal to the frame rate of the video file, but may be 
+	                                          //adjusted when congestion is detected.
 	private static int state;                 //RTSP Server state == INIT or READY or PLAY
 	private int RTSPSeqNb = 0;                //Sequence number of RTSP messages within the session
-	private int imagenb = 0; //image nb of the image currently transmitted
+	private int imagenb = 0;                  //image nb of the image currently transmitted
 
 	private static String RTSPid = UUID.randomUUID().toString(); 
 	private final static String CRLF = "\r\n";
-	
-	private ImageWriter writer;
-	private ByteArrayOutputStream baos ;
-	private ImageOutputStream ios;
+
 	
 	private int RTSPport = 1051;
 	
 	private boolean done = false;
 	
-	private byte[] packet_bits = new byte[32768];
+	ByteBuffer buffer = ByteBuffer.allocate(256*1024);
+	
+	TJCompressor tj;
 
 	public RTPSMjpegHandler(int width, int height) {
 
@@ -125,14 +115,8 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		this.ctx = image.createGraphics();
 		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
-		this.ioimage = new IIOImage(image, null, null);
-		ImageIO.setUseCache(false);
-
+	
 		last_image_tms = System.currentTimeMillis();
-		
-		iwparam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-		iwparam.setCompressionQuality(DEFAULT_VIDEO_QUALITY);
-		iwparam.setProgressiveMode(ImageWriteParam.MODE_DEFAULT);
 		
 		sendDelay = VIDEO_RATE_MS;
 		timer = new Timer(sendDelay, this);
@@ -141,21 +125,13 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 		
 		rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
 		
-        try {
-        	Iterator<ImageWriter> iter = ImageIO.getImageWritersByFormatName("jpg");
-    		if (iter.hasNext())
-    			writer = (ImageWriter) iter.next();
-    		else
-    			writer = null;
-    		
-    	    baos =  new ByteArrayOutputStream(32768);
-			ios = ImageIO.createImageOutputStream(baos);			
-			writer.setOutput(ios);
-			
-		} catch (Exception e) {
-			 ios = null;
-			e.printStackTrace();
+		try {
+			tj = new TJCompressor();
+		} catch (TJException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
 		}
+			
 	}
 
 	public void stop() {
@@ -168,22 +144,19 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 		this.RTSPport = RTSPport;
 		is_running = true;
 		new Thread(this).start();
-
+	}
+	
+	public float getFps() {
+		return fps;
 	}
 
 
 	@Override
 	public void addToStream(T in, DataModel model, long tms_us) {
-		if((System.currentTimeMillis()-last_image_tms) < VIDEO_RATE_MS || !is_running)
-			return;
-
-		fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
-
-		synchronized(this) {
+		
 			input = in;
 			is_ready = true;
-			last_image_tms = System.currentTimeMillis();
-		}
+		
 	}
 
 	@Override
@@ -192,7 +165,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 	}
 
 	public void actionPerformed(ActionEvent e) {
-		byte[] frame; int image_length;
+		byte[] frame; 
 
 		//if the current image nb is less than the length of the video
 		imagenb++;
@@ -210,33 +183,37 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 				for(IOverlayListener listener : listeners)
 					listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 			}
-			
-		    baos.reset();
+		
 
 			//adjust quality of the image if there is congestion detected
 			if (congestionLevel > 0) {
-				iwparam.setCompressionQuality(DEFAULT_VIDEO_QUALITY - congestionLevel * 0.1f);
+				tj.setJPEGQuality((int)((DEFAULT_VIDEO_QUALITY - congestionLevel * 0.1f)*100));
 			} else {
-				iwparam.setCompressionQuality(LOW_VIDEO_QUALITY);
+				tj.setJPEGQuality((int)(DEFAULT_VIDEO_QUALITY*100));
 			}
 			
-			writer.write(null, ioimage, iwparam);
-			frame = baos.toByteArray();
-			image_length = frame.length;
-
-			//Builds an RTPpacket object containing the frame
-			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, imagenb*VIDEO_RATE_MS, frame, image_length);
-
+	//		long t1 = System.currentTimeMillis();
+    
+     		tj.setSubsamp(TJ.SAMP_420);
+     		frame = tj.compress(image,TJ.FLAG_PROGRESSIVE);
+     		     		
+	//		System.out.println((System.currentTimeMillis()-t1));
+			
+			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, imagenb*VIDEO_RATE_MS, frame, tj.getCompressedSize());
+			
 			//get to total length of the full rtp packet to send
 			int packet_length = rtp_packet.getlength();
 
 			//retrieve the packet bitstream and store it in an array of bytes
-//			byte[] packet_bits = new byte[packet_length];
+			byte[] packet_bits = new byte[packet_length];
 			rtp_packet.getpacket(packet_bits);
 
 			//send the packet as a DatagramPacket over the UDP socket 
 			senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
 			RTPsocket.send(senddp);
+			
+			fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
+			last_image_tms = System.currentTimeMillis();
 
 //			//print the header bitstreaSym
 //			rtp_packet.printheader();
@@ -505,8 +482,8 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 					try {
 						RTCPsocket = new DatagramSocket(RTCP_RCV_PORT);
 						RTPsocket = new DatagramSocket();
+						RTPsocket.setSendBufferSize(256*1024);
 					} catch (SocketException e) {
-						// TODO Auto-generated catch block
 						e.printStackTrace();
 						done = false;
 					}
@@ -583,6 +560,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 		
 		Planar<GrayU8> test = new Planar<GrayU8>(GrayU8.class, 640,480,3);
 		DataModel model = new DataModel();
+	
 		
 		long tms = System.currentTimeMillis();
 		
@@ -590,6 +568,9 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 	    	
 	    	ctx.setColor(Color.WHITE);
 	    	ctx.drawString("TMS="+t, 20, 20);
+	    	
+	    	ctx.setColor(Color.getHSBColor((float)Math.random(), (float)Math.random(), (float)Math.random()));
+	    	ctx.drawString("TMS="+t, (int)(Math.random()*70)+80, (int)(Math.random()*70)+80);
 		
 	    });
 		
@@ -597,7 +578,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 		
 		while(true) {
 			
-			Thread.sleep(20);
+			Thread.sleep(10);
 			tms = System.currentTimeMillis();
 			server.addToStream(test, model, tms*1000);
 			
