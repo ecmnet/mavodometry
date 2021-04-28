@@ -53,6 +53,10 @@ import javax.imageio.ImageWriter;
 import javax.imageio.plugins.jpeg.JPEGImageWriteParam;
 import javax.imageio.stream.ImageOutputStream;
 
+import org.libjpegturbo.turbojpeg.TJ;
+import org.libjpegturbo.turbojpeg.TJCompressor;
+import org.libjpegturbo.turbojpeg.TJException;
+
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
@@ -68,7 +72,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 	private static final int 		MAX_VIDEO_RATE_MS     = 40;
 	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
-	private static final float		LOW_VIDEO_QUALITY     = 0.2f;
+	private static final float		LOW_VIDEO_QUALITY     = 0.3f;
 	private static final float      LOW_VIDEO_THERSHOLD   = 0.50f;
 
 	private final List<IOverlayListener> listeners;
@@ -86,10 +90,11 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	private long last_image_tms = 0;
 	private float  fps = 0;
 
-	private IIOImage ioimage;
+	private TJCompressor tj;
+	private final byte[] buffer;
+
 	private T input;
 	private final DataModel model;
-	private ImageWriteParam iwparam = new JPEGImageWriteParam(Locale.getDefault());
 
 	public HttpMJPEGHandler(int width, int height, DataModel model) {
 		this.model = model;
@@ -97,10 +102,19 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		this.ctx = image.createGraphics();
 		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
-		this.ioimage = new IIOImage(image, null, null);
-		ImageIO.setUseCache(false);
-
+		//		this.ioimage = new IIOImage(image, null, null);
+		//		ImageIO.setUseCache(false);
+		this.buffer = new byte[width*height*6];
 		last_image_tms = System.currentTimeMillis();
+
+		try {
+			tj = new TJCompressor();
+			tj.setSubsamp(TJ.SAMP_420);
+			tj.setSourceImage(image, 0, 0, 0, 0);
+		} catch (TJException e1) {
+			// TODO Auto-generated catch block
+			e1.printStackTrace();
+		}
 
 	}
 
@@ -116,27 +130,17 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 			return;
 		}
 
+		System.out.println("Videostreaming started");
+
 		he.getResponseHeaders().add("content-type","multipart/x-mixed-replace; boundary=--BoundaryString");
 		he.sendResponseHeaders(200, 0);
 
 		is_running = true;
 
-		ImageWriter writer = null;
-		Iterator<ImageWriter> iter = ImageIO.getImageWritersByFormatName("jpg");
-		if (iter.hasNext())
-			writer = (ImageWriter) iter.next();
-
-		ImageOutputStream ios = ImageIO.createImageOutputStream(he.getResponseBody());
-
-		writer.setOutput(ios);
-		iwparam.setCompressionMode(ImageWriteParam.MODE_EXPLICIT);
-		iwparam.setCompressionQuality(DEFAULT_VIDEO_QUALITY);
-		iwparam.setProgressiveMode(ImageWriteParam.MODE_DEFAULT);
+		OutputStream ios = new BufferedOutputStream(he.getResponseBody());
 
 
-		ioimage.setRenderedImage(image);
-
-		long tms = 0;
+		long tms = 0; long delta_ms=0;
 		while(is_running) {
 
 			try {
@@ -147,12 +151,24 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 						wait(2000);
 					}	  
 				}
+				
+				fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
+				delta_ms = System.currentTimeMillis() - last_image_tms;
+				last_image_tms = System.currentTimeMillis();
+				
+				if(delta_ms <  MAX_VIDEO_RATE_MS  && delta_ms > 0) {
+					Thread.sleep(delta_ms);
+				}
+
+
+				isReady = false;
 
 				if(model.sys.wifi_quality < LOW_VIDEO_THERSHOLD) {
-					iwparam.setCompressionQuality(LOW_VIDEO_QUALITY);
+					tj.setJPEGQuality((int)(LOW_VIDEO_QUALITY*100));
 				}
-				else
-					iwparam.setCompressionQuality(DEFAULT_VIDEO_QUALITY);
+				else {
+					tj.setJPEGQuality((int)(DEFAULT_VIDEO_QUALITY*100));
+				}
 
 				ios.write(header);
 
@@ -161,36 +177,40 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 						no_video = true;
 						ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 						ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-						writer.write(null, ioimage , iwparam);			
+						//						writer.write(null, ioimage , iwparam);	
+						tj.compress(buffer, TJ.FLAG_PROGRESSIVE);
+						ios.write(buffer, 0, tj.getCompressedSize());
 						ios.write("\r\n\r\n".getBytes());
 						//is_running = false;
 					}
 					continue;
 				}
 
-				if(input instanceof Planar) {
-					ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input, image, true);
-				}
-				else if(input instanceof GrayU8)
-					ConvertBufferedImage.convertTo((GrayU8)input, image, true);
-
-
-				if(listeners.size()>0) {
-					for(IOverlayListener listener : listeners)
-						listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
-				}
 
 				synchronized(this) {
-					no_video = false;
-					writer.write(null, ioimage, iwparam);
-					ios.write("\r\n\r\n".getBytes());
+					if(input instanceof Planar) {
+						ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input, image, true);
+					}
+					else if(input instanceof GrayU8)
+						ConvertBufferedImage.convertTo((GrayU8)input, image, true);
+
+
+					if(listeners.size()>0) {
+						for(IOverlayListener listener : listeners)
+							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+					}
 				}
 
-				isReady = false;
+				no_video = false;
+
+				tj.compress(buffer, TJ.FLAG_PROGRESSIVE);
+				ios.write(buffer, 0, tj.getCompressedSize());
+				ios.write("\r\n\r\n".getBytes());
+				ios.flush();
+
 
 			} catch (Exception e) { is_running = false; }
 		}
-		writer.dispose(); 
 		ios.flush();
 		ios.close();
 		he.close();
@@ -209,12 +229,9 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		if((System.currentTimeMillis()-last_image_tms) < MAX_VIDEO_RATE_MS || !is_running)
 			return;
 
-		fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
-
 		synchronized(this) {
 			input = in;
 			isReady = true;
-			last_image_tms = System.currentTimeMillis();
 			notify();
 		}
 	}
