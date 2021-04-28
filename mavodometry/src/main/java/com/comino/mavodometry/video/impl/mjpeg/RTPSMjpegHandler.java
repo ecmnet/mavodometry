@@ -106,8 +106,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 	private boolean done = false;
 
 	private TJCompressor tj;
-
-	private byte[] buffer;
+	private final byte[] buffer;
 
 	public RTPSMjpegHandler(int width, int height) {
 
