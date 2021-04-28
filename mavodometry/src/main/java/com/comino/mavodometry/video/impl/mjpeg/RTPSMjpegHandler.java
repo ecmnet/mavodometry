@@ -43,9 +43,10 @@ import boofcv.struct.image.Planar;
 
 public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable, ActionListener {
 
+	// Note: Relies on https://libjpeg-turbo.org
 
 	private static final int 		VIDEO_RATE_MS         = 40;
-	private static final float		DEFAULT_VIDEO_QUALITY = 0.5f;
+	private static final float		DEFAULT_VIDEO_QUALITY = 0.75f;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
 
@@ -66,7 +67,6 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 
 	private long       last_image_tms = 0;
 	private float      fps = 0;
-	private boolean    is_ready = false;
 	private boolean    is_running = false;
 
 	private T          input;
@@ -86,13 +86,13 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 
 	private static BufferedReader RTSPBufferedReader;
 	private static BufferedWriter RTSPBufferedWriter;
-	
+
 	private Socket RTSPsocket;                //socket used to send/receive RTSP messages
 
 	private Timer timer;                      //timer used to send the images at the video frame rate
 	private int sendDelay;                    //the delay to send images over the wire. Ideally should be
-	            						      //equal to the frame rate of the video file, but may be 
-	                                          //adjusted when congestion is detected.
+	//equal to the frame rate of the video file, but may be 
+	//adjusted when congestion is detected.
 	private static int state;                 //RTSP Server state == INIT or READY or PLAY
 	private int RTSPSeqNb = 0;                //Sequence number of RTSP messages within the session
 	private int imagenb = 0;                  //image nb of the image currently transmitted
@@ -100,14 +100,14 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 	private static String RTSPid = UUID.randomUUID().toString(); 
 	private final static String CRLF = "\r\n";
 
-	
+
 	private int RTSPport = 1051;
-	
+
 	private boolean done = false;
-	
-	ByteBuffer buffer = ByteBuffer.allocate(256*1024);
-	
-	TJCompressor tj;
+
+	private TJCompressor tj;
+
+	private byte[] buffer;
 
 	public RTPSMjpegHandler(int width, int height) {
 
@@ -115,23 +115,27 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		this.ctx = image.createGraphics();
 		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
-	
+
+		this.buffer = new byte[width*height*6];
+
 		last_image_tms = System.currentTimeMillis();
-		
+
 		sendDelay = VIDEO_RATE_MS;
 		timer = new Timer(sendDelay, this);
 		timer.setInitialDelay(0);
 		timer.setCoalesce(true);
-		
+
 		rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
-		
+
 		try {
 			tj = new TJCompressor();
+			tj.setSubsamp(TJ.SAMP_420);
+			tj.setSourceImage(image, 0, 0, 0, 0);
 		} catch (TJException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
-			
+
 	}
 
 	public void stop() {
@@ -145,7 +149,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 		is_running = true;
 		new Thread(this).start();
 	}
-	
+
 	public float getFps() {
 		return fps;
 	}
@@ -153,10 +157,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 
 	@Override
 	public void addToStream(T in, DataModel model, long tms_us) {
-		
-			input = in;
-			is_ready = true;
-		
+		input = in;	
 	}
 
 	@Override
@@ -165,13 +166,12 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 	}
 
 	public void actionPerformed(ActionEvent e) {
-		byte[] frame; 
 
 		//if the current image nb is less than the length of the video
 		imagenb++;
 
 		try {
-			
+
 			if(input instanceof Planar) {
 				ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input, image, true);
 			}
@@ -183,7 +183,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 				for(IOverlayListener listener : listeners)
 					listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 			}
-		
+
 
 			//adjust quality of the image if there is congestion detected
 			if (congestionLevel > 0) {
@@ -191,16 +191,13 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 			} else {
 				tj.setJPEGQuality((int)(DEFAULT_VIDEO_QUALITY*100));
 			}
-			
-	//		long t1 = System.currentTimeMillis();
-    
-     		tj.setSubsamp(TJ.SAMP_420);
-     		frame = tj.compress(image,TJ.FLAG_PROGRESSIVE);
-     		     		
-	//		System.out.println((System.currentTimeMillis()-t1));
-			
-			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, imagenb*VIDEO_RATE_MS, frame, tj.getCompressedSize());
-			
+
+			synchronized(this) {
+				tj.compress(buffer, TJ.FLAG_PROGRESSIVE);
+			}
+
+			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, imagenb*VIDEO_RATE_MS, buffer, tj.getCompressedSize());
+
 			//get to total length of the full rtp packet to send
 			int packet_length = rtp_packet.getlength();
 
@@ -211,15 +208,15 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 			//send the packet as a DatagramPacket over the UDP socket 
 			senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
 			RTPsocket.send(senddp);
-			
+
 			fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
 			last_image_tms = System.currentTimeMillis();
 
-//			//print the header bitstreaSym
-//			rtp_packet.printheader();
+			//			rtp_packet.printheader();
 
 		}
 		catch(Exception ex) {
+			ex.printStackTrace();
 			timer.stop();
 			rtcpReceiver.stopRcv();
 
@@ -275,7 +272,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 			try {
 				RTCPsocket.receive(dp);   // Blocking
 				RTCPpacket rtcpPkt = new RTCPpacket(dp.getData(), dp.getLength());
-			//	System.out.println("[RTCP] " + rtcpPkt);
+				//	System.out.println("[RTCP] " + rtcpPkt);
 
 				//set congestion level between 0 to 4
 				fractionLost = rtcpPkt.fractionLost;
@@ -296,10 +293,10 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 				}
 			}
 			catch (InterruptedIOException iioe) {
-				
+
 			}
 			catch (IOException ioe) {
-				
+
 			}
 		}
 
@@ -369,9 +366,9 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 			}
 		} catch(Exception ex) {
 			timer.stop();
-	        rtcpReceiver.stopRcv();
-	        
-	        try {
+			rtcpReceiver.stopRcv();
+
+			try {
 				RTSPBufferedReader.close();
 				RTSPBufferedWriter.close();
 				RTSPsocket.close();
@@ -379,11 +376,11 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
-		
+
 			RTPsocket.close();
 			RTCPsocket.close();
 			imagenb = 0;
-		
+
 			done = false;
 			state = INIT;
 		}
@@ -444,148 +441,148 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 	public void run() {
 
 		int request_type;
-		
+
 		try {
 
-		while(is_running) {
-			
-			//Initiate TCP connection with the client for the RTSP session
-			ServerSocket listenSocket = new ServerSocket(RTSPport);
-			RTSPsocket = listenSocket.accept();
-			listenSocket.close();
+			while(is_running) {
 
-			//Get Client IP address
-			ClientIPAddr = RTSPsocket.getInetAddress();
+				//Initiate TCP connection with the client for the RTSP session
+				ServerSocket listenSocket = new ServerSocket(RTSPport);
+				RTSPsocket = listenSocket.accept();
+				listenSocket.close();
 
-			//Initiate RTSPstate
-			state = INIT;
+				//Get Client IP address
+				ClientIPAddr = RTSPsocket.getInetAddress();
 
-			//Set input and output stream filters:
-			RTSPBufferedReader = new BufferedReader(new InputStreamReader(RTSPsocket.getInputStream()) );
-			RTSPBufferedWriter = new BufferedWriter(new OutputStreamWriter(RTSPsocket.getOutputStream()) );
+				//Initiate RTSPstate
+				state = INIT;
 
-			while(!done) {
-				request_type = parseRequest(); //blocking
-				System.err.println(request_type);
-				
-				if (request_type == SETUP) {
-					done = true;
+				//Set input and output stream filters:
+				RTSPBufferedReader = new BufferedReader(new InputStreamReader(RTSPsocket.getInputStream()) );
+				RTSPBufferedWriter = new BufferedWriter(new OutputStreamWriter(RTSPsocket.getOutputStream()) );
 
-					//update RTSP state
-					state = READY;
-					System.out.println("New RTSP state: READY");
+				while(!done) {
+					request_type = parseRequest(); //blocking
+					System.err.println(request_type);
 
-					//Send response
-					sendResponse();
+					if (request_type == SETUP) {
+						done = true;
 
-					//init RTP and RTCP sockets
-					try {
-						RTCPsocket = new DatagramSocket(RTCP_RCV_PORT);
-						RTPsocket = new DatagramSocket();
-						RTPsocket.setSendBufferSize(256*1024);
-					} catch (SocketException e) {
-						e.printStackTrace();
+						//update RTSP state
+						state = READY;
+						System.out.println("New RTSP state: READY");
+
+						//Send response
+						sendResponse();
+
+						//init RTP and RTCP sockets
+						try {
+							RTCPsocket = new DatagramSocket(RTCP_RCV_PORT);
+							RTPsocket = new DatagramSocket();
+							RTPsocket.setSendBufferSize(256*1024);
+						} catch (SocketException e) {
+							e.printStackTrace();
+							done = false;
+						}
+					}
+				}
+
+				while(done) {
+
+					request_type = parseRequest(); //blocking
+					System.err.println(request_type);
+
+					if ((request_type == PLAY) && (state == READY)) {
+						//send back response
+						sendResponse();
+						//start timer
+						timer.start();
+						rtcpReceiver.startRcv();
+						//update state
+						state = PLAYING;
+						System.out.println("New RTSP state: PLAYING");
+					}
+					else if ((request_type == PAUSE) && (state == PLAYING)) {
+						//send back response
+						sendResponse();
+						//stop timer
+						timer.stop();
+						rtcpReceiver.stopRcv();
+						//update state
+						state = READY;
+						System.out.println("New RTSP state: READY");
+					}
+					else if (request_type == TEARDOWN) {
+						//send back response
+						sendResponse();
+						//stop timer
+						timer.stop();
+						rtcpReceiver.stopRcv();
+						//             server.rtcpReceiver.stopRcv();
+						//             //close sockets
+
+						try {
+							RTSPBufferedReader.close();
+							RTSPBufferedWriter.close();
+							RTSPsocket.close();
+						} catch (IOException e) {
+							// TODO Auto-generated catch block
+							e.printStackTrace();
+						}
+
+						RTPsocket.close();
+						RTCPsocket.close();
+						imagenb = 0;
+
 						done = false;
+						state = INIT;
+					}
+					else if (request_type == DESCRIBE) {
+						System.out.println("Received DESCRIBE request");
+						sendDescribe();
 					}
 				}
 			}
-
-			while(done) {
-
-				request_type = parseRequest(); //blocking
-				System.err.println(request_type);
-
-				if ((request_type == PLAY) && (state == READY)) {
-					//send back response
-					sendResponse();
-					//start timer
-					timer.start();
-					rtcpReceiver.startRcv();
-					//update state
-					state = PLAYING;
-					System.out.println("New RTSP state: PLAYING");
-				}
-				else if ((request_type == PAUSE) && (state == PLAYING)) {
-					//send back response
-					sendResponse();
-					//stop timer
-					timer.stop();
-					rtcpReceiver.stopRcv();
-					//update state
-					state = READY;
-					System.out.println("New RTSP state: READY");
-				}
-				else if (request_type == TEARDOWN) {
-					//send back response
-					sendResponse();
-					//stop timer
-					timer.stop();
-					rtcpReceiver.stopRcv();
-					//             server.rtcpReceiver.stopRcv();
-					//             //close sockets
-					
-					try {
-						RTSPBufferedReader.close();
-						RTSPBufferedWriter.close();
-						RTSPsocket.close();
-					} catch (IOException e) {
-						// TODO Auto-generated catch block
-						e.printStackTrace();
-					}
-				
-					RTPsocket.close();
-					RTCPsocket.close();
-					imagenb = 0;
-				
-					done = false;
-					state = INIT;
-				}
-				else if (request_type == DESCRIBE) {
-					System.out.println("Received DESCRIBE request");
-					sendDescribe();
-				}
-			}
-		}
 		} catch(Exception e) {
 			is_running = false;
 		}
 
 	}	
-	
-	
+
+
 	public static void main(String argv[]) throws Exception
 	{
 		//create a Server object
 		RTPSMjpegHandler<Planar<GrayU8>> server = new RTPSMjpegHandler<Planar<GrayU8>>(640,480);
-		
+
 		Planar<GrayU8> test = new Planar<GrayU8>(GrayU8.class, 640,480,3);
 		DataModel model = new DataModel();
-	
-		
+
+
 		long tms = System.currentTimeMillis();
-		
-	    server.registerOverlayListener((ctx,t) -> {
-	    	
-	    	ctx.setColor(Color.WHITE);
-	    	ctx.drawString("TMS="+t, 20, 20);
-	    	
-	    	ctx.setColor(Color.getHSBColor((float)Math.random(), (float)Math.random(), (float)Math.random()));
-	    	ctx.drawString("TMS="+t, (int)(Math.random()*70)+80, (int)(Math.random()*70)+80);
-		
-	    });
-		
+
+		server.registerOverlayListener((ctx,t) -> {
+
+			ctx.setColor(Color.WHITE);
+			ctx.drawString("TMS="+t, 20, 20);
+
+			ctx.setColor(Color.getHSBColor((float)Math.random(), (float)Math.random(), (float)Math.random()));
+			ctx.drawString("TMS="+t, (int)(Math.random()*70)+80, (int)(Math.random()*70)+80);
+
+		});
+
 		server.start(1051);
-		
+
 		while(true) {
-			
+
 			Thread.sleep(10);
 			tms = System.currentTimeMillis();
 			server.addToStream(test, model, tms*1000);
-			
-			
+
+
 		}
-		
-		
+
+
 	}
 
 
