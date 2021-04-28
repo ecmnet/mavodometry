@@ -41,17 +41,7 @@ import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
-import java.util.Iterator;
 import java.util.List;
-import java.util.Locale;
-import java.util.concurrent.locks.LockSupport;
-
-import javax.imageio.IIOImage;
-import javax.imageio.ImageIO;
-import javax.imageio.ImageWriteParam;
-import javax.imageio.ImageWriter;
-import javax.imageio.plugins.jpeg.JPEGImageWriteParam;
-import javax.imageio.stream.ImageOutputStream;
 
 import org.libjpegturbo.turbojpeg.TJ;
 import org.libjpegturbo.turbojpeg.TJCompressor;
@@ -60,6 +50,7 @@ import org.libjpegturbo.turbojpeg.TJException;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.comino.mavutils.workqueue.WorkQueue;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -70,7 +61,7 @@ import boofcv.struct.image.Planar;
 
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
-	private static final int 		MAX_VIDEO_RATE_MS     = 30;
+	private static final int 		MAX_VIDEO_RATE_MS     = 40;
 	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
 	private static final float		LOW_VIDEO_QUALITY     = 0.3f;
 	private static final float      LOW_VIDEO_THERSHOLD   = 0.50f;
@@ -96,6 +87,8 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	private T input;
 	private final DataModel model;
 
+	private WorkQueue wq = WorkQueue.getInstance();
+
 	public HttpMJPEGHandler(int width, int height, DataModel model) {
 		this.model = model;
 		this.listeners = new ArrayList<IOverlayListener>();
@@ -115,6 +108,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
+
 
 	}
 
@@ -137,10 +131,10 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 		is_running = true;
 
-		OutputStream ios = new BufferedOutputStream(he.getResponseBody());
+		OutputStream ios = new BufferedOutputStream(he.getResponseBody(),30000);
 
 
-		long tms = 0; long delta_ms=0;
+		long tms = 0; 
 		while(is_running) {
 
 			try {
@@ -151,15 +145,6 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 						wait(2000);
 					}	  
 				}
-				
-				fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
-				delta_ms = System.currentTimeMillis() - last_image_tms;
-				last_image_tms = System.currentTimeMillis();
-				
-				if(delta_ms <  MAX_VIDEO_RATE_MS  && delta_ms > 0) {
-					Thread.sleep(delta_ms);
-				}
-
 
 				isReady = false;
 
@@ -181,7 +166,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 						tj.compress(buffer, TJ.FLAG_PROGRESSIVE);
 						ios.write(buffer, 0, tj.getCompressedSize());
 						ios.write("\r\n\r\n".getBytes());
-						//is_running = false;
+						is_running = false;
 					}
 					continue;
 				}
@@ -206,11 +191,11 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 				tj.compress(buffer, TJ.FLAG_PROGRESSIVE);
 				ios.write(buffer, 0, tj.getCompressedSize());
 				ios.write("\r\n\r\n".getBytes());
-				ios.flush();
 
 
 			} catch (Exception e) { is_running = false; }
 		}
+
 		ios.flush();
 		ios.close();
 		he.close();
@@ -222,15 +207,17 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		this.listeners.add(listener);
 	}
 
-	@SuppressWarnings("unchecked")
 	@Override
 	public void addToStream(T in, DataModel model, long tms_us) {
 
 		if((System.currentTimeMillis()-last_image_tms) < MAX_VIDEO_RATE_MS || !is_running)
 			return;
+		
+		fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
+		last_image_tms = System.currentTimeMillis();
 
+		input = in;
 		synchronized(this) {
-			input = in;
 			isReady = true;
 			notify();
 		}
