@@ -36,6 +36,7 @@ import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.rtps.RTCPpacket;
 import com.comino.mavutils.rtps.RTPpacket;
+import com.comino.mavutils.workqueue.WorkQueue;
 
 import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.image.GrayU8;
@@ -46,7 +47,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 	// Note: Relies on https://libjpeg-turbo.org
 
 	private static final int 		VIDEO_RATE_MS         = 40;
-	private static final float		DEFAULT_VIDEO_QUALITY = 0.75f;
+	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
 
@@ -126,6 +127,8 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 
 		rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
 
+		WorkQueue.getInstance().addCyclicTask("LP", 300, new CongestionController());
+
 		try {
 			tj = new TJCompressor();
 			tj.setSubsamp(TJ.SAMP_420);
@@ -147,6 +150,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 		this.RTSPport = RTSPport;
 		is_running = true;
 		new Thread(this).start();
+
 	}
 
 	public float getFps() {
@@ -155,7 +159,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 
 
 	@Override
-	public void addToStream(T in, DataModel model, long tms_us) {
+	public void  addToStream(T in, DataModel model, long tms_us) {
 		input = in;	
 	}
 
@@ -171,16 +175,20 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 
 		try {
 
-			if(input instanceof Planar) {
-				ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input, image, true);
-			}
-			else if(input instanceof GrayU8)
-				ConvertBufferedImage.convertTo((GrayU8)input, image, true);
+			synchronized(this) {
+
+				if(input instanceof Planar) {
+					ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input, image, true);
+				}
+				else if(input instanceof GrayU8)
+					ConvertBufferedImage.convertTo((GrayU8)input, image, true);
 
 
-			if(listeners.size()>0) {
-				for(IOverlayListener listener : listeners)
-					listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+				if(listeners.size()>0) {
+					for(IOverlayListener listener : listeners)
+						listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+				}
+
 			}
 
 
@@ -191,9 +199,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 				tj.setJPEGQuality((int)(DEFAULT_VIDEO_QUALITY*100));
 			}
 
-			synchronized(this) {
-				tj.compress(buffer, TJ.FLAG_PROGRESSIVE);
-			}
+			tj.compress(buffer, TJ.FLAG_PROGRESSIVE);
 
 			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, imagenb*VIDEO_RATE_MS, buffer, tj.getCompressedSize());
 
@@ -223,18 +229,10 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 
 	}
 
-	private class CongestionController implements ActionListener {
-		private Timer ccTimer;
-		int interval;   //interval to check traffic stats
-		int prevLevel;  //previously sampled congestion level
+	private class CongestionController implements Runnable {
+		int prevLevel;  
 
-		public CongestionController(int interval) {
-			this.interval = interval;
-			ccTimer = new Timer(interval, this);
-			ccTimer.start();
-		}
-
-		public void actionPerformed(ActionEvent e) {
+		public void run() {
 
 			//adjust the send rate
 			if (prevLevel != congestionLevel) {
@@ -331,11 +329,6 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 			else if ((new String(request_type_string)).compareTo("DESCRIBE") == 0)
 				request_type = DESCRIBE;
 
-			if (request_type == SETUP) {
-				//extract VideoFileName from RequestLine
-				//VideoFileName = tokens.nextToken();
-			}
-
 			//parse the SeqNumLine and extract CSeq field
 			String SeqNumLine = RTSPBufferedReader.readLine();
 			System.out.println(SeqNumLine);
@@ -364,27 +357,32 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 				RTSPid = tokens.nextToken();
 			}
 		} catch(Exception ex) {
-			timer.stop();
-			rtcpReceiver.stopRcv();
-
-			try {
-				RTSPBufferedReader.close();
-				RTSPBufferedWriter.close();
-				RTSPsocket.close();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			}
-
-			RTPsocket.close();
-			RTCPsocket.close();
-			imagenb = 0;
-
-			done = false;
-			state = INIT;
+			close();
 		}
 
 		return(request_type);
+	}
+
+	private void close() {
+		timer.stop();
+		rtcpReceiver.stopRcv();
+
+		try {
+			RTSPBufferedReader.close();
+			RTSPBufferedWriter.close();
+			RTSPsocket.close();
+		} catch (IOException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+
+		RTPsocket.close();
+		RTCPsocket.close();
+		imagenb = 0;
+
+		done = false;
+		state = INIT;
+
 	}
 
 	// Creates a DESCRIBE response string in SDP format for current media
@@ -479,6 +477,7 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 							RTCPsocket = new DatagramSocket(RTCP_RCV_PORT);
 							RTPsocket = new DatagramSocket();
 							RTPsocket.setSendBufferSize(256*1024);
+							RTPsocket.setTrafficClass(0x08);
 						} catch (SocketException e) {
 							e.printStackTrace();
 							done = false;
@@ -514,27 +513,8 @@ public class RTPSMjpegHandler<T> implements  IVisualStreamHandler<T> , Runnable,
 					else if (request_type == TEARDOWN) {
 						//send back response
 						sendResponse();
-						//stop timer
-						timer.stop();
-						rtcpReceiver.stopRcv();
-						//             server.rtcpReceiver.stopRcv();
-						//             //close sockets
 
-						try {
-							RTSPBufferedReader.close();
-							RTSPBufferedWriter.close();
-							RTSPsocket.close();
-						} catch (IOException e) {
-							// TODO Auto-generated catch block
-							e.printStackTrace();
-						}
-
-						RTPsocket.close();
-						RTCPsocket.close();
-						imagenb = 0;
-
-						done = false;
-						state = INIT;
+						close();
 					}
 					else if (request_type == DESCRIBE) {
 						System.out.println("Received DESCRIBE request");
