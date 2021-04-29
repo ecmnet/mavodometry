@@ -39,6 +39,7 @@ import java.awt.Graphics2D;
 import java.awt.image.BufferedImage;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
+import java.io.InterruptedIOException;
 import java.io.OutputStream;
 import java.util.ArrayList;
 import java.util.List;
@@ -60,7 +61,7 @@ import boofcv.struct.image.Planar;
 
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
-	private static final int 		FRAME_DROP             = 3;
+	private static final int 		FRAME_DROP             = 2;
 	private static final int		DEFAULT_VIDEO_QUALITY = 60;
 	private static final int		LOW_VIDEO_QUALITY     = 10;
 
@@ -188,8 +189,9 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 				fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) /60f;
 				last_image_tms = System.currentTimeMillis();
 
-
-			} catch (Exception e) { System.err.println(e.getMessage()); }
+			} catch (InterruptedException i) {  
+				  System.out.println(i.getMessage());
+			} catch (Exception e) { is_running = false; }
 		}
 
 		ios.flush();
