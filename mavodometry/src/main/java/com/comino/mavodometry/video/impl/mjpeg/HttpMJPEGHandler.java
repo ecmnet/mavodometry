@@ -50,7 +50,6 @@ import org.libjpegturbo.turbojpeg.TJException;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
-import com.comino.mavutils.workqueue.WorkQueue;
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpHandler;
 
@@ -61,10 +60,9 @@ import boofcv.struct.image.Planar;
 
 public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>  {
 
-	private static final int 		MAX_VIDEO_RATE_MS     = 40;
-	private static final float		DEFAULT_VIDEO_QUALITY = 0.6f;
-	private static final float		LOW_VIDEO_QUALITY     = 0.3f;
-	private static final float      LOW_VIDEO_THERSHOLD   = 0.50f;
+	private static final int 		FRAME_DROP             = 3;
+	private static final int		DEFAULT_VIDEO_QUALITY = 60;
+	private static final int		LOW_VIDEO_QUALITY     = 10;
 
 	private final List<IOverlayListener> listeners;
 	private final BufferedImage image;
@@ -87,7 +85,8 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	private T input;
 	private final DataModel model;
 
-	private WorkQueue wq = WorkQueue.getInstance();
+	private long frame_count;
+	private int  quality;
 
 	public HttpMJPEGHandler(int width, int height, DataModel model) {
 		this.model = model;
@@ -95,8 +94,6 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		this.ctx = image.createGraphics();
 		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
-		//		this.ioimage = new IIOImage(image, null, null);
-		//		ImageIO.setUseCache(false);
 		this.buffer = new byte[width*height*6];
 		last_image_tms = System.currentTimeMillis();
 
@@ -105,7 +102,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 			tj.setSubsamp(TJ.SAMP_420);
 			tj.setSourceImage(image, 0, 0, 0, 0);
 		} catch (TJException e1) {
-			// TODO Auto-generated catch block
+			// TODO Fallback tio ImageIO
 			e1.printStackTrace();
 		}
 
@@ -123,6 +120,8 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		if(is_running) {
 			return;
 		}
+		
+		frame_count = 0;
 
 		System.out.println("Videostreaming started");
 
@@ -132,7 +131,6 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		is_running = true;
 
 		OutputStream ios = new BufferedOutputStream(he.getResponseBody(),30000);
-
 
 		long tms = 0; 
 		while(is_running) {
@@ -147,23 +145,18 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 				}
 
 				isReady = false;
+				
+				quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 
-				if(model.sys.wifi_quality < LOW_VIDEO_THERSHOLD) {
-					tj.setJPEGQuality((int)(LOW_VIDEO_QUALITY*100));
-				}
-				else {
-					tj.setJPEGQuality((int)(DEFAULT_VIDEO_QUALITY*100));
-				}
-
+				tj.setJPEGQuality(quality);
 				ios.write(header);
 
-				if((System.currentTimeMillis()-tms) >1950 ) {
+				if((System.currentTimeMillis()-tms) >1950 || quality == 10 ) {
 					if(!no_video) {
 						no_video = true;
 						ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 						ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-						//						writer.write(null, ioimage , iwparam);	
-						tj.compress(buffer, TJ.FLAG_PROGRESSIVE);
+						tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE);
 						ios.write(buffer, 0, tj.getCompressedSize());
 						ios.write("\r\n\r\n".getBytes());
 						is_running = false;
@@ -188,12 +181,15 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 				no_video = false;
 
-				tj.compress(buffer, TJ.FLAG_PROGRESSIVE);
+				tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE);
 				ios.write(buffer, 0, tj.getCompressedSize());
 				ios.write("\r\n\r\n".getBytes());
+				
+				fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) /60f;
+				last_image_tms = System.currentTimeMillis();
 
 
-			} catch (Exception e) { is_running = false; }
+			} catch (Exception e) { System.err.println(e.getMessage()); }
 		}
 
 		ios.flush();
@@ -210,11 +206,8 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	@Override
 	public void addToStream(T in, DataModel model, long tms_us) {
 
-		if((System.currentTimeMillis()-last_image_tms) < MAX_VIDEO_RATE_MS || !is_running)
+		if(++frame_count % FRAME_DROP == 0 || !is_running)
 			return;
-		
-		fps = (fps * 0.7f) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)) * 0.3f);
-		last_image_tms = System.currentTimeMillis();
 
 		input = in;
 		synchronized(this) {
@@ -225,6 +218,10 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 	public float getFps() {
 		return fps;
+	}
+	
+	public String toString() {
+		return "Frames: "+frame_count+" =>\t "+fps+"fps \t Quality: "+quality;
 	}
 
 }

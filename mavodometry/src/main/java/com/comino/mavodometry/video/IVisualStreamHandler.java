@@ -45,5 +45,4 @@ public  interface  IVisualStreamHandler<T> {
 	public void registerOverlayListener(IOverlayListener listener);
 	public float getFps();
 
-
 }
