@@ -39,6 +39,7 @@ import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
+import java.text.DecimalFormat;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
@@ -52,6 +53,7 @@ import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD455Depth;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 
+import boofcv.concurrency.BoofConcurrency;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -67,11 +69,10 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVD455DepthEstimator extends ControlModule  {
 
-	private static final boolean DO_DEPTH_OVERLAY   = false; // Control with ostacle avoidance
+	private static final boolean DO_DEPTH_OVERLAY   = false; 
+	private static final float  WARN_OBS_DISTANCE   = 1.0f;
 
-	private static final float MIN_ALTITUDE         = -0.3f;
-
-	private static final int         DEPTH_HEIGHT   = 60;
+	private static final int         DEPTH_HEIGHT   = 70;
 	private static final int         DEPTH_WIDTH    = 540;
 
 	private static final float       quality_factor = 100f / ( DEPTH_WIDTH * DEPTH_HEIGHT) ;
@@ -103,6 +104,10 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 	private BufferedImage             img = null;
 	private boolean          enableStream = false;
+	
+	private String tmp;
+	private final DecimalFormat fdistance  = new DecimalFormat("Obst: #0.0m");
+	private final int width4;
 
 
 
@@ -111,6 +116,8 @@ public class MAVD455DepthEstimator extends ControlModule  {
 			IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		super(control);
+		
+		this.width4 = width/4;
 
 
 		this.depth_x_offs = (width - DEPTH_WIDTH ) / 2;
@@ -194,6 +201,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 				min_distance = Double.MAX_VALUE;
 				// TODO: Eventually BOOF Concurrency here
+//				BoofConcurrency.loopFor(0, DEPTH_WIDTH, x -> {
 				for(x = 0; x < DEPTH_WIDTH;x++) {
 					for(y = 0; y < DEPTH_HEIGHT;y++) {
 						raw_z = depth.unsafe_get(x+depth_x_offs, y+depth_y_offs);
@@ -230,6 +238,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 					}
 				}
+	//		});
 				
 				model.slam.quality = model.slam.quality * 0.7f + (quality * quality_factor ) * 0.3f;
 				
@@ -280,7 +289,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	}
 
 
-	@SuppressWarnings("unused")
 	private void overlayFeatures(Graphics ctx, long tms) {
 
 		if(!enableStream)
@@ -288,13 +296,11 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 		drawDepthArea(ctx,depth_x_offs,depth_y_offs,depth_x_offs+DEPTH_WIDTH,depth_y_offs+DEPTH_HEIGHT);
 		
-		if(DO_DEPTH_OVERLAY && Float.isFinite(model.slam.dm))
+		if(model.sys.isStatus(Status.MSP_ARMED) && Float.isFinite(model.slam.dm) && model.slam.dm < WARN_OBS_DISTANCE) {
+			tmp = fdistance.format(model.slam.dm);
+			ctx.drawString(tmp, width4*3 - ctx.getFontMetrics().stringWidth(tmp)/2, 20);
 			drawMinDist(ctx,depth_x_offs+mindist_pt.x,depth_y_offs+mindist_pt.y);
-		//
-		//		if(!DO_DEPTH_OVERLAY) {
-		//			ctx.setColor(depthColor);
-		//			ctx.fillRect(0, base, width, height);
-		//		}
+		}
 
 	}
 
@@ -319,8 +325,9 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 		final int ln = 10;
 
-		ctx.drawLine(x0-ln,y0,x0+ln,y0);
-		ctx.drawLine(x0,y0-ln,x0,y0+ln);
+		ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
+		ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
+		ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
 
 		
 	}
