@@ -70,13 +70,18 @@ import georegression.struct.se.Se3_F64;
 public class MAVD455DepthEstimator extends ControlModule  {
 
 	private static final boolean DO_DEPTH_OVERLAY   = false; 
-	private static final float  WARN_OBS_DISTANCE   = 1.0f;
+	private static final float  WARN_OBS_DISTANCE   = 1.5f;
 
 	private static final int         DEPTH_HEIGHT   = 70;
 	private static final int         DEPTH_WIDTH    = 540;
 
 	private static final float       quality_factor = 100f / ( DEPTH_WIDTH * DEPTH_HEIGHT) ;
 
+	private static final String D455_OFFSET_X            = "d455_offset_x";
+	private static final String D455_OFFSET_Y            = "d455_offset_y";
+	private static final String D455_OFFSET_Z            = "d455_offset_z";
+	private static final String D455_WARN_OBS            = "d455_warn_obs";
+	private static final String D455_DEPTH_OVERLAY       = "d455_depth_overlay";
 
 	// mounting offset in m
 	private static final double   	   OFFSET_X     =  0.00;
@@ -104,6 +109,8 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 	private BufferedImage             img = null;
 	private boolean          enableStream = false;
+	private boolean         depth_overlay = false;
+	private float warn_obs_distance       = WARN_OBS_DISTANCE;
 	
 	private String tmp;
 	private final DecimalFormat fdistance  = new DecimalFormat("Obst: #0.0m");
@@ -135,19 +142,21 @@ public class MAVD455DepthEstimator extends ControlModule  {
 			return;
 
 		}
-		// read offsets from config
-		offset.x = -config.getFloatProperty("d455_offset_x", String.valueOf(OFFSET_X));
-		offset.y = -config.getFloatProperty("d455_offset_y", String.valueOf(OFFSET_Y));
-		offset.z = -config.getFloatProperty("d455_offset_z", String.valueOf(OFFSET_Z));
-
-
-
+		
+		// configs
+		offset.x = -config.getFloatProperty(D455_OFFSET_X, String.valueOf(OFFSET_X));
+		offset.y = -config.getFloatProperty(D455_OFFSET_Y, String.valueOf(OFFSET_Y));
+		offset.z = -config.getFloatProperty(D455_OFFSET_Z, String.valueOf(OFFSET_Z));
+		warn_obs_distance = config.getFloatProperty(D455_WARN_OBS, String.valueOf(WARN_OBS_DISTANCE));
+		System.out.println("D455 warning distance obstacles: "+warn_obs_distance+"m");
+		depth_overlay     = config.getBoolProperty(D455_DEPTH_OVERLAY, String.valueOf(DO_DEPTH_OVERLAY));
+		System.out.println("D455 depth overlay: "+depth_overlay);
 
 		if(stream!=null) {
 			stream.registerOverlayListener((ctx,tms) -> {
 				if(enableStream) {
 					overlayFeatures(ctx,tms);
-					if(DO_DEPTH_OVERLAY)
+					if(depth_overlay)
 						ctx.drawImage(img, 0, 0, null);
 				}
 			});
@@ -260,7 +269,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 				if(stream!=null && enableStream) {
 					stream.addToStream(rgb, model, timeDepth);
 				}
-				if(DO_DEPTH_OVERLAY && enableStream)
+				if(depth_overlay && enableStream)
 					overlayDepth(depth, img);
 			}
 
@@ -296,7 +305,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 		drawDepthArea(ctx,depth_x_offs,depth_y_offs,depth_x_offs+DEPTH_WIDTH,depth_y_offs+DEPTH_HEIGHT);
 		
-		if(model.sys.isStatus(Status.MSP_ARMED) && Float.isFinite(model.slam.dm) && model.slam.dm < WARN_OBS_DISTANCE) {
+		if(model.sys.isStatus(Status.MSP_ARMED) && Float.isFinite(model.slam.dm) && model.slam.dm < warn_obs_distance) {
 			tmp = fdistance.format(model.slam.dm);
 			ctx.drawString(tmp, width4*3 - ctx.getFontMetrics().stringWidth(tmp)/2, 20);
 			drawMinDist(ctx,depth_x_offs+mindist_pt.x,depth_y_offs+mindist_pt.y);
