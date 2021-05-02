@@ -38,23 +38,19 @@ import java.util.ArrayList;
 import java.util.List;
 
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.lib.LibRealSense1Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_format;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_options;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_rs400_visual_preset;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream_profile_list;
 import com.comino.mavodometry.librealsense.lib.RealsenseDevice;
 import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsics;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
-import boofcv.concurrency.BoofConcurrency;
 import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -85,7 +81,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	private float scale;
 
 	private boolean is_running;
-
+	
 	private long   tms;
 	
 	public static StreamRealSenseD455Depth getInstance(RealSenseInfo info) {
