@@ -45,19 +45,16 @@ import com.comino.mavodometry.video.IOverlayListener;
 
 public class DefaultOverlayListener implements IOverlayListener {
 	
-	private static final float WARN_OBS_DISTANCE = 0.8f;
 	
 	private DataModel model;
 	
 	private final Color	bgColor_header     = new Color(128,128,128,130);
 	private final DecimalFormat ftime      = new DecimalFormat("#0.0s");
-	private final DecimalFormat fdistance  = new DecimalFormat("Obst: #0.0m");
 
 	private int width;
 	private int height;
 	
 	private int width2;
-	private int width4;
 	private int height2;
 	
 	private String tmp;
@@ -68,7 +65,6 @@ public class DefaultOverlayListener implements IOverlayListener {
 		this.width   = width;
 		this.height  = height;
 		this.width2  = width / 2;
-		this.width4  = width / 4;
 		this.height2 = height / 2;
 	}
 
@@ -90,11 +86,7 @@ public class DefaultOverlayListener implements IOverlayListener {
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
 			ctx.drawString(ftime.format(model.sys.t_armed_ms/1000f), 20, 20);
 		}
-		
-		if(model.sys.isStatus(Status.MSP_ARMED) && Float.isFinite(model.slam.dm) && model.slam.dm < WARN_OBS_DISTANCE) {
-			tmp = fdistance.format(model.slam.dm);
-			ctx.drawString(tmp, width4*3 - ctx.getFontMetrics().stringWidth(tmp)/2, 20);
-		}
+
 		
 		tmp = model.sys.getModeString();
 		ctx.drawString(tmp, width - ctx.getFontMetrics().stringWidth(tmp)-20, 20);
