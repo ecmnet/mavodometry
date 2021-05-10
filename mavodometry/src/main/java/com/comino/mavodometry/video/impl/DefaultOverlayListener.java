@@ -93,10 +93,15 @@ public class DefaultOverlayListener implements IOverlayListener {
 
 		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO,tms)) {
 			ctx.setColor(bgColor_header);
-			ctx.fillRect(5, height-21, width-10, 19);
+			ctx.fillRect(5, height-21, width-35, 19);
 			ctx.setColor(Color.white);
 			ctx.drawString(model.msg.text, 10, height-6);
 		}
+		
+		final int ln = 15;
+
+		ctx.drawLine(width-30,height-ln,width-ln,height-ln);
+		ctx.drawLine(width-ln,height-30,width-ln,height-ln);
 		
 	}
 

@@ -35,6 +35,8 @@ package com.comino.mavodometry.estimators;
 
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.image.BufferedImage;
+import java.text.DecimalFormat;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
@@ -69,13 +71,19 @@ import com.comino.mavutils.workqueue.WorkQueue;
 import boofcv.abst.fiducial.FiducialDetector;
 import boofcv.abst.fiducial.FiducialStability;
 import boofcv.alg.distort.pinhole.LensDistortionPinhole;
+import boofcv.alg.filter.misc.AverageDownSampleOps;
 import boofcv.factory.fiducial.ConfigFiducialBinary;
 import boofcv.factory.fiducial.FactoryFiducial;
 import boofcv.factory.filter.binary.ConfigThreshold;
 import boofcv.factory.filter.binary.ThresholdType;
+import boofcv.factory.transform.pyramid.FactoryPyramid;
+import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.calib.CameraKannalaBrandt;
+import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
+import boofcv.struct.image.ImageType;
 import boofcv.struct.image.Planar;
+import boofcv.struct.pyramid.PyramidDiscrete;
 import georegression.geometry.ConvertRotation3D_F64;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Point2D_F64;
@@ -198,7 +206,12 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	// Stream data
 	private int   width;
-	private int   height;
+	private int   width4;
+	
+	private final DecimalFormat flocked  = new DecimalFormat("LockAlt: #0.0m");
+	private String stmp;
+	
+	private GrayU8 fiducial = new GrayU8(1,1);
 	
 
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
@@ -206,7 +219,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 		super(control);
 
 		this.width   = width;
-		this.height  = height;
+		this.width4  = width/4;
 
 		// Subimage-Offsets for fiducial img
 		this.fiducial_x_offs = (width - FIDUCIAL_WIDTH ) / 2;
@@ -459,7 +472,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 				try {
 
-					detector.detect(img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs));
+					img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs, fiducial);
+					detector.detect(fiducial);
 					//					detector.detect(img.bands[0]);
 
 
@@ -650,11 +664,12 @@ public class MAVT265PositionEstimator extends ControlModule {
 		}
 
 
-		if(is_fiducial && Double.isFinite(precision_lock.z))
-			ctx.drawString(String.format("%#.2fm",-precision_lock.z), width-40, 20);
-
+		if(is_fiducial && Double.isFinite(precision_lock.z)) {
+			stmp = flocked.format(-precision_lock.z);
+		    ctx.drawString(stmp, width4*3 - ctx.getFontMetrics().stringWidth(stmp)/2, 20);
+		}
 	}
-
+	
 	private void drawFiducialArea(Graphics ctx, int x0, int y0, int x1, int y1) {
 
 		final int ln = 20;
