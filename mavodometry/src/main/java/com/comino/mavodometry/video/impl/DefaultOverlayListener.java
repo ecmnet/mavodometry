@@ -98,10 +98,10 @@ public class DefaultOverlayListener implements IOverlayListener {
 			ctx.drawString(model.msg.text, 10, height-6);
 		}
 		
-		final int ln = 15;
+		final int ln = 10;
 
-		ctx.drawLine(width-30,height-ln,width-ln,height-ln);
-		ctx.drawLine(width-ln,height-30,width-ln,height-ln);
+		ctx.drawLine(width-25,height-ln,width-ln,height-ln);
+		ctx.drawLine(width-ln,height-25,width-ln,height-ln);
 		
 	}
 
