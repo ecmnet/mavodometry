@@ -22,7 +22,7 @@
 	<repository>
 			<id>in-project</id>
 			<name>In Project Repo</name>
-			<url>file://${project.basedir}/lib</url>
+			<url>file://lib</url>
 		</repository>
      </repositories>
 

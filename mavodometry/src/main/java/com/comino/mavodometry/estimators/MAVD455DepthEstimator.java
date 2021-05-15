@@ -266,6 +266,8 @@ public class MAVD455DepthEstimator extends ControlModule  {
 					model.slam.ox = (float)ned_pt_n.x;
 					model.slam.oy = (float)ned_pt_n.y;
 					model.slam.oz = (float)ned_pt_n.z;
+					
+//					map.update(to_ned.T, ned_pt_n, 1);
 
 					model.slam.dm = (float)min_distance; 
 				} else

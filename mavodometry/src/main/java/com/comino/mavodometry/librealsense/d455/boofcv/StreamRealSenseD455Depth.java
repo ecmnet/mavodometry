@@ -174,8 +174,6 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		//		intrinsics = new LibRealSenseIntrinsics(rs_intrinsics);
 		//		System.out.println(intrinsics);
 
-		is_running = true;
-
 		OdometryPool.submit(new CombineD455Thread());
 		System.out.println("D455 depth estimation started");
 
@@ -186,6 +184,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		if(dev == null)
 			return;
 
+		System.out.print("Try to stop D455...");
 		is_running = false;
 		try { Thread.sleep(200); } catch (InterruptedException e) { }
 	}
@@ -216,7 +215,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 			try { Thread.sleep(200); } catch (InterruptedException e) {  }
 
 			System.out.println("D455 pipeline started");
-
+			is_running = true;	
 			while( is_running ) {
 
 				try {
