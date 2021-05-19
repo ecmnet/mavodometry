@@ -114,6 +114,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final int     	 MAX_ERRORS          = 15;
 
 	private static final float       MAX_SPEED_DEVIATION = 0.3f;
+	private static final float       MAX_Z_DEVIATION     = 0.2f;
 
 	private static final long        LOCK_TIMEOUT        = 2000;
 
@@ -181,6 +182,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.75);
 	private SimpleLowPassFilter        avg_xy_speed_dev = new SimpleLowPassFilter(0.75);
+	private SimpleLowPassFilter        avg_z_dev        = new SimpleLowPassFilter(0.75);
 
 
 	private boolean          is_fiducial        = false;
@@ -207,12 +209,12 @@ public class MAVT265PositionEstimator extends ControlModule {
 	// Stream data
 	private int   width;
 	private int   width4;
-	
+
 	private final DecimalFormat flocked  = new DecimalFormat("LockAlt: #0.0m");
 	private String stmp;
-	
+
 	private GrayU8 fiducial = new GrayU8(1,1);
-	
+
 
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
@@ -395,7 +397,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 				init("quality");
 				return;
 			}
-			
+
 			is_originset = true;
 
 			// Transformation to NED
@@ -455,6 +457,18 @@ public class MAVT265PositionEstimator extends ControlModule {
 					return;
 				}
 			}
+//
+//			// Z comparison with range finder
+//// Todo: Only if in AIR; only one message
+//			float alt_rel = -(float)ned.T.z - model.hud.ag;
+//			avg_z_dev.add(Math.abs(alt_rel-model.raw.di));
+//
+//			if(avg_z_dev.getMeanAbs() > MAX_Z_DEVIATION && model.sys.isStatus(Status.MSP_INAIR) ) {
+//				writeLogMessage(new LogMessage("[vio] T265 Z position invalid", MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+//				//error_count++;
+//				//			init("speedZ");
+//				return;
+//			}
 
 
 			model.vision.setStatus(Vision.POS_VALID, true);
@@ -666,10 +680,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		if(is_fiducial && Double.isFinite(precision_lock.z)) {
 			stmp = flocked.format(-precision_lock.z);
-		    ctx.drawString(stmp, width4*3 - ctx.getFontMetrics().stringWidth(stmp)/2, 20);
+			ctx.drawString(stmp, width4*3 - ctx.getFontMetrics().stringWidth(stmp)/2, 20);
 		}
 	}
-	
+
 	private void drawFiducialArea(Graphics ctx, int x0, int y0, int x1, int y1) {
 
 		final int ln = 20;
@@ -836,7 +850,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		msg.fps = 1000f / (tms - tms_old);
 
-	    control.sendMAVLinkMessage(msg);
+		control.sendMAVLinkMessage(msg);
 
 
 	}
