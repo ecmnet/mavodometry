@@ -114,7 +114,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final int     	 MAX_ERRORS          = 15;
 
 	private static final float       MAX_SPEED_DEVIATION = 0.3f;
-	private static final float       MAX_Z_DEVIATION     = 0.2f;
+	private static final float       MAX_ATT_DEVIATION   = 0.1f;
 
 	private static final long        LOCK_TIMEOUT        = 2000;
 
@@ -182,7 +182,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.75);
 	private SimpleLowPassFilter        avg_xy_speed_dev = new SimpleLowPassFilter(0.75);
-	private SimpleLowPassFilter        avg_z_dev        = new SimpleLowPassFilter(0.75);
+	private SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.10);
 
 
 	private boolean          is_fiducial        = false;
@@ -441,6 +441,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 					writeLogMessage(new LogMessage("[vio] T265 XY speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 					error_count++;
 					//			init("speedXY");
+					avg_xy_speed_dev.clear();
 					return;
 				}
 			}
@@ -454,22 +455,23 @@ public class MAVT265PositionEstimator extends ControlModule {
 					writeLogMessage(new LogMessage("[vio] T265 Z speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 					error_count++;
 					//			init("speedZ");
+					avg_z_speed_dev.clear();
 					return;
 				}
 			}
-//
-//			// Z comparison with range finder
-//// Todo: Only if in AIR; only one message
-//			float alt_rel = -(float)ned.T.z - model.hud.ag;
-//			avg_z_dev.add(Math.abs(alt_rel-model.raw.di));
-//
-//			if(avg_z_dev.getMeanAbs() > MAX_Z_DEVIATION && model.sys.isStatus(Status.MSP_INAIR) ) {
-//				writeLogMessage(new LogMessage("[vio] T265 Z position invalid", MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
-//				//error_count++;
-//				//			init("speedZ");
-//				return;
-//			}
-
+			
+			// check attitude drift
+			avg_att_dev.add(Math.sqrt(model.attitude.p*model.attitude.p + model.attitude.r * model.attitude.r) - 
+					        Math.sqrt(att.getPitch()*att.getPitch() + att.getRoll()* att.getRoll()));
+			
+			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION ) {
+				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+				error_count++;
+				if(!model.sys.isStatus(Status.MSP_ARMED))
+				  init("attitude");
+				avg_att_dev.clear();
+				return;
+			}
 
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
