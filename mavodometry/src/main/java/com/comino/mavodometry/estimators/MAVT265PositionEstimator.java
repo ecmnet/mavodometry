@@ -113,8 +113,9 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private static final int     	 MAX_ERRORS          = 15;
 
-	private static final float       MAX_SPEED_DEVIATION = 0.3f;
-	private static final float       MAX_ATT_DEVIATION   = 0.1f;
+	private static final float       MAX_SPEED_DEVIATION   = 0.3f;    
+	private static final float       MAX_SPEED_Z_DEVIATION = 0.15f;  
+	private static final float       MAX_ATT_DEVIATION     = 0.1f;
 
 	private static final long        LOCK_TIMEOUT        = 2000;
 
@@ -180,7 +181,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private boolean    check_speed_xy = false;
 	private boolean    check_speed_z  = false;
 
-	private SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.75);
+	private SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.25);
 	private SimpleLowPassFilter        avg_xy_speed_dev = new SimpleLowPassFilter(0.75);
 	private SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.10);
 
@@ -438,7 +439,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			// Speed check: Is visual XY speed acceptable
 			if(avg_xy_speed_dev.getMeanAbs() > MAX_SPEED_DEVIATION) {
 				if(check_speed_xy) {
-					writeLogMessage(new LogMessage("[vio] T265 XY speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+					writeLogMessage(new LogMessage("[vio] T265 XY speed drift vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 					error_count++;
 					//			init("speedXY");
 					avg_xy_speed_dev.clear();
@@ -446,29 +447,32 @@ public class MAVT265PositionEstimator extends ControlModule {
 				}
 			}
 
-			// calculate average mean for Z-speed
-			avg_z_speed_dev.add(Math.abs(ned_s.T.z - lpos_s.z));
+			// calculate average mean for Z-speed on ground
+			if(!model.sys.isStatus(Status.MSP_ARMED)) {
+				avg_z_speed_dev.add(Math.abs(ned_s.T.z));
 
-			// Speed check: Is visual Z speed acceptable
-			if(avg_z_speed_dev.getMeanAbs() > MAX_SPEED_DEVIATION) {
-				if(check_speed_z) {
-					writeLogMessage(new LogMessage("[vio] T265 Z speed vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-					error_count++;
-					//			init("speedZ");
-					avg_z_speed_dev.clear();
-					return;
+				// Speed check: Is visual Z speed acceptable
+				if(avg_z_speed_dev.getMeanAbs() > MAX_SPEED_Z_DEVIATION) {
+					if(check_speed_z) {
+						writeLogMessage(new LogMessage("[vio] T265 Z speed drift on ground.", MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+						error_count++;
+						init("speedZ");
+						avg_z_speed_dev.clear();
+						return;
+					}
 				}
-			}
-			
-			// check attitude drift
+			} else
+				avg_z_speed_dev.clear();
+
+			// check attitude drift, reset as long as not armed
 			avg_att_dev.add(Math.sqrt(model.attitude.p*model.attitude.p + model.attitude.r * model.attitude.r) - 
-					        Math.sqrt(att.getPitch()*att.getPitch() + att.getRoll()* att.getRoll()));
-			
+					Math.sqrt(att.getPitch()*att.getPitch() + att.getRoll()* att.getRoll()));
+
 			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION ) {
 				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
 				error_count++;
 				if(!model.sys.isStatus(Status.MSP_ARMED))
-				  init("attitude");
+					init("attitude");
 				avg_att_dev.clear();
 				return;
 			}
