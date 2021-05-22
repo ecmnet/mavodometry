@@ -111,11 +111,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final int         FIDUCIAL_WIDTH      = 360;
 
 
-	private static final int     	 MAX_ERRORS          = 15;
+	private static final int     	 MAX_ERRORS          = 30;
 
 	private static final float       MAX_SPEED_DEVIATION   = 0.3f;    
 	private static final float       MAX_SPEED_Z_DEVIATION = 0.15f;  
-	private static final float       MAX_ATT_DEVIATION     = 0.1f;
+	private static final float       MAX_ATT_DEVIATION     = 0.05f;
 
 	private static final long        LOCK_TIMEOUT        = 2000;
 
@@ -183,7 +183,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.25);
 	private SimpleLowPassFilter        avg_xy_speed_dev = new SimpleLowPassFilter(0.75);
-	private SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.10);
+	private SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.05);
 
 
 	private boolean          is_fiducial        = false;
@@ -470,12 +470,14 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION ) {
 				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
-				error_count++;
+				//error_count++;
 				if(!model.sys.isStatus(Status.MSP_ARMED))
 					init("attitude");
 				avg_att_dev.clear();
 				return;
 			}
+			
+			model.debug.x = (float)avg_att_dev.getMeanAbs();
 
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
