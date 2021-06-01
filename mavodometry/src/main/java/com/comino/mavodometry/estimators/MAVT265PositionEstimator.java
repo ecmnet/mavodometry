@@ -220,6 +220,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		super(control);
+		
+		model.vision.setStatus(Vision.NOT_AVAILABLE, true);
 
 		this.width   = width;
 		this.width4  = width/4;
@@ -477,7 +479,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 				return;
 			}
 			
-			model.debug.x = (float)avg_att_dev.getMeanAbs();
 
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
