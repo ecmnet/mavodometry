@@ -105,7 +105,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private static final int         FIDUCIAL            = 284;
 	private static final float       FIDUCIAL_SIZE       = 0.168f;
-	private static final int         FIDUCIAL_RATE       = 50;
+	private static final int         FIDUCIAL_RATE       = 200;
 
 	private static final int         FIDUCIAL_HEIGHT     = 360;
 	private static final int         FIDUCIAL_WIDTH      = 360;
@@ -215,12 +215,13 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private String stmp;
 
 	private GrayU8 fiducial = new GrayU8(1,1);
+	private int fiducial_worker;
 
 
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		super(control);
-		
+
 		model.vision.setStatus(Vision.NOT_AVAILABLE, true);
 
 		this.width   = width;
@@ -301,6 +302,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			return;
 
 		}
+		
 
 
 		t265.registerCallback((tms, raw, p, s, a, img) ->  {
@@ -478,76 +480,76 @@ public class MAVT265PositionEstimator extends ControlModule {
 				avg_att_dev.clear();
 				return;
 			}
-			
+
 
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
+		    img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs, fiducial);
 
-			// Precision lock procedure 
-			if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK) &&
-					( (System.currentTimeMillis() - fiducial_tms) > FIDUCIAL_RATE)) {
-				fiducial_tms = System.currentTimeMillis();
-
-				if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT) {
-					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
-					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
-				}
-
-				try {
-
-					img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs, fiducial);
-					detector.detect(fiducial);
-					//					detector.detect(img.bands[0]);
-
-
-					if(detector.totalFound()>0 && detector.is3D()) {
-						for(int i = 0; i < detector.totalFound();i++ ) {
-							is_fiducial = false;
-							if(detector.getId(i)==FIDUCIAL) {
-								fiducial_idx = i;
-								is_fiducial = true;
-								break;
-							}
-						} 
-					} else 
-						is_fiducial = false;
-
-					if(is_fiducial) {
-
-						if(detector.getFiducialToCamera(fiducial_idx, to_tmp)) {
-
-
-							detector.computeStability(fiducial_idx, 0.25f, stability);
-
-							// rotate into YX axis (Sensor orientation)
-							to_tmp.concat(to_rotz90, targetToSensor);
-
-							targetToSensor.T.z = - targetToSensor.T.z;
-							detector.getCenter(fiducial_idx, fiducial_cen);
-
-							// check attitude because of rotated camera
-							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
-							GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
-
-							fiducial_att.setFromMatrix(targetToSensor.R);
-							precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
-									fiducial_att.getYaw()+model.attitude.y);
-
-							// TODO: Check consistency of lock with LIDAR data or altitude above ground
-
-							model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
-							locking_tms = System.currentTimeMillis();
-
-						}
-					}
-
-				} catch(Exception e ) {
-					writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
-					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
-					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
-					return;
-				}
-			} 
+//			// Precision lock procedure 
+//			if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK) ) {
+//				//	&& ( (System.currentTimeMillis() - fiducial_tms) > FIDUCIAL_RATE)) {
+//				fiducial_tms = System.currentTimeMillis();
+//
+//				if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT) {
+//					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
+//					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
+//				}
+//
+//				try {
+//
+//					detector.detect(fiducial);
+//					//					detector.detect(img.bands[0]);
+//
+//
+//					if(detector.totalFound()>0 && detector.is3D()) {
+//						for(int i = 0; i < detector.totalFound();i++ ) {
+//							is_fiducial = false;
+//							if(detector.getId(i)==FIDUCIAL) {
+//								fiducial_idx = i;
+//								is_fiducial = true;
+//								break;
+//							}
+//						} 
+//					} else 
+//						is_fiducial = false;
+//
+//					if(is_fiducial) {
+//
+//						if(detector.getFiducialToCamera(fiducial_idx, to_tmp)) {
+//
+//
+//							detector.computeStability(fiducial_idx, 0.25f, stability);
+//
+//							// rotate into YX axis (Sensor orientation)
+//							to_tmp.concat(to_rotz90, targetToSensor);
+//
+//							targetToSensor.T.z = - targetToSensor.T.z;
+//							detector.getCenter(fiducial_idx, fiducial_cen);
+//
+//							// check attitude because of rotated camera
+//							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
+//							GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
+//
+//							fiducial_att.setFromMatrix(targetToSensor.R);
+//							precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
+//									fiducial_att.getYaw()+model.attitude.y);
+//
+//							// TODO: Check consistency of lock with LIDAR data or altitude above ground
+//
+//							model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
+//							locking_tms = System.currentTimeMillis();
+//
+//						}
+//					}
+//
+//				} catch(Exception e ) {
+//					writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+//					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
+//					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
+//					return;
+//				}
+//			} 
 
 
 			// Publishing data
@@ -600,6 +602,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 				break;
 
 			}
+			
+			tms_old = tms;
 
 			// Transfer to local model
 			model.vision.setAttitude(att);
@@ -616,7 +620,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 				stream.addToStream(img, model, tms);
 			}
 
-			tms_old = tms;
 
 		});
 
@@ -662,9 +665,12 @@ public class MAVT265PositionEstimator extends ControlModule {
 				init("init"); 
 			} 
 		});
+		
+		fiducial_worker = wq.addCyclicTask("LP", FIDUCIAL_RATE, new FiducialHandler());
 	}
 
 	public void stop() {
+		wq.removeTask("LP", fiducial_worker);
 		if(t265==null)
 			return;
 		t265.stop();
@@ -874,6 +880,76 @@ public class MAVT265PositionEstimator extends ControlModule {
 		System.out.println("OffsetR=   "+offset_r);
 		System.out.println("Ned=        "+ned.T);
 		System.out.println("----------");
+
+	}
+
+	private class FiducialHandler implements Runnable {
+
+		@Override
+		public void run() {
+			// Precision lock procedure 
+			if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK) ) {
+				//	&& ( (System.currentTimeMillis() - fiducial_tms) > FIDUCIAL_RATE)) {
+				fiducial_tms = System.currentTimeMillis();
+
+				if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT) {
+					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
+					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
+				}
+
+				try {
+
+					detector.detect(fiducial);
+
+					if(detector.totalFound()>0 && detector.is3D()) {
+						for(int i = 0; i < detector.totalFound();i++ ) {
+							is_fiducial = false;
+							if(detector.getId(i)==FIDUCIAL) {
+								fiducial_idx = i;
+								is_fiducial = true;
+								break;
+							}
+						} 
+					} else 
+						is_fiducial = false;
+
+					if(is_fiducial) {
+
+						if(detector.getFiducialToCamera(fiducial_idx, to_tmp)) {
+
+
+							detector.computeStability(fiducial_idx, 0.25f, stability);
+
+							// rotate into YX axis (Sensor orientation)
+							to_tmp.concat(to_rotz90, targetToSensor);
+
+							targetToSensor.T.z = - targetToSensor.T.z;
+							detector.getCenter(fiducial_idx, fiducial_cen);
+
+							// check attitude because of rotated camera
+							MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
+							GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
+
+							fiducial_att.setFromMatrix(targetToSensor.R);
+							precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
+									fiducial_att.getYaw()+model.attitude.y);
+
+							// TODO: Check consistency of lock with LIDAR data or altitude above ground
+
+							model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
+							locking_tms = System.currentTimeMillis();
+
+						}
+					}
+
+				} catch(Exception e ) {
+					writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+					precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
+					model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
+					return;
+				}
+			} 
+		}
 
 	}
 }
