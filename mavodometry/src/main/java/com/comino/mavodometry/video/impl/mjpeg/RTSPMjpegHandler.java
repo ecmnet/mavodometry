@@ -121,6 +121,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 			tj = new TJCompressor();
 			tj.setSubsamp(TJ.SAMP_420);
 			tj.setSourceImage(image, 0, 0, 0, 0);
+			tj.setJPEGQuality(DEFAULT_VIDEO_QUALITY);
 		} catch (TJException e1) {
 			// TODO Auto-generated catch block
 			e1.printStackTrace();
@@ -363,6 +364,10 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 		done = false;
 		state = INIT;
+		
+		try {
+			Thread.sleep(200);
+		} catch (InterruptedException e) { }
 
 	}
 
