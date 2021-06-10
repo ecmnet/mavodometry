@@ -106,6 +106,8 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		if(dev==null) {
 			throw new IllegalArgumentException("No device found");
 		}
+		
+		rs2.rs2_hardware_reset(dev, error);
 
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);	
 		
@@ -123,13 +125,14 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_EMITTER_ENABLED, 2, error);
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
-		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_ENABLE, error);
+		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_DISABLE, error);
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_HOLES_FILL, OPTION_ENABLE, error);
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE, OPTION_ENABLE, error);
 		
 		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
 		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_ENABLE, error);
 		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE, OPTION_ENABLE, error);
+		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 3, error);
 		
 	
 		scale = rs2.rs2_get_option(depth_sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
@@ -208,6 +211,9 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 		@Override
 		public void run() {
+			
+			boolean valid=false;
+			
 			rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
 
 			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
@@ -224,11 +230,13 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 
 					tms = (long)rs2.rs2_get_frame_timestamp(frames,error);
-
+					valid=false;
 
 					frame = rs2.rs2_extract_frame(frames, 1, error);
-					if(rs2.rs2_get_frame_data_size(frame, error) > 0) 
+					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
+						valid=true;
 						bufferRgbToMsU8(rs2.rs2_get_frame_data(frame, error),rgb);
+					}
 
 					rs2.rs2_release_frame(frame);
 
@@ -246,7 +254,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 					rs2.rs2_release_frame(frame);
 
 
-					if(listeners.size()>0 && is_initialized) {
+					if(listeners.size()>0 && is_initialized && valid) {
 						for(IDepthCallback listener : listeners)
 							listener.process(rgb, depth, tms, tms);
 					}
@@ -270,12 +278,12 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 //	}
 
 
-	public void bufferDepthToU16(Pointer input , GrayU16 output ) {
+	public synchronized void bufferDepthToU16(Pointer input , GrayU16 output ) {
 		//	output.data = input.getShortArray(0, 678400);
 		input.read(0, output.data, 0, output.data.length);
 	}
 
-	public void bufferRgbToMsU8( Pointer inp , Planar<GrayU8> output ) {
+	public synchronized void bufferRgbToMsU8( Pointer inp , Planar<GrayU8> output ) {
 
 		byte[] b0 = output.getBand(0).data;
 		byte[] b1 = output.getBand(1).data;

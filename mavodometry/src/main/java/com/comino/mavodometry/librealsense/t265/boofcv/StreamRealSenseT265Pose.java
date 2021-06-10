@@ -76,6 +76,7 @@ import org.ejml.dense.row.CommonOps_DDRM;
 import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
 import com.comino.mavodometry.librealsense.lib.RealsenseDevice;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
@@ -171,6 +172,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, OPTION_DISABLE, error);
 		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_MAPPING, OPTION_DISABLE, error);
 		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, OPTION_DISABLE, error);
+		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 3, error);
 
 	}
 
@@ -398,7 +400,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		}
 	}
 
-	private void bufferGrayToU8(Pointer input , Planar<GrayU8> output ) {
+	private synchronized void bufferGrayToU8(Pointer input , Planar<GrayU8> output ) {
 		input.read(0, output.bands[0].data, 0, output.bands[0].data.length);
 		output.bands[1].data = output.bands[0].data;
 		output.bands[2].data = output.bands[0].data;

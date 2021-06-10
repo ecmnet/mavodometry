@@ -194,8 +194,13 @@ public class MAVD455DepthEstimator extends ControlModule  {
 				//quality = 0;
 
 				// Bug in CB; sometimes called twice
-				if((timeRgb-tms) < 10)
+				if((timeRgb-tms) < 3)
 					return;
+				
+				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
+//				model.slam.fps = model.slam.fps * 0.7f +(float)Math.round(10000.0f / (timeRgb - tms))/10.0f *0.3f;
+				model.slam.fps = 1000f / (timeRgb - tms);
+				tms = timeRgb;
 
 				// Initializing with Intrinsics
 				if(p2n==null) {	
@@ -204,11 +209,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 				}
 
-				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
-				model.slam.fps = model.slam.fps * 0.7f +(float)Math.round(10000.0f / (timeRgb - tms))/10.0f *0.3f;
-				tms = timeRgb;
-
-
 				if(!model.sys.isSensorAvailable(Status.MSP_OPCV_AVAILABILITY)) {
 					if(stream!=null && enableStream) {
 						stream.addToStream(rgb, model, timeDepth);
@@ -216,79 +216,15 @@ public class MAVD455DepthEstimator extends ControlModule  {
 					return;
 				}
 				
-				// make a copy of the depth area for asybchronous processing
-				depth.subimage(depth_x_offs, depth_y_offs, depth_x_offs+DEPTH_WIDTH, depth_y_offs+DEPTH_HEIGHT, sub);	
-
-//				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
-//
-//	
-//				proc.setTo(sub);
-//
-//
-//				min_distance = Double.MAX_VALUE;
-//				// TODO: Eventually BOOF Concurrency here
-//				//				BoofConcurrency.loopFor(0, DEPTH_WIDTH, x -> {
-//				for(x = 0; x < DEPTH_WIDTH;x++) {
-//					for(y = 0; y < DEPTH_HEIGHT;y++) {
-//						raw_z = proc.unsafe_get(x, y);
-//
-//						if(raw_z < 20 || raw_z >= 12000)
-//							continue;
-//
-//						quality++;
-//
-//						p2n.compute(x,y,norm);
-//						raw_pt.z =  raw_z*1e-3;
-//						raw_pt.y = -raw_pt.z*norm.y;
-//						raw_pt.x =  raw_pt.z*norm.x;
-//
-//						body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
-////						body_pt.plusIP(offset);
-////						GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
-////						ned_pt.plusIP(to_ned.T);
-//
-//
-//						distance = body_pt.norm();
-//						if(distance < min_distance) {
-//							mindist_pt.set(x,y);
-//							min_distance = distance;
-//							body_pt_n.set(body_pt);
-//						}
-//
-//						//						if(ned_pt.z > MIN_ALTITUDE)
-//						//							continue;
-//						//
-//						//						if(map!=null) {
-//						//							map.update(to_ned.T, ned_pt);
-//						//						}
-//
-//					}
-//				}
-//				//		});
-//
-//				model.slam.quality = model.slam.quality * 0.7f + (quality * quality_factor ) * 0.3f;
-//
-//				if(model.slam.quality > 30) {
-//
-//					GeometryMath_F64.mult(to_ned.R, body_pt_n, ned_pt_n );
-//					ned_pt_n.plusIP(to_ned.T);
-//
-//					model.slam.ox = (float)ned_pt_n.x;
-//					model.slam.oy = (float)ned_pt_n.y;
-//					model.slam.oz = (float)ned_pt_n.z;
-//					
-////					map.update(to_ned.T, ned_pt_n, 1);
-//
-//					model.slam.dm = (float)min_distance; 
-//				} else
-//					model.slam.dm = Float.NaN; 
-
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
 					stream.addToStream(rgb, model, timeDepth);
 				}
 				if(depth_overlay && enableStream)
 					overlayDepth(sub, img);
+				
+				// make a copy of the depth area for asybchronous processing
+				depth.subimage(depth_x_offs, depth_y_offs, depth_x_offs+DEPTH_WIDTH, depth_y_offs+DEPTH_HEIGHT, sub);	
 
 			}
 		});
@@ -299,7 +235,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	public void start() {
 		if(realsense!=null)
 			realsense.start();
-		depth_worker = wq.addCyclicTask("LP",             DEPTH_RATE, new DepthHandler());
+		depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
 	}
 
 	public void stop() {

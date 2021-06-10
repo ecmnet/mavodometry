@@ -26,6 +26,7 @@ import org.libjpegturbo.turbojpeg.TJCompressor;
 import org.libjpegturbo.turbojpeg.TJException;
 
 import com.comino.mavcom.model.DataModel;
+import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.rtps.RTPpacket;
@@ -39,7 +40,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-	private static final int 		FRAME_DROP            = 2;
+	private static final int 		FRAME_RATE_FPS        = 15;
 	private static final int		DEFAULT_VIDEO_QUALITY = 60;
 	private static final int		LOW_VIDEO_QUALITY     = 10;
 
@@ -60,7 +61,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private final BufferedImage          image;
 	private final Graphics2D             ctx;
 
-	private long       last_image_tms = 0;
+	private long       last_image_tms    = 0;
+	private long       last_image_in     = 0;
 	private float      fps = 0;
 	private boolean    is_running = false;
 
@@ -94,10 +96,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private TJCompressor tj;
 	private final byte[] buffer;
-
-	private WorkQueue wq = WorkQueue.getInstance();
+	
 	private boolean no_video;
-	private long frame_count = 0;
 	private int quality = 0;
 
 	private Receiver receiver = new Receiver();
@@ -137,8 +137,6 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	public void start(int RTSPport) throws Exception {
 		this.RTSPport = RTSPport;
 		new Thread(new Controller()).start();
-		frame_count = 0;
-
 	}
 
 	public float getFps() {
@@ -147,8 +145,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 
 	@Override
-	public void  addToStream(T in, DataModel model, long tms_us) {
-		receiver.add(in);
+	public void  addToStream(T in, DataModel model, long tms) {
+		receiver.add(in, tms);
 
 	}
 
@@ -159,12 +157,15 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 
 	private class Receiver implements Runnable {
+		
+		private final int rate = 1000 / FRAME_RATE_FPS;
 
-		public void add(T in) {
-
-			if(++frame_count % FRAME_DROP == 0 || !is_running)
+		public void add(T in, long tms) {
+			
+			if((tms - last_image_in) < rate )
 				return;
-
+			last_image_in = tms;
+			
 			input = in;
 			synchronized(this) {
 				isReady = true;
@@ -173,8 +174,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 		}
 
+		@SuppressWarnings("unchecked")
 		public void run() {
-
 
 			long tms;
 
@@ -227,10 +228,10 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) /60f;
 					last_image_tms = System.currentTimeMillis();
 
-					synchronized(this) {
+				//	synchronized(this) {
 
 						if(input instanceof Planar) {
-							ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)input, image, true);
+							ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
 						}
 						else if(input instanceof GrayU8)
 							ConvertBufferedImage.convertTo((GrayU8)input, image, true);
@@ -240,19 +241,11 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 							for(IOverlayListener listener : listeners)
 								listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 						}
-					}
+			//		}
 
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 
-					//adjust quality of the image if there is congestion detected
-//					if (congestionLevel > 0) {
-//						quality = (int)((DEFAULT_VIDEO_QUALITY - congestionLevel * 0.1f)*100);
-//					} else {
-//						quality = (int)((DEFAULT_VIDEO_QUALITY*100));
-//					}
-
 					tj.setJPEGQuality(quality);
-
 					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE);
 
 					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
@@ -360,7 +353,6 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 		RTPsocket.close();
 		imagenb = 0;
-		frame_count = 0;
 
 		done = false;
 		state = INIT;
