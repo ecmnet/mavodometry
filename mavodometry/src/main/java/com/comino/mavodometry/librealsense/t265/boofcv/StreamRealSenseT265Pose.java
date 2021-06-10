@@ -275,6 +275,8 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 			is_initialized = false;
 			reset_request = false;
+			
+			try { Thread.sleep(300); } catch (InterruptedException e) {  }
 
 			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
 

@@ -215,6 +215,8 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 			boolean valid=false;
 			
 			rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
+			
+			try { Thread.sleep(300); } catch (InterruptedException e) {  }
 
 			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
 
