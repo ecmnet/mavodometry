@@ -593,7 +593,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 		t265.start();
 		System.out.println("[vio] Starting T265....");
 		t265.printDeviceInfo();
-		wq.addSingleTask("LP", 12000, () -> { 
+		wq.addSingleTask("LP", 4000, () -> { 
 			if(!model.sys.isStatus(Status.MSP_ARMED)) { 
 				is_originset = false; 
 				init("init"); 
