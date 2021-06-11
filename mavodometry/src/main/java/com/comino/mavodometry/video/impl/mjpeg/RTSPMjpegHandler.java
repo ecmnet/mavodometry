@@ -42,7 +42,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private static final int 		FRAME_RATE_FPS        = 15;
 	private static final int		DEFAULT_VIDEO_QUALITY = 60;
-	private static final int		LOW_VIDEO_QUALITY     = 10;
+	private static final int		LOW_VIDEO_QUALITY     = 20;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
 
@@ -123,7 +123,6 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 			tj.setSourceImage(image, 0, 0, 0, 0);
 			tj.setJPEGQuality(DEFAULT_VIDEO_QUALITY);
 		} catch (TJException e1) {
-			// TODO Auto-generated catch block
 			e1.printStackTrace();
 		}
 
@@ -200,7 +199,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 								no_video = true;
 								ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 								ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-								tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE);
+								tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB);
 								RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 
 								//get to total length of the full rtp packet to send
@@ -246,7 +245,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 
 					tj.setJPEGQuality(quality);
-					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE);
+					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB);
 
 					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 
