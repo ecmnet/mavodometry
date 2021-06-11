@@ -253,7 +253,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 				case MSP_CMD.MSP_CMD_VISION:
 					switch((int)cmd.param1) {
 					case MSP_COMPONENT_CTRL.ENABLE:
-						init("enable"); 
+						if(!do_odometry)
+						  init("enable"); 
 						do_odometry = true; 
 						break;
 					case MSP_COMPONENT_CTRL.DISABLE:
