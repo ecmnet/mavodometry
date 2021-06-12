@@ -297,7 +297,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
 		try {
-			t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD,width,height);
+			t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
 		} catch( IllegalArgumentException e) {
 			System.out.println("No T265 device found");
 			return;

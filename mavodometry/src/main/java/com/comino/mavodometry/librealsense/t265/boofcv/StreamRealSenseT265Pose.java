@@ -94,8 +94,9 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private static final int WIDTH  = 848;
 	private static final int HEIGHT = 800;
 
-	public static final  int POS_FOREWARD = 0;
-	public static final  int POS_DOWNWARD = 1;
+	public static final  int POS_FOREWARD     = 0;
+	public static final  int POS_DOWNWARD     = 1; // UP
+	public static final  int POS_DOWNWARD_180 = 2; // Jetson
 
 	public static final  int CONFIDENCE_FAILED = 0;
 	public static final  int CONFIDENCE_LOW    = 1;
@@ -136,6 +137,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 
 	private DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
+	private DMatrixRMaj   rtY90P = CommonOps_DDRM.identity( 3 );
 	private DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
 
 	public static StreamRealSenseT265Pose getInstance(int mount, int width, int height) {
@@ -155,6 +157,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		this.mount = mount;
 
 		ConvertRotation3D_F64.rotY(Math.PI/2,rtY90);
+		ConvertRotation3D_F64.rotY(-Math.PI/2,rtY90P);
 
 		dev = getDeviceByName("T265");
 
@@ -275,7 +278,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 			is_initialized = false;
 			reset_request = false;
-			
+
 			try { Thread.sleep(300); } catch (InterruptedException e) {  }
 
 			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
@@ -372,62 +375,83 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 						current_acceleration.getTranslation().set(- rawpose.acceleration.z, rawpose.acceleration.x, - rawpose.acceleration.y);
 
 						break;
+
+
+					case POS_DOWNWARD_180:
+
+						current_pose.getTranslation().set( rawpose.translation.z, -rawpose.translation.x, - rawpose.translation.y);
+
+						ConvertRotation3D_F64.quaternionToMatrix(
+								rawpose.rotation.w,
+								rawpose.rotation.z,
+								-rawpose.rotation.x,
+								-rawpose.rotation.y, tmp);
+
+						CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
+
+						current_speed.getTranslation().set( rawpose.velocity.z, -rawpose.velocity.x, - rawpose.velocity.y);
+						current_speed.getRotation().set(current_pose.getRotation());
+
+						current_acceleration.getTranslation().set(rawpose.acceleration.z, -rawpose.acceleration.x, - rawpose.acceleration.y);
+
+						break;
 					}
+		
 
-					if(reset_request) {
-						try {
-							synchronized(this) {
-								reset_request = false;
-								rs2.rs2_pipeline_stop(pipeline, error);
-								try { Thread.sleep(200); } catch (InterruptedException e) {  }
-								rs2.rs2_pipeline_start_with_config(pipeline, config, error);
-								checkError("Restart pipeline",error);
-							}
-						} catch(Exception e) { e.printStackTrace(); }
-						continue;
-					}
-
-					if(is_initialized) {
-						for(IPoseCallback callback : callbacks)
-							callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
-					}
-
-
-				} catch(Exception e) {
-					e.printStackTrace();
+				if(reset_request) {
+					try {
+						synchronized(this) {
+							reset_request = false;
+							rs2.rs2_pipeline_stop(pipeline, error);
+							try { Thread.sleep(200); } catch (InterruptedException e) {  }
+							rs2.rs2_pipeline_start_with_config(pipeline, config, error);
+							checkError("Restart pipeline",error);
+						}
+					} catch(Exception e) { e.printStackTrace(); }
+					continue;
 				}
+
+				if(is_initialized) {
+					for(IPoseCallback callback : callbacks)
+						callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
+				}
+
+
+			} catch(Exception e) {
+				e.printStackTrace();
 			}
-			rs2.rs2_pipeline_stop(pipeline, error);
-			System.out.println("T265 stopped.");
 		}
+		rs2.rs2_pipeline_stop(pipeline, error);
+		System.out.println("T265 stopped.");
+	}
+}
+
+private synchronized void bufferGrayToU8(Pointer input , Planar<GrayU8> output ) {
+	input.read(0, output.bands[0].data, 0, output.bands[0].data.length);
+	output.bands[1].data = output.bands[0].data;
+	output.bands[2].data = output.bands[0].data;
+}
+
+
+private CameraKannalaBrandt createFisheyeModel(Realsense2Library.rs2_intrinsics in) {
+
+	CameraKannalaBrandt model = new CameraKannalaBrandt();
+
+	model.fx = in.fx;
+	model.fy = in.fy;
+
+	model.width  = x1-x0;
+	model.height = y1-y0;
+
+	model.cx = model.width/2f;
+	model.cy = model.height/2f;
+
+	for(int i=0;i<5;i++) {
+		model.coefSymm[i] = in.coeffs[i];
 	}
 
-	private synchronized void bufferGrayToU8(Pointer input , Planar<GrayU8> output ) {
-		input.read(0, output.bands[0].data, 0, output.bands[0].data.length);
-		output.bands[1].data = output.bands[0].data;
-		output.bands[2].data = output.bands[0].data;
-	}
+	return model;
 
-
-	private CameraKannalaBrandt createFisheyeModel(Realsense2Library.rs2_intrinsics in) {
-
-		CameraKannalaBrandt model = new CameraKannalaBrandt();
-
-		model.fx = in.fx;
-		model.fy = in.fy;
-
-		model.width  = x1-x0;
-		model.height = y1-y0;
-
-		model.cx = model.width/2f;
-		model.cy = model.height/2f;
-
-		for(int i=0;i<5;i++) {
-			model.coefSymm[i] = in.coeffs[i];
-		}
-
-		return model;
-
-	}
+}
 
 }
