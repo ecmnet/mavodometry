@@ -40,6 +40,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	// Note: Relies on https://libjpeg-turbo.org
 
+	private static final int 		FRAME_RATE_MAX        = Integer.MAX_VALUE;
+	
 	private static final int 		FRAME_RATE_FPS        = 15;
 	private static final int		DEFAULT_VIDEO_QUALITY = 80;
 	private static final int		LOW_VIDEO_QUALITY     = 20;
@@ -157,12 +159,13 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private class Receiver implements Runnable {
 		
-		private final int rate = 1000 / FRAME_RATE_FPS;
+		private final int rate = 700 / FRAME_RATE_FPS ;
 
 		public void add(T in, long tms) {
 			
-			if((tms - last_image_in) < rate )
+			if((tms - last_image_in) < rate  )
 				return;
+			
 			last_image_in = tms;
 			
 			input = in;
@@ -224,7 +227,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					imagenb++;
 					no_video = false;
 
-					fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) /60f;
+					fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) / 60f;
 					last_image_tms = System.currentTimeMillis();
 
 				//	synchronized(this) {

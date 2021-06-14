@@ -51,6 +51,7 @@ import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
+import boofcv.concurrency.BoofConcurrency;
 import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -81,8 +82,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	private float scale;
 
 	private boolean is_running;
-	
-	private long   tms;
+
 	
 	public static StreamRealSenseD455Depth getInstance(RealSenseInfo info) {
 		if(instance==null)
@@ -132,7 +132,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
 		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_ENABLE, error);
 		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE, OPTION_ENABLE, error);
-		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 3, error);
+		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 0, error);
 		
 	
 		scale = rs2.rs2_get_option(depth_sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
@@ -164,9 +164,9 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		pipeline = rs2.rs2_create_pipeline(ctx, error);
 
 		// Configure streams
-		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_COLOR, 0, info.width, info.height, rs2_format.RS2_FORMAT_RGB8, 30, error);
+		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_COLOR, 0, info.width, info.height, rs2_format.RS2_FORMAT_RGB8, 15, error);
 		checkError("ColorStream",error);
-		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_DEPTH, 0, info.width, info.height, rs2_format.RS2_FORMAT_Z16, 30, error);
+		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_DEPTH, 0, info.width, info.height, rs2_format.RS2_FORMAT_Z16, 15, error);
 		checkError("DepthStream",error);
 
 		//		PointerByReference profile_list = rs2.rs2_get_stream_profiles(sensor, error);
@@ -205,16 +205,17 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 	private class CombineD455Thread extends Thread {
 
-
+		private long   tms_rgb;
+		private long   tms_depth;
+		
+		private Realsense2Library.rs2_frame frames;
 		private Realsense2Library.rs2_frame  frame;
-
+		
+		rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
 
 		@Override
 		public void run() {
 			
-			boolean valid=false;
-			
-			rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
 			
 			try { Thread.sleep(300); } catch (InterruptedException e) {  }
 
@@ -228,23 +229,13 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 				try {
 
-					Realsense2Library.rs2_frame              frames = rs2.rs2_pipeline_wait_for_frames(pipeline, 2000, error);
-
-
-					tms = (long)rs2.rs2_get_frame_timestamp(frames,error);
-					valid=false;
-
-					frame = rs2.rs2_extract_frame(frames, 1, error);
-					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
-						valid=true;
-						bufferRgbToMsU8(rs2.rs2_get_frame_data(frame, error),rgb);
-					}
-
-					rs2.rs2_release_frame(frame);
+					frames = rs2.rs2_pipeline_wait_for_frames(pipeline, 1000, error);
 
 					frame = rs2.rs2_extract_frame(frames, 0, error);
-					if(rs2.rs2_get_frame_data_size(frame, error) > 0) 
+					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
+						tms_depth = (long)rs2.rs2_get_frame_timestamp(frame,error);
 						bufferDepthToU16(rs2.rs2_get_frame_data(frame, error),depth);
+					}
 
 					if(intrinsics==null) {
 						PointerByReference mode = rs2.rs2_get_frame_stream_profile(frame,error);
@@ -254,11 +245,19 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 					}
 
 					rs2.rs2_release_frame(frame);
+					
+					frame = rs2.rs2_extract_frame(frames, 1, error);
+					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
+						tms_rgb = (long)rs2.rs2_get_frame_timestamp(frame,error);
+						bufferRgbToMsU8(rs2.rs2_get_frame_data(frame, error),rgb);
+					}
+
+					rs2.rs2_release_frame(frame);
 
 
-					if(listeners.size()>0 && is_initialized && valid) {
+					if(listeners.size()>0 && is_initialized) {
 						for(IDepthCallback listener : listeners)
-							listener.process(rgb, depth, tms, tms);
+							listener.process(rgb, depth, tms_rgb, tms_depth);
 					}
 
 
@@ -280,30 +279,35 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 //	}
 
 
-	public synchronized void bufferDepthToU16(Pointer input , GrayU16 output ) {
+	public void bufferDepthToU16(Pointer input , GrayU16 output ) {
 		//	output.data = input.getShortArray(0, 678400);
 		input.read(0, output.data, 0, output.data.length);
 	}
 
-	public synchronized void bufferRgbToMsU8( Pointer inp , Planar<GrayU8> output ) {
+	public void bufferRgbToMsU8( Pointer inp , Planar<GrayU8> output ) {
 
 		byte[] b0 = output.getBand(0).data;
 		byte[] b1 = output.getBand(1).data;
 		byte[] b2 = output.getBand(2).data;
 
 		inp.read(0, input, 0, input.length);
+		
 
-		for(int  y = 0; y < output.height; y++ ) {
-			//		BoofConcurrency.loopFor(0, output.height, y -> {
+	//	for(int  y = 0; y < output.height; y++ ) {
+		BoofConcurrency.loopFor(0, output.height, y -> {
 			int indexIn  = y*output.stride * 3;
 			int indexOut = output.startIndex + y*output.stride;
 			for( int x = 0; x < output.width; x++ , indexOut++ ) {
 				b0[indexOut] = input[indexIn++];
 				b1[indexOut] = input[indexIn++];
 				b2[indexOut] = input[indexIn++];
+//				b0[indexOut] = inp.getByte(indexIn++);
+//				b1[indexOut] = inp.getByte(indexIn++);
+//				b2[indexOut] = inp.getByte(indexIn++);
+				
 			}
-			//		});
-		}
+				});
+	//	}
 	}
 
 
