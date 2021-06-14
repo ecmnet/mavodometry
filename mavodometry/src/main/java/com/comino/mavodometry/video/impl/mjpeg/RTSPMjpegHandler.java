@@ -41,8 +41,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	// Note: Relies on https://libjpeg-turbo.org
 
 	private static final int 		FRAME_RATE_FPS        = 15;
-	private static final int		DEFAULT_VIDEO_QUALITY = 60;
-	private static final int		LOW_VIDEO_QUALITY     = 10;
+	private static final int		DEFAULT_VIDEO_QUALITY = 80;
+	private static final int		LOW_VIDEO_QUALITY     = 20;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
 

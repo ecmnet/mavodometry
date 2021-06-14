@@ -84,7 +84,7 @@ public class DefaultOverlayListener implements IOverlayListener {
 		
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-			ctx.drawString(ftime.format(model.sys.t_armed_ms/1000f), 20, 20);
+			ctx.drawString(ftime.format(model.sys.t_armed_ms/1000f), 23, 20);
 		}
 
 		
@@ -98,10 +98,14 @@ public class DefaultOverlayListener implements IOverlayListener {
 			ctx.drawString(model.msg.text, 10, height-6);
 		}
 		
+		// resize operator
 		final int ln = 10;
 
 		ctx.drawLine(width-25,height-ln,width-ln,height-ln);
 		ctx.drawLine(width-ln,height-25,width-ln,height-ln);
+		
+		// action operator
+		ctx.drawRect(7, 13, 6, 6);
 		
 	}
 
