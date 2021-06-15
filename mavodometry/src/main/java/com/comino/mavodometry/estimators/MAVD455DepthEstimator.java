@@ -53,6 +53,7 @@ import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.workqueue.WorkQueue;
 
+import boofcv.concurrency.BoofConcurrency;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -70,7 +71,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	private static final boolean DO_DEPTH_OVERLAY   = false; 
 	private static final float  WARN_OBS_DISTANCE   = 1.5f;
 
-	private static final int         DEPTH_HEIGHT   = 70;
+	private static final int         DEPTH_HEIGHT   = 90;
 	private static final int         DEPTH_WIDTH    = 540;
 
 	private static final float       quality_factor = 100f / ( DEPTH_WIDTH * DEPTH_HEIGHT) ;
@@ -86,7 +87,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	private static final double        OFFSET_Y     =  0.00;
 	private static final double        OFFSET_Z     =  0.00;
 	
-	private static final int             DEPTH_RATE = 100;
+	private static final int             DEPTH_RATE = 135;
 
 	private StreamRealSenseD455Depth 	realsense	= null;
 	private RealSenseInfo               info        = null;
@@ -208,13 +209,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 					return;
 
 				}
-
-				if(!model.sys.isSensorAvailable(Status.MSP_OPCV_AVAILABILITY)) {
-					if(stream!=null && enableStream) {
-						stream.addToStream(rgb, model, timeDepth);
-					}
-					return;
-				}
 				
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
@@ -335,7 +329,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 			min_distance = Double.MAX_VALUE;
 			// TODO: Eventually BOOF Concurrency here
-			//				BoofConcurrency.loopFor(0, DEPTH_WIDTH, x -> {
+		//				BoofConcurrency.loopFor(0, DEPTH_WIDTH, x -> {
 			for(x = 0; x < DEPTH_WIDTH;x++) {
 				for(y = 0; y < DEPTH_HEIGHT;y++) {
 					raw_z = proc.unsafe_get(x, y);
@@ -372,7 +366,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 				}
 			}
-			//		});
+//					});
 
 			model.slam.quality = model.slam.quality * 0.7f + (quality * quality_factor ) * 0.3f;
 

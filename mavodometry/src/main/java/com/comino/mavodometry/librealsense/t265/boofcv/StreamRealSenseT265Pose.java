@@ -122,9 +122,9 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 	private Realsense2Library.rs2_extrinsics extrinsics = new Realsense2Library.rs2_extrinsics();
 
-	private List<IPoseCallback> callbacks = new ArrayList<IPoseCallback>();
+	private final List<IPoseCallback> callbacks = new ArrayList<IPoseCallback>();
 
-	private Planar<GrayU8> img     = new Planar<GrayU8>(GrayU8.class,WIDTH,HEIGHT,3);
+	private final Planar<GrayU8> img     = new Planar<GrayU8>(GrayU8.class,WIDTH,HEIGHT,3);
 
 	private long   tms0, tms;
 	private int    fps;
@@ -136,9 +136,9 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private int mount;
 
 
-	private DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
-	private DMatrixRMaj   rtY90P = CommonOps_DDRM.identity( 3 );
-	private DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
+	private final DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
+	private final DMatrixRMaj   rtY90P = CommonOps_DDRM.identity( 3 );
+	private final DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
 
 	public static StreamRealSenseT265Pose getInstance(int mount, int width, int height) {
 		if(instance==null)

@@ -51,7 +51,6 @@ import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
-import boofcv.concurrency.BoofConcurrency;
 import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -62,11 +61,11 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 	private static StreamRealSenseD455Depth instance;
 	
-	private List<IDepthCallback> listeners;
+	private final List<IDepthCallback> listeners;
 
 	// image with depth information
-	private GrayU16 depth        = new GrayU16(1,1);
-	private Planar<GrayU8> rgb	 = new Planar<GrayU8>(GrayU8.class,1,1,3);
+	private final GrayU16 depth        = new GrayU16(1,1);
+	private final Planar<GrayU8> rgb	 = new Planar<GrayU8>(GrayU8.class,1,1,3);
 
 	private volatile Realsense2Library.rs2_device dev;
 	private volatile Realsense2Library.rs2_pipeline pipeline;
@@ -75,9 +74,9 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	private PointerByReference depth_sensor = null;
 	private PointerByReference rgb_sensor   = null;
 	
-	private  byte[] input;
+	private  final byte[] input;
 
-	private RealSenseInfo          info;
+	private final RealSenseInfo          info;
 	private LibRealSenseIntrinsics intrinsics;
 	private float scale;
 
@@ -292,22 +291,18 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 		inp.read(0, input, 0, input.length);
 		
-
-	//	for(int  y = 0; y < output.height; y++ ) {
-		BoofConcurrency.loopFor(0, output.height, y -> {
+		for(int  y = 0; y < output.height; y++ ) {
+//		BoofConcurrency.loopFor(0, output.height, y -> {
 			int indexIn  = y*output.stride * 3;
 			int indexOut = output.startIndex + y*output.stride;
 			for( int x = 0; x < output.width; x++ , indexOut++ ) {
 				b0[indexOut] = input[indexIn++];
 				b1[indexOut] = input[indexIn++];
 				b2[indexOut] = input[indexIn++];
-//				b0[indexOut] = inp.getByte(indexIn++);
-//				b1[indexOut] = inp.getByte(indexIn++);
-//				b2[indexOut] = inp.getByte(indexIn++);
-				
+
 			}
-				});
-	//	}
+	//			});
+		}
 	}
 
 
