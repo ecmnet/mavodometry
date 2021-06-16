@@ -221,7 +221,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		super(control);
 
-		model.vision.setStatus(Vision.AVAILABLE, false);
+		model.vision.clear();
 		model.vision.setStatus(Vision.ENABLED, true);
 
 		this.width   = width;
@@ -486,8 +486,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 
-			model.vision.setStatus(Vision.POS_VALID, true);
-			model.vision.setStatus(Vision.FIDUCIAL_ACTIVE, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
+			model.vision.setStatus(Vision.FIDUCIAL_ENABLED, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
 			img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs, fiducial);
 
 			// Publishing data
@@ -505,6 +504,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 
+			model.vision.setStatus(Vision.POS_VALID, true);
 
 			switch(mode) {
 
@@ -823,8 +823,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 		@Override
 		public void run() {
 			// Precision lock procedure 
-			if(!model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK) ) 
+			if(!model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK)) {
+				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 				return;
+			}
 
 			//	&& ( (System.currentTimeMillis() - fiducial_tms) > FIDUCIAL_RATE)) {
 			fiducial_tms = System.currentTimeMillis();
