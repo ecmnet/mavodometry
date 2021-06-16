@@ -342,6 +342,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 				System.out.println("TrackerConfidence is "+raw.tracker_confidence);
 			}
 
+			model.vision.setStatus(Vision.AVAILABLE, true);
+			
 			confidence_old = raw.tracker_confidence;
 
 			// Reset procedure 
