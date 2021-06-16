@@ -173,7 +173,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private long            tms_reset = 0;
 	private int        confidence_old = 0;
 
-	private boolean       do_odometry = true;
 	private boolean      enableStream = false;
 	private boolean    is_originset   = false;
 
@@ -222,7 +221,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		super(control);
 
-		model.vision.setStatus(Vision.NOT_AVAILABLE, true);
+		model.vision.setStatus(Vision.AVAILABLE, false);
+		model.vision.setStatus(Vision.ENABLED, true);
 
 		this.width   = width;
 		this.width4  = width/4;
@@ -253,12 +253,13 @@ public class MAVT265PositionEstimator extends ControlModule {
 				case MSP_CMD.MSP_CMD_VISION:
 					switch((int)cmd.param1) {
 					case MSP_COMPONENT_CTRL.ENABLE:
-						if(!do_odometry)
+						if(!model.vision.isStatus(Vision.ENABLED)) {
 						  init("enable"); 
-						do_odometry = true; 
+						  model.vision.setStatus(Vision.ENABLED, true);
+						}
 						break;
 					case MSP_COMPONENT_CTRL.DISABLE:
-						do_odometry = false; 
+						model.vision.setStatus(Vision.ENABLED, false);
 						break;
 					case MSP_COMPONENT_CTRL.RESET:
 						if(!t265.isRunning())
@@ -288,7 +289,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		// reset vision when absolute position lost if odometry if published
 		control.getStatusManager().addListener(StatusManager.TYPE_ESTIMATOR, ESTIMATOR_STATUS_FLAGS.ESTIMATOR_POS_HORIZ_ABS, StatusManager.EDGE_FALLING, (n) -> {
-			if(do_odometry)
+			if(model.vision.isStatus(Vision.ENABLED))
 				init("EKF2");
 		});
 
@@ -491,7 +492,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 			// Publishing data
 
-			if(!do_odometry) {
+			if(!model.vision.isStatus(Vision.ENABLED)) {
 
 				// Add left camera to stream
 				if(stream!=null && enableStream) {
