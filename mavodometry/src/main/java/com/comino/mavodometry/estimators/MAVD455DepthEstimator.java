@@ -41,6 +41,7 @@ import java.awt.image.WritableRaster;
 import java.text.DecimalFormat;
 
 import com.comino.mavcom.config.MSPConfig;
+import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.core.ControlModule;
 import com.comino.mavcom.model.DataModel;
@@ -75,12 +76,6 @@ public class MAVD455DepthEstimator extends ControlModule  {
 	private static final int         DEPTH_WIDTH    = 540;
 
 	private static final float       quality_factor = 100f / ( DEPTH_WIDTH * DEPTH_HEIGHT) ;
-
-	private static final String D455_OFFSET_X            = "d455_offset_x";
-	private static final String D455_OFFSET_Y            = "d455_offset_y";
-	private static final String D455_OFFSET_Z            = "d455_offset_z";
-	private static final String D455_WARN_OBS            = "d455_warn_obs";
-	private static final String D455_DEPTH_OVERLAY       = "d455_depth_overlay";
 
 	// mounting offset in m
 	private static final double   	   OFFSET_X     =  0.00;
@@ -154,12 +149,12 @@ public class MAVD455DepthEstimator extends ControlModule  {
 		}
 
 		// configs
-		offset.x = -config.getFloatProperty(D455_OFFSET_X, String.valueOf(OFFSET_X));
-		offset.y = -config.getFloatProperty(D455_OFFSET_Y, String.valueOf(OFFSET_Y));
-		offset.z = -config.getFloatProperty(D455_OFFSET_Z, String.valueOf(OFFSET_Z));
-		warn_obs_distance = config.getFloatProperty(D455_WARN_OBS, String.valueOf(WARN_OBS_DISTANCE));
+		offset.x = -config.getFloatProperty(MSPParams.D455_OFFSET_X, String.valueOf(OFFSET_X));
+		offset.y = -config.getFloatProperty(MSPParams.D455_OFFSET_Y, String.valueOf(OFFSET_Y));
+		offset.z = -config.getFloatProperty(MSPParams.D455_OFFSET_Z, String.valueOf(OFFSET_Z));
+		warn_obs_distance = config.getFloatProperty(MSPParams.D455_WARN_OBS, String.valueOf(WARN_OBS_DISTANCE));
 		System.out.println("D455 warning distance obstacles: "+warn_obs_distance+"m");
-		depth_overlay     = config.getBoolProperty(D455_DEPTH_OVERLAY, String.valueOf(DO_DEPTH_OVERLAY));
+		depth_overlay     = config.getBoolProperty(MSPParams.D455_DEPTH_OVERLAY, String.valueOf(DO_DEPTH_OVERLAY));
 		System.out.println("D455 depth overlay: "+depth_overlay);
 
 		if(stream!=null) {

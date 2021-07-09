@@ -53,6 +53,7 @@ import org.mavlink.messages.lquac.msg_odometry;
 import org.mavlink.messages.lquac.msg_vision_position_estimate;
 
 import com.comino.mavcom.config.MSPConfig;
+import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.core.ControlModule;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
@@ -92,16 +93,6 @@ import georegression.struct.point.Vector4D_F64;
 import georegression.struct.se.Se3_F64;
 
 public class MAVT265PositionEstimator extends ControlModule {
-
-	private static final String T265_PRECISION_LOCK      = "t265_precision_lock";
-	private static final String T265_FIDUCIAL_SIZE       = "t265_fiducial_size";
-	private static final String T265_OFFSET_X            = "t265_offset_x";
-	private static final String T265_OFFSET_Y            = "t265_offset_y";
-	private static final String T265_OFFSET_Z            = "t265_offset_z";
-	private static final String T265_CHECK_SPEED_XY      = "t265_check_speed_xy";
-	private static final String T265_CHECK_SPEED_Z       = "t265_check_speed_z";
-
-
 
 	private static final int         FIDUCIAL_ID            = 284;
 	private static final float       FIDUCIAL_SIZE       = 0.168f;
@@ -222,7 +213,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 		super(control);
 
 		model.vision.clear();
-		model.vision.setStatus(Vision.ENABLED, true);
+		model.vision.setStatus(Vision.ENABLED, config.getBoolProperty(MSPParams.PUBLISH_ODOMETRY, "true"));
+		model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK,config.getBoolProperty(MSPParams.T265_PRECISION_LOCK, "true"));
 
 		this.width   = width;
 		this.width4  = width/4;
@@ -232,14 +224,14 @@ public class MAVT265PositionEstimator extends ControlModule {
 		this.fiducial_y_offs = (height - FIDUCIAL_HEIGHT ) / 2;
 
 		// read offsets from config
-		offset.x = -config.getFloatProperty(T265_OFFSET_X, String.valueOf(OFFSET_X));
-		offset.y = -config.getFloatProperty(T265_OFFSET_Y, String.valueOf(OFFSET_Y));
-		offset.z = -config.getFloatProperty(T265_OFFSET_Z, String.valueOf(OFFSET_Z));
+		offset.x = -config.getFloatProperty(MSPParams.T265_OFFSET_X, String.valueOf(OFFSET_X));
+		offset.y = -config.getFloatProperty(MSPParams.T265_OFFSET_Y, String.valueOf(OFFSET_Y));
+		offset.z = -config.getFloatProperty(MSPParams.T265_OFFSET_Z, String.valueOf(OFFSET_Z));
 
-		check_speed_xy = config.getBoolProperty(T265_CHECK_SPEED_XY, "false");
-		check_speed_z  = config.getBoolProperty(T265_CHECK_SPEED_Z, "false");
+		check_speed_xy = config.getBoolProperty(MSPParams.T265_CHECK_SPEED_XY, "false");
+		check_speed_z  = config.getBoolProperty(MSPParams.T265_CHECK_SPEED_Z, "false");
 
-		fiducial_size   = config.getFloatProperty(T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
+		fiducial_size   = config.getFloatProperty(MSPParams.T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
 		System.out.println("Fiducial size: "+fiducial_size+"m");
 
 		ConvertRotation3D_F64.rotZ(-Math.PI/2,to_rotz90.R);
@@ -254,12 +246,14 @@ public class MAVT265PositionEstimator extends ControlModule {
 					switch((int)cmd.param1) {
 					case MSP_COMPONENT_CTRL.ENABLE:
 						if(!model.vision.isStatus(Vision.ENABLED)) {
-						  init("enable"); 
-						  model.vision.setStatus(Vision.ENABLED, true);
+							init("enable"); 
+							model.vision.setStatus(Vision.ENABLED, true);
 						}
+						config.updateProperty(MSPParams.PUBLISH_ODOMETRY, "true");
 						break;
 					case MSP_COMPONENT_CTRL.DISABLE:
 						model.vision.setStatus(Vision.ENABLED, false);
+						config.updateProperty(MSPParams.PUBLISH_ODOMETRY, "false");
 						break;
 					case MSP_COMPONENT_CTRL.RESET:
 						if(!t265.isRunning())
@@ -292,8 +286,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 			if(model.vision.isStatus(Vision.ENABLED))
 				init("EKF2");
 		});
-
-		model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK,config.getBoolProperty(T265_PRECISION_LOCK, "true"));
 
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
@@ -343,7 +335,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 			model.vision.setStatus(Vision.AVAILABLE, true);
-			
+
 			confidence_old = raw.tracker_confidence;
 
 			// Reset procedure 
@@ -479,12 +471,14 @@ public class MAVT265PositionEstimator extends ControlModule {
 					Math.sqrt(att.getPitch()*att.getPitch() + att.getRoll()* att.getRoll()));
 
 			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION ) {
-				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
-				//error_count++;
-				if(!model.sys.isStatus(Status.MSP_ARMED))
-					init("attitude");
+				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+				//	error_count++;
 				avg_att_dev.clear();
-				return;
+				if(!model.sys.isStatus(Status.MSP_ARMED)) {
+					writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+					init("attitude");
+					return;
+				}
 			}
 
 
