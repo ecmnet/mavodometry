@@ -107,6 +107,8 @@ public class DefaultOverlayListener implements IOverlayListener {
 		// action operator
 		ctx.drawRect(7, 13, 6, 6);
 		
+		
+		
 	}
 
 }
