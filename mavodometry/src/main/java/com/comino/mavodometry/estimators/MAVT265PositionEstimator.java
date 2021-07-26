@@ -271,17 +271,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 				MSP_AUTOCONTROL_MODE.PRECISION_LOCK, StatusManager.EDGE_RISING, (n) -> {
 					if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK))
 						writeLogMessage(new LogMessage("[vio] PrecisionLock enabled", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
-				});
-
-		// reset vision when armed
-		control.getStatusManager().addListener( Status.MSP_ARMED, (n) -> {
-			if(n.isStatus(Status.MSP_ARMED)) {
-				is_originset = false;
-				init("Armed");
-			} 
 		});
+		
 
-		// reset vision when absolute position lost if odometry if published
+		// reset vision when absolute position lost and odometry if published
 		control.getStatusManager().addListener(StatusManager.TYPE_ESTIMATOR, ESTIMATOR_STATUS_FLAGS.ESTIMATOR_POS_HORIZ_ABS, StatusManager.EDGE_FALLING, (n) -> {
 			if(model.vision.isStatus(Vision.ENABLED))
 				init("EKF2");
