@@ -96,7 +96,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private static final int         FIDUCIAL_ID            = 284;
 	private static final float       FIDUCIAL_SIZE       = 0.168f;
-	private static final int         FIDUCIAL_RATE       = 200;
+	private static final int         FIDUCIAL_RATE       = 100;
 
 	private static final int         FIDUCIAL_HEIGHT     = 360;
 	private static final int         FIDUCIAL_WIDTH      = 360;
@@ -234,7 +234,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 		fiducial_size   = config.getFloatProperty(MSPParams.T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
 		System.out.println("Fiducial size: "+fiducial_size+"m");
 
-		ConvertRotation3D_F64.rotZ(-Math.PI/2,to_rotz90.R);
+		ConvertRotation3D_F64.rotZ(Math.PI/2,to_rotz90.R);
 
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
