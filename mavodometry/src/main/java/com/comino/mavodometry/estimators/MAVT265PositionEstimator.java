@@ -884,7 +884,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 				else
 					wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_SCAN);
 			} catch(WorkQueueException e) {
-				System.err.println(e);
+			    writeLogMessage(new LogMessage("[vio] "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 			}
 
 		} 

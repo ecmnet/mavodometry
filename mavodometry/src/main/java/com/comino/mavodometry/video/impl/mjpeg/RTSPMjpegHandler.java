@@ -260,7 +260,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					rtp_packet.getpacket(packet_bits);
 
 					//send the packet as a DatagramPacket over the UDP socket 
-					if(!RTPsocket.isClosed()) {
+					if(!RTPsocket.isClosed() && packet_length < 65535) {
 						senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
 						RTPsocket.send(senddp);
 					}
