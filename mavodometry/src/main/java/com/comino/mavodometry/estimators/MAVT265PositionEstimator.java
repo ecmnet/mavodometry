@@ -95,8 +95,9 @@ import georegression.struct.se.Se3_F64;
 public class MAVT265PositionEstimator extends ControlModule {
 
 	private static final int         FIDUCIAL_ID            = 284;
-	private static final float       FIDUCIAL_SIZE       = 0.168f;
-	private static final int         FIDUCIAL_RATE       = 100;
+	private static final float       FIDUCIAL_SIZE          = 0.168f;
+	private static final int         FIDUCIAL_RATE_SCAN     = 500;
+	private static final int         FIDUCIAL_RATE_ACTIVE   = 100;
 
 	private static final int         FIDUCIAL_HEIGHT     = 360;
 	private static final int         FIDUCIAL_WIDTH      = 360;
@@ -591,7 +592,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			} 
 		});
 
-		fiducial_worker = wq.addCyclicTask("LP", FIDUCIAL_RATE, new FiducialHandler());
+		fiducial_worker = wq.addCyclicTask("LP", FIDUCIAL_RATE_SCAN, new FiducialHandler());
 	}
 
 	public void stop() {
@@ -866,7 +867,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 						model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
 						locking_tms = System.currentTimeMillis();
-
 					}
 				}
 
@@ -874,8 +874,14 @@ public class MAVT265PositionEstimator extends ControlModule {
 				writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
 				precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
-				return;
 			}
+			
+			// Adjust fiducial scan rate
+			if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED))
+				wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_ACTIVE);
+			else
+				wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_SCAN);
+			
 		} 
 
 	}
