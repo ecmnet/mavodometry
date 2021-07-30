@@ -68,6 +68,7 @@ import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.workqueue.WorkQueue;
+import com.comino.mavutils.workqueue.WorkQueueException;
 
 import boofcv.abst.fiducial.FiducialDetector;
 import boofcv.abst.fiducial.FiducialStability;
@@ -272,8 +273,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 				MSP_AUTOCONTROL_MODE.PRECISION_LOCK, StatusManager.EDGE_RISING, (n) -> {
 					if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK))
 						writeLogMessage(new LogMessage("[vio] PrecisionLock enabled", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
-		});
-		
+				});
+
 
 		// reset vision when absolute position lost and odometry if published
 		control.getStatusManager().addListener(StatusManager.TYPE_ESTIMATOR, ESTIMATOR_STATUS_FLAGS.ESTIMATOR_POS_HORIZ_ABS, StatusManager.EDGE_FALLING, (n) -> {
@@ -875,13 +876,17 @@ public class MAVT265PositionEstimator extends ControlModule {
 				precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 			}
-			
+
 			// Adjust fiducial scan rate
-			if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED))
-				wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_ACTIVE);
-			else
-				wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_SCAN);
-			
+			try {
+				if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED))
+					wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_ACTIVE);
+				else
+					wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_SCAN);
+			} catch(WorkQueueException e) {
+				System.err.println(e);
+			}
+
 		} 
 
 	}
