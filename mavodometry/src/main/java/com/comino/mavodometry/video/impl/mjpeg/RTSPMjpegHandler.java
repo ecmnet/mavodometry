@@ -44,7 +44,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	
 	private static final int 		FRAME_RATE_FPS        = 15;
 	private static final int		DEFAULT_VIDEO_QUALITY = 80;
-	private static final int		LOW_VIDEO_QUALITY     = 20;
+	private static final int		LOW_VIDEO_QUALITY     = 10;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
 
@@ -260,7 +260,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					rtp_packet.getpacket(packet_bits);
 
 					//send the packet as a DatagramPacket over the UDP socket 
-					if(!RTPsocket.isClosed() && packet_length < 65535) {
+					if(!RTPsocket.isClosed() ) { //&& packet_length < 65535) {
 						senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
 						RTPsocket.send(senddp);
 					}
@@ -270,7 +270,6 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 				}
 				catch(Exception ex) {
-					ex.printStackTrace();
 
 				}
 			}
