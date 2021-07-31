@@ -67,6 +67,7 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
 import com.comino.mavutils.workqueue.WorkQueueException;
 
@@ -88,6 +89,7 @@ import boofcv.struct.image.Planar;
 import boofcv.struct.pyramid.PyramidDiscrete;
 import georegression.geometry.ConvertRotation3D_F64;
 import georegression.geometry.GeometryMath_F64;
+import georegression.struct.EulerType;
 import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.point.Vector4D_F64;
@@ -461,19 +463,15 @@ public class MAVT265PositionEstimator extends ControlModule {
 			} else
 				avg_z_speed_dev.clear();
 
-			// check attitude drift, reset as long as not armed
+			// check attitude drift
 			avg_att_dev.add(Math.sqrt(model.attitude.p*model.attitude.p + model.attitude.r * model.attitude.r) - 
 					Math.sqrt(att.getPitch()*att.getPitch() + att.getRoll()* att.getRoll()));
 
 			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION ) {
 				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-				//	error_count++;
 				avg_att_dev.clear();
-				if(!model.sys.isStatus(Status.MSP_ARMED)) {
-					writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
-					init("attitude");
-					return;
-				}
+				init("attitude");
+				return;
 			}
 
 
@@ -847,7 +845,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 					if(detector.getFiducialToCamera(fiducial_idx, to_tmp)) {
 
-
 						detector.computeStability(fiducial_idx, 0.25f, stability);
 
 						// rotate into YX axis (Sensor orientation)
@@ -860,9 +857,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 						MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
 						GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
 
-						fiducial_att.setFromMatrix(targetToSensor.R);
-						precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
-								fiducial_att.getYaw()+model.attitude.y);
+						fiducial_att.setFromMatrix(targetToSensor.R, EulerType.XYZ);
+					//	System.out.println(fiducial_att);
+						// TODO: Move offset to fiducial parameter
+						precision_lock.set(lpos.T.x-precision_ned.T.x+0.05f,lpos.T.y-precision_ned.T.y+0.0f,precision_ned.T.z,
+								MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
 
 						// TODO: Check consistency of lock with LIDAR data or altitude above ground
 
