@@ -132,6 +132,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	public void stop() {
 //		rtcpReceiver.stopRcv();
+		System.out.println("Video stopped");
 		is_running = false;
 	}
 
@@ -270,7 +271,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 				}
 				catch(Exception ex) {
-
+					ex.printStackTrace();
 				}
 			}
 			close();
@@ -337,7 +338,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 		return(request_type);
 	}
 
-	private void close() {
+	public void close() {
 
 		System.out.println("Closing video stream");
 
@@ -499,6 +500,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 						}
 					}
 				} catch(Exception e) {
+					e.printStackTrace();
 					is_running = false;
 				}
 			}

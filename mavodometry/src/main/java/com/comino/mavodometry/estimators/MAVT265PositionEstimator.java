@@ -65,6 +65,7 @@ import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
+import com.comino.mavcom.utils.SimpleSpikeDetector;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;
@@ -167,6 +168,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private long              tms_old = 0;
 	private long            tms_reset = 0;
 	private int        confidence_old = 0;
+	private float              dt_sec = 0;
 
 	private boolean      enableStream = false;
 	private boolean    is_originset   = false;
@@ -178,6 +180,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.25);
 	private SimpleLowPassFilter        avg_xy_speed_dev = new SimpleLowPassFilter(0.75);
 	private SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.05);
+	private SimpleSpikeDetector        xy_spike         = new SimpleSpikeDetector(10.0f);
 
 
 	private boolean          is_fiducial        = false;
@@ -378,6 +381,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 				avg_z_speed_dev.clear();
 				avg_xy_speed_dev.clear();
+				xy_spike.reset();
 
 				is_fiducial = false;
 				error_count = 0;
@@ -397,7 +401,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 			is_originset = true;
-			model.vision.fps = 1000f / (tms - tms_old);
+			dt_sec = (tms - tms_old) / 1000f;
+			model.vision.fps = 1f / dt_sec;
 			tms_old = tms;
 
 			// Transformation to NED
@@ -438,12 +443,20 @@ public class MAVT265PositionEstimator extends ControlModule {
 			// Speed check: Is visual XY speed acceptable
 			if(avg_xy_speed_dev.getMeanAbs() > MAX_SPEED_DEVIATION) {
 				if(check_speed_xy) {
-					writeLogMessage(new LogMessage("[vio] T265 XY speed drift vs local.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+					writeLogMessage(new LogMessage("[vio] T265 XY speed drift vs local.", MAV_SEVERITY.MAV_SEVERITY_INFO));
 					error_count++;
 					//			init("speedXY");
 					avg_xy_speed_dev.clear();
 					return;
 				}
+			}
+			
+			// XYPos jump detection
+			if(xy_spike.isSpike(ned.T.x, ned.T.y, dt_sec)) {
+				writeLogMessage(new LogMessage("[vio] T265 XY position jump detected.", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+				error_count++;
+				init("posJump");
+				return;
 			}
 
 			// calculate average mean for Z-speed on ground
@@ -468,7 +481,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 					Math.sqrt(att.getPitch()*att.getPitch() + att.getRoll()* att.getRoll()));
 
 			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION ) {
-				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_INFO));
 				avg_att_dev.clear();
 				init("attitude");
 				return;
@@ -826,6 +839,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 			try {
+				
+				//TODO: Enhance Image
+//				ImageStatistics.histogram(gray,0, histogram);
+//				EnhanceImageOps.equalize(histogram, transform);
+//				EnhanceImageOps.applyTransform(gray, transform, adjusted);
 
 				detector.detect(fiducial);
 

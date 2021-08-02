@@ -329,7 +329,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 				for(y = 0; y < DEPTH_HEIGHT;y++) {
 					raw_z = proc.unsafe_get(x, y);
 
-					if(raw_z < 20 || raw_z >= 12000)
+					if(raw_z < 20 || raw_z >= 15000)
 						continue;
 
 					quality++;

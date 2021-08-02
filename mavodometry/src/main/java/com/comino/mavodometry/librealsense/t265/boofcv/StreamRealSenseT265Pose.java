@@ -171,10 +171,10 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);
 		sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
 
-		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, OPTION_DISABLE, error);
-		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, OPTION_DISABLE, error);
-		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_MAPPING, OPTION_DISABLE, error);
-		rs2.rs2_set_option(sensor, Realsense2Library.rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, OPTION_DISABLE, error);
+		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, OPTION_DISABLE, error);
+		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, OPTION_DISABLE, error);
+		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_MAPPING, OPTION_DISABLE, error);
+		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, OPTION_DISABLE, error);
 		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 3, error);
 
 	}
