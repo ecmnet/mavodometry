@@ -172,9 +172,17 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
 
 		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, OPTION_DISABLE, error);
+		float pos_jump = rs2.rs2_get_option(sensor, rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, error);
+		if(pos_jump != 0)
+			System.err.println("OPTION_ENABLE_POSE_JUMPING not disabled");
+		
 		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, OPTION_DISABLE, error);
 		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_MAPPING, OPTION_DISABLE, error);
+		
 		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, OPTION_DISABLE, error);
+		float reloc = rs2.rs2_get_option(sensor, rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, error);
+		if(reloc != 0)
+			System.err.println("OPTION_ENABLE_RELOCALIZATION not disabled");
 		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 3, error);
 
 	}
