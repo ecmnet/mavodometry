@@ -125,11 +125,14 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final double        FIDUCIAL_OFFSET_Z 	=   0.00;
 
 	// Modes
-	public static final int  GROUNDTRUTH_MODE       = 1;
-	public static final int  LPOS_VIS_MODE_NED      = 2;
-	public static final int  LPOS_ODO_MODE_NED_GND  = 3;
-	public static final int  LPOS_ODO_MODE_NED_PREC = 4;
+	public static final int  GROUNDTRUTH_MODE       		= 1;
+	public static final int  LPOS_VIS_MODE_NED      		= 2;
+	public static final int  LPOS_ODO_MODE_NED_GND  		= 3;
+	public static final int  LPOS_ODO_MODE_NED_PREC 		= 4;
 
+	
+	// Derived constants
+	private static final float MAX_ATT_DEVIATION_SQ   		= MAX_ATT_DEVIATION * MAX_ATT_DEVIATION;
 
 	// MessageBus -> maybe used for failsafe actions
 	// private static final MessageBus bus = MessageBus.getInstance();
@@ -145,28 +148,28 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private StreamRealSenseT265Pose t265;
 
 	// 3D transformation matrices
-	private Se3_F64          to_ned              = new Se3_F64();
-	private Se3_F64          to_fiducial_ned     = new Se3_F64();
-	private Se3_F64          to_body             = new Se3_F64();
-	private Se3_F64          to_rotz90           = new Se3_F64();
-	private Se3_F64          to_tmp              = new Se3_F64();
+	private final Se3_F64          to_ned          	= new Se3_F64();
+	private final Se3_F64          to_fiducial_ned 	= new Se3_F64();
+	private final Se3_F64          to_body         	= new Se3_F64();
+	private final Se3_F64          to_rotz90       	= new Se3_F64();
+	private final Se3_F64          to_tmp          	= new Se3_F64();
 
-	private Se3_F64          ned      = new Se3_F64();
-	private Se3_F64          gnd_ned  = new Se3_F64();
-	private Se3_F64          ned_s    = new Se3_F64();
-	private Se3_F64          body     = new Se3_F64();
-	private Se3_F64          body_s   = new Se3_F64();
-	private Se3_F64          lpos     = new Se3_F64();
+	private final Se3_F64          ned      		= new Se3_F64();
+	private final Se3_F64          gnd_ned  	 	= new Se3_F64();
+	private final Se3_F64          ned_s    		= new Se3_F64();
+	private final Se3_F64          body     		= new Se3_F64();
+	private final Se3_F64          body_s   		= new Se3_F64();
+	private final Se3_F64          lpos     		= new Se3_F64();
 
-	private DMatrixRMaj   tmp         = CommonOps_DDRM.identity( 3 );
-	private DMatrixRMaj   initial_rot = CommonOps_DDRM.identity( 3 );
+	private final DMatrixRMaj   tmp         	= CommonOps_DDRM.identity( 3 );
+	private final DMatrixRMaj   initial_rot 	= CommonOps_DDRM.identity( 3 );
 
 	// 3D helper structures
-	private Vector3D_F64     offset     = new Vector3D_F64();
-	private Vector3D_F64     offset_r   = new Vector3D_F64();
-	private Vector3D_F64     lpos_s     = new Vector3D_F64();
+	private final Vector3D_F64  offset     		= new Vector3D_F64();
+	private final Vector3D_F64  offset_r   		= new Vector3D_F64();
+	private final Vector3D_F64  lpos_s     		= new Vector3D_F64();
 
-	private Attitude3D_F64   att      = new Attitude3D_F64();
+	private final Attitude3D_F64   att      	= new Attitude3D_F64();
 
 	private float             quality = 0;
 	private long              tms_old = 0;
@@ -181,10 +184,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private boolean    check_speed_xy = false;
 	private boolean    check_speed_z  = false;
 
-	private SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.25);
-	private SimpleLowPassFilter        avg_xy_speed_dev = new SimpleLowPassFilter(0.75);
-	private SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.05);
-	private SimplePoseJumpDetector     xy_pos_jump      = new SimplePoseJumpDetector(5.0f);
+	private final SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.25);
+	private final SimpleLowPassFilter        avg_xy_speed_dev = new SimpleLowPassFilter(0.75);
+	private final SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.05);
+	private final SimplePoseJumpDetector     xy_pos_jump      = new SimplePoseJumpDetector(5.0f);
 
 
 	private boolean          is_fiducial        = false;
@@ -201,7 +204,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private int              fiducial_x_offs    = 0;
 	private int              fiducial_y_offs    = 0;
 
-	private  LensDistortionPinhole lensDistortion = null;
+	private LensDistortionPinhole lensDistortion = null;
 
 	private int           error_count = 0;
 	private int           reset_count = 0;
@@ -499,11 +502,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 				avg_z_speed_dev.clear();
 
 			// check attitude drift
-			avg_att_dev.add(Math.sqrt( (model.attitude.p - att.getPitch()) * (model.attitude.p - att.getPitch())
+			avg_att_dev.add((model.attitude.p - att.getPitch()) * (model.attitude.p - att.getPitch())
 					                 + (model.attitude.r - att.getRoll())  * (model.attitude.r - att.getRoll()) 
-					               ));
+					       );
 
-			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION ) {
+			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION_SQ ) {
 				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_INFO));
 				avg_att_dev.clear();
 				init("attitude");
