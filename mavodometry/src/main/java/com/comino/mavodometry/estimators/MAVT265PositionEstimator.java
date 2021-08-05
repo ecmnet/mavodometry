@@ -233,10 +233,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 		model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK,config.getBoolProperty(MSPParams.T265_PRECISION_LOCK, "true"));
 
 		this.width   = width;
-		this.width4  = width/4;
+		this.width4  = width / 4;
 
 		// Subimage-Offsets for fiducial img
-		this.fiducial_x_offs = (width - FIDUCIAL_WIDTH ) / 2;
+		this.fiducial_x_offs = (width - FIDUCIAL_WIDTH )   / 2;
 		this.fiducial_y_offs = (height - FIDUCIAL_HEIGHT ) / 2;
 
 		// read offsets from config
@@ -313,7 +313,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 			return;
 
 		}
-
 
 
 		t265.registerCallback((tms, raw, p, s, a, img) ->  {
