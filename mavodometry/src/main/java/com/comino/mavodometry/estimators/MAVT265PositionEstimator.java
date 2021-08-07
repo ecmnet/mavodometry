@@ -106,14 +106,13 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final int         FIDUCIAL_HEIGHT     	= 360;
 	private static final int         FIDUCIAL_WIDTH     	= 360;
 
-
 	private static final int     	 MAX_ERRORS          	= 30;
 
 	private static final float       MAX_SPEED_DEVIATION   	= 0.3f;    
 	private static final float       MAX_SPEED_Z_DEVIATION 	= 0.15f;  
 	private static final float       MAX_ATT_DEVIATION     	= 0.20f;
 
-	private static final long        LOCK_TIMEOUT        	= 2000;
+	private static final long        LOCK_TIMEOUT        	= 1000;
 
 	// mounting offset in m
 	private static final double   	   OFFSET_X 			=  0.00;
@@ -394,9 +393,14 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 				precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
+				
+				ned_s.T.set(Double.NaN,Double.NaN, Double.NaN);
 
+				// Clear validators
 				avg_z_speed_dev.clear();
 				avg_xy_speed_dev.clear();
+				avg_att_dev.clear();
+				
 				xy_pos_jump.reset();
 
 				is_fiducial = false;
@@ -646,7 +650,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 			drawFiducialArea(ctx,fiducial_x_offs,fiducial_y_offs,fiducial_x_offs+FIDUCIAL_WIDTH,fiducial_y_offs+FIDUCIAL_HEIGHT);
 
-			if(is_fiducial) {	
+			if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {	
 				int fx = (int)fiducial_cen.x + fiducial_x_offs;
 				int fy = (int)fiducial_cen.y + fiducial_y_offs;
 				ctx.drawLine(fx-10,fy,fx+10,fy);
@@ -655,7 +659,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 		}
 
 
-		if(is_fiducial && Double.isFinite(precision_lock.z)) {
+		if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED) && Double.isFinite(precision_lock.z)) {
 			stmp = flocked.format(-precision_lock.z);
 			ctx.drawString(stmp, width4*3 - ctx.getFontMetrics().stringWidth(stmp)/2, 20);
 		}
@@ -685,8 +689,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
 		odo.frame_id       = frame;
 		odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
+		
+//		System.out.println(DataModel.getSynchronizedPX4Time_us()+"->"+(tms*1000));
 
-		odo.time_usec = tms * 1000;
+		odo.time_usec =  tms * 1000;
 
 
 		if(pose_is_valid) {
@@ -822,7 +828,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		msg.quality = (int)(quality * 100f);
 		msg.errors  = error_count;
-		msg.tms     = tms * 1000;
+		msg.tms     = DataModel.getSynchronizedPX4Time_us(tms);
 		msg.flags   = model.vision.flags;
 		msg.fps     = model.vision.fps;
 
@@ -914,7 +920,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 				}
 
 			} catch(Exception e ) {
-			//	writeLogMessage(new LogMessage("[vio] Fiducial error: "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_CRITICAL));
+				System.out.println(e.getMessage());
 				precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 			}

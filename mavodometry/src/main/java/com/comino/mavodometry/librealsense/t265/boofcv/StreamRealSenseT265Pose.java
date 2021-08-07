@@ -40,6 +40,8 @@ import java.util.List;
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
 
+import com.comino.mavcom.model.DataModel;
+
 /****************************************************************************
  *
  *   Copyright (c) 2020 Eike Mansfeld ecm@gmx.de. All rights reserved.

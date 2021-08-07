@@ -57,6 +57,8 @@ import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
 public class StreamRealSenseD455Depth extends RealsenseDevice {
+	
+	private static final int FRAMERATE = 15;
 
 
 	private static StreamRealSenseD455Depth instance;
@@ -124,14 +126,14 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_EMITTER_ENABLED, 2, error);
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
-		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_DISABLE, error);
+		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_ENABLE, error);
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_HOLES_FILL, OPTION_ENABLE, error);
 		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE, OPTION_ENABLE, error);
 		
 		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
 		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_ENABLE, error);
 		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE, OPTION_ENABLE, error);
-		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 0, error);
+	//	rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 3, error);
 		
 	
 		scale = rs2.rs2_get_option(depth_sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
@@ -163,9 +165,9 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		pipeline = rs2.rs2_create_pipeline(ctx, error);
 
 		// Configure streams
-		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_COLOR, 0, info.width, info.height, rs2_format.RS2_FORMAT_RGB8, 15, error);
+		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_COLOR, 0, info.width, info.height, rs2_format.RS2_FORMAT_RGB8, FRAMERATE, error);
 		checkError("ColorStream",error);
-		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_DEPTH, 0, info.width, info.height, rs2_format.RS2_FORMAT_Z16, 15, error);
+		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_DEPTH, 0, info.width, info.height, rs2_format.RS2_FORMAT_Z16, FRAMERATE, error);
 		checkError("DepthStream",error);
 
 		//		PointerByReference profile_list = rs2.rs2_get_stream_profiles(sensor, error);
@@ -228,7 +230,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 				try {
 
-					frames = rs2.rs2_pipeline_wait_for_frames(pipeline, 1000, error);
+					frames = rs2.rs2_pipeline_wait_for_frames(pipeline, 100, error);
 
 					frame = rs2.rs2_extract_frame(frames, 0, error);
 					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
