@@ -119,8 +119,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final double        OFFSET_Y 			=  0.00;
 	private static final double        OFFSET_Z 			=  0.00;
 	
-	private static final double   	   FIDUCIAL_OFFSET_X 	=  -0.05;
-	private static final double        FIDUCIAL_OFFSET_Y 	=   0.00;
+	private static final double   	   FIDUCIAL_OFFSET_X 	=  -0.08;
+	private static final double        FIDUCIAL_OFFSET_Y 	=   0.05;
 	private static final double        FIDUCIAL_OFFSET_Z 	=   0.00;
 
 	// Modes
@@ -900,16 +900,17 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 						targetToSensor.T.z = - targetToSensor.T.z;
 						detector.getCenter(fiducial_idx, fiducial_cen);
+						
+						targetToSensor.T.plusIP(fiducial_offset);
 
 						// check attitude because of rotated camera
 						MSP3DUtils.convertModelToSe3_F64(model, to_fiducial_ned);
 						GeometryMath_F64.mult(to_fiducial_ned.R, targetToSensor.T,precision_ned.T);
 
+						// Add fiducial offset (left eye camera in body frame)
 						fiducial_att.setFromMatrix(targetToSensor.R, EulerType.XYZ);
 						
-						precision_lock.set(lpos.T.x-precision_ned.T.x+fiducial_offset.x,
-								           lpos.T.y-precision_ned.T.y+fiducial_offset.y,
-								           precision_ned.T.z+fiducial_offset.z,
+						precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
 								           MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
 
 						// TODO: Check consistency of lock with LIDAR data or altitude above ground
