@@ -69,7 +69,7 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVD455DepthEstimator extends ControlModule  {
 
-	private static final boolean DO_DEPTH_OVERLAY   = false; 
+	private static final boolean DO_DEPTH_OVERLAY   = true; 
 	private static final float  WARN_OBS_DISTANCE   = 1.5f;
 
 	private static final int         DEPTH_HEIGHT   = 90;
@@ -338,12 +338,14 @@ public class MAVD455DepthEstimator extends ControlModule  {
 					raw_pt.z =  raw_z*1e-3;
 					raw_pt.y = -raw_pt.z*norm.y;
 					raw_pt.x =  raw_pt.z*norm.x;
+					
 
 					body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
 //					body_pt.plusIP(offset);
 //					GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
 //					ned_pt.plusIP(to_ned.T);
 
+//					System.out.println(norm.x+"/"+norm.y);
 
 					distance = body_pt.norm();
 					if(distance < min_distance) {
@@ -377,6 +379,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 //				map.update(to_ned.T, ned_pt_n, 1);
 
 				model.slam.dm = (float)min_distance; 
+				
 			} else
 				model.slam.dm = Float.NaN; 
 
