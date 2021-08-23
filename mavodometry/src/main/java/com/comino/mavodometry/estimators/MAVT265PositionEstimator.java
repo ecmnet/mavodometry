@@ -111,6 +111,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final float       MAX_SPEED_DEVIATION   	= 0.3f;    
 	private static final float       MAX_SPEED_Z_DEVIATION 	= 0.15f;  
 	private static final float       MAX_ATT_DEVIATION     	= 0.20f;
+	private static final float       MAX_ALT_DEVIATION     	= 0.30f;
 
 	private static final long        LOCK_TIMEOUT        	= 1000;
 
@@ -118,18 +119,17 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final double   	   OFFSET_X 			=  0.00;
 	private static final double        OFFSET_Y 			=  0.00;
 	private static final double        OFFSET_Z 			=  0.00;
-	
+
 	private static final double   	   FIDUCIAL_OFFSET_X 	=  -0.08;
 	private static final double        FIDUCIAL_OFFSET_Y 	=   0.05;
 	private static final double        FIDUCIAL_OFFSET_Z 	=   0.00;
 
 	// Modes
 	public static final int  GROUNDTRUTH_MODE       		= 1;
-	public static final int  LPOS_VIS_MODE_NED      		= 2;
-	public static final int  LPOS_ODO_MODE_NED_GND  		= 3;
-	public static final int  LPOS_ODO_MODE_NED_PREC 		= 4;
+	public static final int  LPOS_ODO_MODE_NED_GND  		= 2;
+	public static final int  LPOS_ODO_MODE_NED_PREC 		= 3;
 
-	
+
 	// Derived constants
 	private static final float MAX_ATT_DEVIATION_SQ   		= MAX_ATT_DEVIATION * MAX_ATT_DEVIATION;
 
@@ -220,7 +220,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;
-	
+
 
 
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
@@ -242,7 +242,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 		offset.x = -config.getFloatProperty(MSPParams.T265_OFFSET_X, String.valueOf(OFFSET_X));
 		offset.y = -config.getFloatProperty(MSPParams.T265_OFFSET_Y, String.valueOf(OFFSET_Y));
 		offset.z = -config.getFloatProperty(MSPParams.T265_OFFSET_Z, String.valueOf(OFFSET_Z));
-		
+
 		System.out.println("Mounting offset: "+offset);
 
 		check_speed_xy = config.getBoolProperty(MSPParams.T265_CHECK_SPEED_XY, "false");
@@ -250,11 +250,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		fiducial_size   = config.getFloatProperty(MSPParams.T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
 		System.out.println("Fiducial size: "+fiducial_size+"m");
-		
+
 		fiducial_offset.x = -config.getFloatProperty(MSPParams.T265_FIDUCIAL_OFFSET_X, String.valueOf(FIDUCIAL_OFFSET_X));
 		fiducial_offset.y = -config.getFloatProperty(MSPParams.T265_FIDUCIAL_OFFSET_Y, String.valueOf(FIDUCIAL_OFFSET_Y));
 		fiducial_offset.z = -config.getFloatProperty(MSPParams.T265_FIDUCIAL_OFFSET_Z, String.valueOf(FIDUCIAL_OFFSET_Z));
-		
+
 		System.out.println("Fiducial offset: "+fiducial_offset);
 
 		ConvertRotation3D_F64.rotZ(Math.PI/2,to_rotz90.R);
@@ -331,18 +331,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 				quality = 0.66f;
 				break;
 			case StreamRealSenseT265Pose.CONFIDENCE_HIGH:
-
 				if(confidence_old != StreamRealSenseT265Pose.CONFIDENCE_HIGH) {
 					quality = 1f; error_count = 0;
-					//					printMatricesDebug("Before",p);
-					//					tmpv.set(p.T); tmpv.scale(-1);
-					//					MSP3DUtils.convertCurrentState(model, to_ned.T);
-					//					to_ned.T.plusIP(tmpv);
-
-					//		to_ned.T.z = - model.raw.di - offset_r.z;
-
-					//					control.writeLogMessage(new LogMessage("[vio] T265 NED Translation init. (Z update)", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-					//					printMatricesDebug("After",p);
 				}
 				break;
 			default:
@@ -350,6 +340,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 			model.vision.setStatus(Vision.AVAILABLE, true);
+			
+			if(raw.tracker_confidence <= StreamRealSenseT265Pose.CONFIDENCE_LOW && confidence_old != raw.tracker_confidence) {
+				control.writeLogMessage(new LogMessage("[vio] T265 Tracker confidence low", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+				// TODO: Action here
+			}
 
 			confidence_old = raw.tracker_confidence;
 
@@ -393,14 +388,14 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 				precision_lock.set(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
-				
+
 				ned_s.T.set(Double.NaN,Double.NaN, Double.NaN);
 
 				// Clear validators
 				avg_z_speed_dev.clear();
 				avg_xy_speed_dev.clear();
 				avg_att_dev.clear();
-				
+
 				xy_pos_jump.reset();
 
 				is_fiducial = false;
@@ -472,14 +467,26 @@ public class MAVT265PositionEstimator extends ControlModule {
 				}
 			}
 			
+			// Put EV acceleration into debug
+			model.debug.x = (float)a.T.x;
+			model.debug.y = (float)a.T.y;
+			model.debug.z = (float)a.T.z;
+
 			// XYPos jump detection
 			if(xy_pos_jump.isJump(ned.T.x, ned.T.y, dt_sec)) {
 				writeLogMessage(new LogMessage("[vio] T265 XY position jump detected.", MAV_SEVERITY.MAV_SEVERITY_ERROR));
 				error_count++;
-				init("posJump");
+				//init("posJump");
 				return;
 			}
-			
+
+			if(Math.abs(ned.T.z - lpos.T.z) > MAX_ALT_DEVIATION) {
+				writeLogMessage(new LogMessage("[vio] EKF2 altitude not aligned to EV.", MAV_SEVERITY.MAV_SEVERITY_ERROR));
+				error_count++;
+				init("altitude");
+				return;
+			}
+
 			// PoseCeck: Difference between LPOS and Vision (Avoid EKF2 reset of horizontal position)
 			if(  ( (ned.T.x - lpos.T.x) * (lpos.T.x - lpos.T.x) + (ned.T.y - lpos.T.y) * (lpos.T.y - lpos.T.y) ) > 0.5f) {
 				writeLogMessage(new LogMessage("[vio] T265 XY position inconsistency.", MAV_SEVERITY.MAV_SEVERITY_ERROR));
@@ -506,8 +513,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 			// check attitude drift
 			avg_att_dev.add((model.attitude.p - att.getPitch()) * (model.attitude.p - att.getPitch())
-					                 + (model.attitude.r - att.getRoll())  * (model.attitude.r - att.getRoll()) 
-					       );
+					+ (model.attitude.r - att.getRoll())  * (model.attitude.r - att.getRoll()) 
+					);
 
 			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION_SQ ) {
 				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_INFO));
@@ -545,17 +552,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 				publishMSPGroundTruth(ned);
 				break;
 
-			case LPOS_VIS_MODE_NED:
-
-				publishPX4VisionPos(ned,tms);
-				publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
-
-				break;
 
 			case LPOS_ODO_MODE_NED_GND:
 
 				// Publish position data NED frame, speed body frame;  with ground truth
-				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
+				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
 				publishMSPVision(gnd_ned,ned,ned_s,precision_lock,tms);
 
 				break;
@@ -564,7 +565,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 
 				// Publish position and speed data body frame; with precision lock
-				publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED, raw.tracker_confidence > StreamRealSenseT265Pose.CONFIDENCE_LOW,tms);
+				publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED, true,tms);
 				publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
 
 				break;
@@ -576,7 +577,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			model.vision.setPrecisionOffset(precision_lock);
 			model.vision.setPosition(ned.T);
 			model.vision.setSpeed(ned_s.T);
-			model.vision.tms = DataModel.getSynchronizedPX4Time_us();
+			model.vision.tms = tms * 1000;
 
 			//			// Publish vision data to subscribers
 			//			bus.publish(model.vision);
@@ -689,8 +690,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
 		odo.frame_id       = frame;
 		odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
-		
-//		System.out.println(DataModel.getSynchronizedPX4Time_us()+"->"+(tms*1000));
+
+		//		System.out.println(DataModel.getSynchronizedPX4Time_us()+"->"+(tms*1000));
 
 		odo.time_usec =  tms * 1000;
 
@@ -763,33 +764,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 	}
 
 
-	private void publishPX4VisionPos(Se3_F64 pose, long tms) {
-
-
-		sms.usec = DataModel.getSynchronizedPX4Time_us();
-
-		//		sms.usec = tms * 1000;
-
-		sms.x = (float) pose.T.x;
-		sms.y = (float) pose.T.y;
-		sms.z = (float) pose.T.z;
-
-		sms.reset_counter = reset_count;
-
-		sms.roll  = (float)att.getRoll();
-		sms.pitch = (float)att.getPitch();
-		sms.yaw   = (float)att.getYaw();
-		//		sms.yaw   = Float.NaN;
-
-		sms.covariance[0] = Float.NaN;
-
-		control.sendMAVLinkMessage(sms);
-
-
-		model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
-		model.vision.setStatus(Vision.PUBLISHED, true);
-
-	}
 
 	private void publishMSPGroundTruth(Se3_F64 pose) {
 
@@ -828,7 +802,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		msg.quality = (int)(quality * 100f);
 		msg.errors  = error_count;
-		msg.tms     = DataModel.getSynchronizedPX4Time_us(tms);
+		msg.tms     = tms * 1000;
 		msg.flags   = model.vision.flags;
 		msg.fps     = model.vision.fps;
 
@@ -869,11 +843,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 			try {
-				
+
 				//TODO: Enhance Image
-//				ImageStatistics.histogram(gray,0, histogram);
-//				EnhanceImageOps.equalize(histogram, transform);
-//				EnhanceImageOps.applyTransform(gray, transform, adjusted);
+				//				ImageStatistics.histogram(gray,0, histogram);
+				//				EnhanceImageOps.equalize(histogram, transform);
+				//				EnhanceImageOps.applyTransform(gray, transform, adjusted);
 
 				detector.detect(fiducial);
 
@@ -900,7 +874,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 						targetToSensor.T.z = - targetToSensor.T.z;
 						detector.getCenter(fiducial_idx, fiducial_cen);
-						
+
 						targetToSensor.T.plusIP(fiducial_offset);
 
 						// check attitude because of rotated camera
@@ -909,9 +883,9 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 						// Add fiducial offset (left eye camera in body frame)
 						fiducial_att.setFromMatrix(targetToSensor.R, EulerType.XYZ);
-						
+
 						precision_lock.set(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
-								           MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
+								MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
 
 						// TODO: Check consistency of lock with LIDAR data or altitude above ground
 
@@ -933,7 +907,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 				else
 					wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_SCAN);
 			} catch(WorkQueueException e) {
-			    writeLogMessage(new LogMessage("[vio] "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+				writeLogMessage(new LogMessage("[vio] "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 			}
 
 		} 
