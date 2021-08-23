@@ -230,7 +230,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 
 				try {
 
-					frames = rs2.rs2_pipeline_wait_for_frames(pipeline, 100, error);
+					frames = rs2.rs2_pipeline_wait_for_frames(pipeline, 1000, error);
 
 					frame = rs2.rs2_extract_frame(frames, 0, error);
 					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
