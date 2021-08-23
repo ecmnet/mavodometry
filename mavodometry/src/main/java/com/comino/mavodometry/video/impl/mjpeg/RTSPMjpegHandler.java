@@ -500,6 +500,12 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 						}
 					}
 				} catch(Exception e) {
+					try {
+						RTSPsocket.close();
+					} catch (IOException e1) {
+						// TODO Auto-generated catch block
+						e1.printStackTrace();
+					}
 					e.printStackTrace();
 					is_running = false;
 				}
