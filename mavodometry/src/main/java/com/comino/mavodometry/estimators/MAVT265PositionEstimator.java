@@ -186,7 +186,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private final SimpleLowPassFilter        avg_z_speed_dev  = new SimpleLowPassFilter(0.25);
 	private final SimpleLowPassFilter        avg_xy_speed_dev = new SimpleLowPassFilter(0.75);
 	private final SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.05);
-	private final SimplePoseJumpDetector     xy_pos_jump      = new SimplePoseJumpDetector(5.0f);
+	private final SimplePoseJumpDetector     xy_pos_jump      = new SimplePoseJumpDetector(10.0f);
 
 
 	private boolean          is_fiducial        = false;
@@ -588,6 +588,9 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 
+		}, (tms,c) -> {
+			error_count++;
+			writeLogMessage(new LogMessage("[vio] T265 XY Notfication type "+c+" received", MAV_SEVERITY.MAV_SEVERITY_INFO));
 		});
 
 

@@ -1,6 +1,7 @@
 package com.comino.mavodometry.librealsense.lib;
 
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
 import com.sun.jna.ptr.PointerByReference;
 
 public class RealsenseDevice  {
@@ -65,6 +66,30 @@ public class RealsenseDevice  {
 		//			return true;
 		//		}
 		return true;
+	}
+	
+	protected boolean setOption(PointerByReference sensor, int option, String option_name, boolean enable) {
+		if(enable)
+		  rs2.rs2_set_option(sensor, option, OPTION_ENABLE, error);
+		else
+		  rs2.rs2_set_option(sensor, option, OPTION_DISABLE, error);
+		float enabled = rs2.rs2_get_option(sensor, option, error);
+		if(enabled!=0) {
+			System.out.println("  -> Option "+option_name+" is enabled");
+			return true;
+		}
+		return false;	
+	}
+	
+	protected boolean setOption(PointerByReference sensor, int option, String option_name, int value) {
+		  rs2.rs2_set_option(sensor, option, value, error);
+		float value_r = rs2.rs2_get_option(sensor, option, error);
+		if(value == value_r) {
+			System.out.println("  -> Option "+option_name+" set to "+value);
+			return true;
+		}
+		return false;
+			
 	}
 	
 

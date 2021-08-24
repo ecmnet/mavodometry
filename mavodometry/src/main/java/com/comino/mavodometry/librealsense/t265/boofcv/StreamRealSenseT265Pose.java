@@ -106,6 +106,9 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	public static final  int CONFIDENCE_LOW    = 1;
 	public static final  int CONFIDENCE_MEDIUM = 2;
 	public static final  int CONFIDENCE_HIGH   = 3;
+	
+	public static final  int T265_EVENT_NOTIFICATION = 0;
+	public static final  int POSEJUMP_NOTIFICATION   = 1;
 
 	private CameraKannalaBrandt left_model;
 	private CameraKannalaBrandt right_model;
@@ -117,6 +120,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private PointerByReference sensor = null;
 
 	private Realsense2Library.rs2_pose rawpose = new Realsense2Library.rs2_pose();
+	private Realsense2Library.rs2_pose node = new Realsense2Library.rs2_pose();
 
 	private Realsense2Library.rs2_intrinsics intrinsics_left = new Realsense2Library.rs2_intrinsics();
 	private PointerByReference mode_left = null;
@@ -126,7 +130,8 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 	private Realsense2Library.rs2_extrinsics extrinsics = new Realsense2Library.rs2_extrinsics();
 
-	private final List<IPoseCallback> callbacks = new ArrayList<IPoseCallback>();
+	private final List<IPoseCallback>         callbacks     = new ArrayList<IPoseCallback>();
+	private final List<INotificationCallback> notifications = new ArrayList<INotificationCallback>();
 
 	private final Planar<GrayU8> img     = new Planar<GrayU8>(GrayU8.class,WIDTH,HEIGHT,3);
 
@@ -151,20 +156,23 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	}
 	
 	
-	private class T265NotificationCallback implements Realsense2Library.rs2_notification_callback_ptr {
+	public class T265NotificationCallback implements Realsense2Library.rs2_notification_callback_ptr {
 		
-		private PointerByReference notfication = new PointerByReference();
+	//	private PointerByReference notfication = new PointerByReference();
 		
 		@Override
 		public void apply(Pointer rs2_notification, Pointer voidPtr1) {
-			System.out.println("T265 CALLBACK");
+			if(is_initialized) {
+				for(INotificationCallback notification : notifications)
+					notification.notify(DataModel.getSynchronizedPX4Time_us(), T265_EVENT_NOTIFICATION);
+			}
 //			notfication.setPointer(rs2_notification);
 //			int category = rs2.rs2_get_notification_category(notfication, error);
 //			System.out.println("Notification "+category);
 		}  
 	}
 	
-	private T265NotificationCallback cb;
+	private  T265NotificationCallback cb = new T265NotificationCallback();
 
 	private  StreamRealSenseT265Pose(int mount, int width, int height) {
 
@@ -175,8 +183,6 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		this.x1 = x0 + width;
 		this.y1 = y0 + height;
 		this.mount = mount;
-		
-		this.cb = new T265NotificationCallback();
 
 		ConvertRotation3D_F64.rotY(Math.PI/2,rtY90);
 		ConvertRotation3D_F64.rotY(-Math.PI/2,rtY90P);
@@ -190,32 +196,27 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 
 		// Settings some options for the pose sensor
+		
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);
 		sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
-
-		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, OPTION_ENABLE, error);
-		float pos_jump = rs2.rs2_get_option(sensor, rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, error);
-		if(pos_jump != 0)
-			System.err.println("-> T265: OPTION_ENABLE_POSE_JUMPING is enabled");
 		
-		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, OPTION_DISABLE, error);
-		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_MAPPING, OPTION_ENABLE, error);
+		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, "RS2_OPTION_ENABLE_POSE_JUMPING", true);
+		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAPPING, "RS2_OPTION_ENABLE_MAPPING", true);
+		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, "RS2_OPTION_ENABLE_MAP_PRESERVATION", true);
+		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION, "RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION", true);
+		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, "RS2_OPTION_ENABLE_RELOCALIZATION", true);
 		
-		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, OPTION_ENABLE, error);
-		float reloc = rs2.rs2_get_option(sensor, rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, error);
-		if(reloc != 0)
-			System.err.println("-> T265: OPTION_ENABLE_RELOCALIZATION is enabled");
-		rs2.rs2_set_option(sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 3, error);
+		setOption(sensor,rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, "RS2_OPTION_FRAMES_QUEUE_SIZE", 3);
 		
-		// Setting notfication callback -> does this work??
-		System.out.println("-> T265 Notification callback registered");
+		// Callback setup: TODO: Not sure whether this works
+		System.out.println("   -> Notification callback registered");
 		rs2.rs2_set_notifications_callback(sensor,cb,null,error);
-		System.out.println(error+"/"+error.getPointer()+"/"+error.getPointer().getString(0));
 
 	}
 
-	public StreamRealSenseT265Pose registerCallback(IPoseCallback callback) {
+	public StreamRealSenseT265Pose registerCallback(IPoseCallback callback, INotificationCallback notification) {
 		this.callbacks.add(callback);
+		this.notifications.add(notification);
 		return this;
 	}
 
@@ -303,10 +304,14 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private class CombineT265Thread extends Thread {
 
 		private Se3_F64    current_pose         = new Se3_F64();
+		private Se3_F64    old_pose             = new Se3_F64();
 		private Se3_F64    current_speed        = new Se3_F64();
 		private Se3_F64    current_acceleration = new Se3_F64();
 
 		private Realsense2Library.rs2_frame  frame;
+		
+		private double     pose_speed;
+		private long       pose_speed_tms;
 
 		@Override
 		public void run() {
@@ -337,6 +342,9 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 					
 					if(tms_offset==0 && tms > 0)
 						tms_offset = tms-System.currentTimeMillis();
+					
+					if(rs2.rs2_get_static_node(sensor, "node0", node.translation, node.rotation, error)!=0)
+						System.out.println("Node0");
 
 					frame = rs2.rs2_extract_frame(frames, 0, error);
 					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
@@ -451,8 +459,19 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 					} catch(Exception e) { e.printStackTrace(); }
 					continue;
 				}
+				
+				// calculated speed based on position data 
+				pose_speed = Math.abs(current_pose.T.norm() - old_pose.T.norm()) * 1e6 / (DataModel.getSynchronizedPX4Time_us() - pose_speed_tms);
+				old_pose.set(current_pose); pose_speed_tms = DataModel.getSynchronizedPX4Time_us();
 
 				if(is_initialized) {
+					//System.out.println(pose_speed+" : "+current_speed.T.norm());
+					// Pose jump detection
+					if(Math.abs(pose_speed - current_speed.T.norm() ) > 0.5) {
+						for(INotificationCallback notification : notifications)
+							notification.notify(pose_speed_tms, POSEJUMP_NOTIFICATION);
+					}
+					
 					for(IPoseCallback callback : callbacks)
 						callback.handle(tms+tms_offset, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 				}
