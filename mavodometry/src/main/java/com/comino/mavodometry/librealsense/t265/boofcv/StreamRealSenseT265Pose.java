@@ -41,6 +41,7 @@ import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
 
 import com.comino.mavcom.model.DataModel;
+import com.comino.mavcom.model.segment.Debug;
 
 /****************************************************************************
  *
@@ -143,15 +144,17 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 	private int x0,y0,x1,y1;
 	private int mount;
+	
+	private Debug debug;
 
 
 	private final DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
 	private final DMatrixRMaj   rtY90P = CommonOps_DDRM.identity( 3 );
 	private final DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
 
-	public static StreamRealSenseT265Pose getInstance(int mount, int width, int height) {
+	public static StreamRealSenseT265Pose getInstance(int mount, int width, int height, Debug debug) {
 		if(instance==null)
-			instance = new StreamRealSenseT265Pose(mount,width,height);
+			instance = new StreamRealSenseT265Pose(mount,width,height, debug);
 		return instance;
 	}
 	
@@ -174,7 +177,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	
 	private  T265NotificationCallback cb = new T265NotificationCallback();
 
-	private  StreamRealSenseT265Pose(int mount, int width, int height) {
+	private  StreamRealSenseT265Pose(int mount, int width, int height, Debug debug) {
 
 		super();
 
@@ -183,6 +186,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		this.x1 = x0 + width;
 		this.y1 = y0 + height;
 		this.mount = mount;
+		this.debug = debug;
 
 		ConvertRotation3D_F64.rotY(Math.PI/2,rtY90);
 		ConvertRotation3D_F64.rotY(-Math.PI/2,rtY90P);
@@ -198,9 +202,13 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		// Settings some options for the pose sensor
 		
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);
+		
+		int sensor_count = rs2.rs2_get_sensors_count(sensor_list, error);
+		System.out.println("T265 has "+sensor_count+" sensor(s)");
+		
 		sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
 		
-		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, "RS2_OPTION_ENABLE_POSE_JUMPING", true);
+		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, "RS2_OPTION_ENABLE_POSE_JUMPING", false);
 		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAPPING, "RS2_OPTION_ENABLE_MAPPING", true);
 		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, "RS2_OPTION_ENABLE_MAP_PRESERVATION", true);
 		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION, "RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION", true);
@@ -343,8 +351,8 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 					if(tms_offset==0 && tms > 0)
 						tms_offset = tms-System.currentTimeMillis();
 					
-					if(rs2.rs2_get_static_node(sensor, "node0", node.translation, node.rotation, error)!=0)
-						System.out.println("Node0");
+//					if(rs2.rs2_get_static_node(sensor, "node0", node.translation, node.rotation, error)!=0)
+//						System.out.println("Node0");
 
 					frame = rs2.rs2_extract_frame(frames, 0, error);
 					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
@@ -463,11 +471,15 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 				// calculated speed based on position data 
 				pose_speed = Math.abs(current_pose.T.norm() - old_pose.T.norm()) * 1e6 / (DataModel.getSynchronizedPX4Time_us() - pose_speed_tms);
 				old_pose.set(current_pose); pose_speed_tms = DataModel.getSynchronizedPX4Time_us();
+				
+				debug.x = (float)pose_speed;
+				debug.y = (float)current_speed.T.norm();
+				debug.z = (float)(Math.abs(pose_speed - current_speed.T.norm()));
 
 				if(is_initialized) {
 					//System.out.println(pose_speed+" : "+current_speed.T.norm());
 					// Pose jump detection
-					if(Math.abs(pose_speed - current_speed.T.norm() ) > 0.5) {
+					if(Math.abs(pose_speed - current_speed.T.norm() ) > 20) {
 						for(INotificationCallback notification : notifications)
 							notification.notify(pose_speed_tms, POSEJUMP_NOTIFICATION);
 					}

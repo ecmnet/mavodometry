@@ -113,7 +113,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);	
 		
 		int sensor_count = rs2.rs2_get_sensors_count(sensor_list, error);
-		System.out.println("D455 has "+sensor_count+" sensors");
+		System.out.println("D455 has "+sensor_count+" sensor(s)");
 		
 		// Settings some options
 		depth_sensor = rs2.rs2_create_sensor(sensor_list, 0, error);

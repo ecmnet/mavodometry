@@ -78,6 +78,7 @@ public class RealsenseDevice  {
 			System.out.println("  -> Option "+option_name+" is enabled");
 			return true;
 		}
+		System.out.println("  -> Option "+option_name+" is not enabled");
 		return false;	
 	}
 	

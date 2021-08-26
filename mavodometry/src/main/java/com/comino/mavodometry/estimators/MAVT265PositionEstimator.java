@@ -178,6 +178,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private boolean      enableStream = false;
 	private boolean    is_originset   = false;
+	private boolean    do_reposition  = false;
 
 	// Validity checks
 	private boolean    check_speed_xy = false;
@@ -269,7 +270,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 					switch((int)cmd.param1) {
 					case MSP_COMPONENT_CTRL.ENABLE:
 						if(!model.vision.isStatus(Vision.ENABLED)) {
-							init("enable"); 
+							//init("enable");
+							do_reposition("enable"); 
 							model.vision.setStatus(Vision.ENABLED, true);
 						}
 						config.updateProperty(MSPParams.PUBLISH_ODOMETRY, "true");
@@ -282,7 +284,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 						if(!t265.isRunning())
 							start();
 						else
-							init("reset");
+						//	init("reset");
+							do_reposition("reset");
 						break;
 					}
 					break;
@@ -306,7 +309,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
 		try {
-			t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
+			t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height, model.debug);
 		} catch( IllegalArgumentException e) {
 			System.out.println("No T265 device found");
 			return;
@@ -352,9 +355,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 			// Note: This takes 1.5sec for T265;
 
-			if((System.currentTimeMillis() - tms_reset) < 2000) {
+			if((System.currentTimeMillis() - tms_reset) < 2000 || do_reposition) {
 				quality = 0; error_count=0; tms_reset = 0; confidence_old = 0;
 
+				do_reposition = false;
 				model.vision.setStatus(Vision.POS_VALID, false);
 
 				// set initial T265 pose as origin
@@ -466,11 +470,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 					return;
 				}
 			}
-			
-			// Put EV acceleration into debug
-			model.debug.x = (float)a.T.x;
-			model.debug.y = (float)a.T.y;
-			model.debug.z = (float)a.T.z;
+		
 
 			// XYPos jump detection
 			if(xy_pos_jump.isJump(ned.T.x, ned.T.y, dt_sec)) {
@@ -488,10 +488,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 			// PoseCeck: Difference between LPOS and Vision (Avoid EKF2 reset of horizontal position)
-			if(  ( (ned.T.x - lpos.T.x) * (lpos.T.x - lpos.T.x) + (ned.T.y - lpos.T.y) * (lpos.T.y - lpos.T.y) ) > 0.5f) {
-				writeLogMessage(new LogMessage("[vio] T265 XY position inconsistency.", MAV_SEVERITY.MAV_SEVERITY_ERROR));
+			if(  ( (ned.T.x - lpos.T.x) * (ned.T.x - lpos.T.x) + (ned.T.y - lpos.T.y) * (ned.T.y - lpos.T.y) ) > 0.2f) {
+				writeLogMessage(new LogMessage("[vio] T265 XY position inconsistency.", MAV_SEVERITY.MAV_SEVERITY_INFO));
 				error_count++;
-				init("pose");
+			//	init("pose");
 			}
 
 			// calculate average mean for Z-speed on ground
@@ -588,9 +588,9 @@ public class MAVT265PositionEstimator extends ControlModule {
 			}
 
 
-		}, (tms,c) -> {
+		}, (tms, c) -> {
 			error_count++;
-			writeLogMessage(new LogMessage("[vio] T265 XY Notfication type "+c+" received", MAV_SEVERITY.MAV_SEVERITY_INFO));
+			writeLogMessage(new LogMessage("[vio] T265 XY Notfication type "+c+" received: ", MAV_SEVERITY.MAV_SEVERITY_INFO));
 		});
 
 
@@ -621,8 +621,15 @@ public class MAVT265PositionEstimator extends ControlModule {
 			control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 		}
 	}
+	
+	public void do_reposition(String s) {
+		if(t265!=null) {
+			do_reposition = true;
+			control.writeLogMessage(new LogMessage("[vio] T265 reposition performed ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_INFO));
+		}
+	}
 
-
+	
 	public void start() {
 		if(t265==null)
 			return;
