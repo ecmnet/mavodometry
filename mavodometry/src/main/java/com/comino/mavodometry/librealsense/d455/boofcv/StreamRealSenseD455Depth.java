@@ -73,8 +73,9 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	private volatile Realsense2Library.rs2_pipeline pipeline;
 	private volatile Realsense2Library.rs2_config config;
 
-	private PointerByReference depth_sensor = null;
-	private PointerByReference rgb_sensor   = null;
+	private PointerByReference depth_sensor  = null;
+	private PointerByReference rgb_sensor    = null;
+	private PointerByReference motion_sensor = null;
 	
 	private  final byte[] input;
 
@@ -113,27 +114,31 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);	
 		
 		int sensor_count = rs2.rs2_get_sensors_count(sensor_list, error);
-		System.out.println("D455 has "+sensor_count+" sensor(s)");
+		System.out.println("D455 has "+sensor_count+" sensor(s):");
+	
 		
-		// Settings some options
+		// Stereo module
 		depth_sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
+		System.out.println("  "+rs2.rs2_get_sensor_info(depth_sensor, 0, error).getString(0));
 		checkError("Sensors",error);
 		
+		setOption(depth_sensor, rs2_option.RS2_OPTION_EMITTER_ENABLED,"RS2_OPTION_EMITTER_ENABLED",2 );
+//		setOption(depth_sensor, rs2_option.RS2_OPTION_HOLES_FILL,"RS2_OPTION_HOLES_FILL",true );
+		
+		// RGB module
 		rgb_sensor = rs2.rs2_create_sensor(sensor_list, 1, error);
+		System.out.println("  "+rs2.rs2_get_sensor_info(rgb_sensor, 0, error).getString(0));
 		checkError("Sensors",error);
+			
+		setOption(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE,"RS2_OPTION_ENABLE_AUTO_EXPOSURE",true );
+//		setOption(rgb_sensor, rs2_option.RS2_OPTION_EXPOSURE,"RS2_OPTION_EXPOSURE",2566*3 );
+//		setOption(rgb_sensor, rs2_option.RS2_OPTION_GAIN,"RS2_OPTION_GAIN",16*4 );
+		setOption(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE,"RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE",true );
 		
-
-		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
-		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_EMITTER_ENABLED, 2, error);
-		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_HISTOGRAM_EQUALIZATION_ENABLED, OPTION_DISABLE, error);
-		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_ENABLE, error);
-		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_HOLES_FILL, OPTION_ENABLE, error);
-		rs2.rs2_set_option(depth_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE, OPTION_ENABLE, error);
-		
-		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_VISUAL_PRESET,rs2_rs400_visual_preset.RS2_RS400_VISUAL_PRESET_DEFAULT, error);
-		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE, OPTION_ENABLE, error);
-		rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE, OPTION_ENABLE, error);
-	//	rs2.rs2_set_option(rgb_sensor, rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, 3, error);
+		// Motion module
+		motion_sensor = rs2.rs2_create_sensor(sensor_list, 2, error);
+		System.out.println("  "+rs2.rs2_get_sensor_info(motion_sensor, 0, error).getString(0));
+		checkError("Sensors",error);
 		
 	
 		scale = rs2.rs2_get_option(depth_sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);

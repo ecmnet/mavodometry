@@ -73,12 +73,12 @@ public class RealsenseDevice  {
 		  rs2.rs2_set_option(sensor, option, OPTION_ENABLE, error);
 		else
 		  rs2.rs2_set_option(sensor, option, OPTION_DISABLE, error);
-		float enabled = rs2.rs2_get_option(sensor, option, error);
-		if(enabled!=0) {
-			System.out.println("  -> Option "+option_name+" is enabled");
+		boolean enabled = rs2.rs2_get_option(sensor, option, error) != 0;
+		if((enabled && enable) ||(!enable && !enabled)) {
+			System.out.println("  -> Option "+option_name+" is "+enabled);
 			return true;
 		}
-		System.out.println("  -> Option "+option_name+" is not enabled");
+		System.out.println("  -> Option "+option_name+" could not be set to "+enable);
 		return false;	
 	}
 	
@@ -89,6 +89,7 @@ public class RealsenseDevice  {
 			System.out.println("  -> Option "+option_name+" set to "+value);
 			return true;
 		}
+		System.out.println("  -> Option "+option_name+" could not be set to "+value+" remains at "+value_r);
 		return false;
 			
 	}

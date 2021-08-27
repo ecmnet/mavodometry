@@ -107,9 +107,8 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	public static final  int CONFIDENCE_LOW    = 1;
 	public static final  int CONFIDENCE_MEDIUM = 2;
 	public static final  int CONFIDENCE_HIGH   = 3;
-	
+
 	public static final  int T265_EVENT_NOTIFICATION = 0;
-	public static final  int POSEJUMP_NOTIFICATION   = 1;
 
 	private CameraKannalaBrandt left_model;
 	private CameraKannalaBrandt right_model;
@@ -144,7 +143,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 	private int x0,y0,x1,y1;
 	private int mount;
-	
+
 	private Debug debug;
 
 
@@ -157,24 +156,24 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 			instance = new StreamRealSenseT265Pose(mount,width,height, debug);
 		return instance;
 	}
-	
-	
+
+
 	public class T265NotificationCallback implements Realsense2Library.rs2_notification_callback_ptr {
-		
-	//	private PointerByReference notfication = new PointerByReference();
-		
+
+		//	private PointerByReference notfication = new PointerByReference();
+
 		@Override
 		public void apply(Pointer rs2_notification, Pointer voidPtr1) {
 			if(is_initialized) {
 				for(INotificationCallback notification : notifications)
 					notification.notify(DataModel.getSynchronizedPX4Time_us(), T265_EVENT_NOTIFICATION);
 			}
-//			notfication.setPointer(rs2_notification);
-//			int category = rs2.rs2_get_notification_category(notfication, error);
-//			System.out.println("Notification "+category);
+			//			notfication.setPointer(rs2_notification);
+			//			int category = rs2.rs2_get_notification_category(notfication, error);
+			//			System.out.println("Notification "+category);
 		}  
 	}
-	
+
 	private  T265NotificationCallback cb = new T265NotificationCallback();
 
 	private  StreamRealSenseT265Pose(int mount, int width, int height, Debug debug) {
@@ -200,22 +199,22 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 
 		// Settings some options for the pose sensor
-		
+
 		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);
-		
+
 		int sensor_count = rs2.rs2_get_sensors_count(sensor_list, error);
 		System.out.println("T265 has "+sensor_count+" sensor(s)");
-		
+
 		sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
-		
+
 		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, "RS2_OPTION_ENABLE_POSE_JUMPING", false);
 		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAPPING, "RS2_OPTION_ENABLE_MAPPING", true);
 		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, "RS2_OPTION_ENABLE_MAP_PRESERVATION", true);
 		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION, "RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION", true);
 		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, "RS2_OPTION_ENABLE_RELOCALIZATION", true);
-		
+
 		setOption(sensor,rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, "RS2_OPTION_FRAMES_QUEUE_SIZE", 3);
-		
+
 		// Callback setup: TODO: Not sure whether this works
 		System.out.println("   -> Notification callback registered");
 		rs2.rs2_set_notifications_callback(sensor,cb,null,error);
@@ -312,14 +311,10 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private class CombineT265Thread extends Thread {
 
 		private Se3_F64    current_pose         = new Se3_F64();
-		private Se3_F64    old_pose             = new Se3_F64();
 		private Se3_F64    current_speed        = new Se3_F64();
 		private Se3_F64    current_acceleration = new Se3_F64();
 
 		private Realsense2Library.rs2_frame  frame;
-		
-		private double     pose_speed;
-		private long       pose_speed_tms;
 
 		@Override
 		public void run() {
@@ -329,9 +324,9 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 			try { Thread.sleep(300); } catch (InterruptedException e) {  }
 
-//			rs2_pipeline_profile profile = 
+			//			rs2_pipeline_profile profile = 
 			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
-		
+
 
 			try { Thread.sleep(200); } catch (InterruptedException e) {  }
 
@@ -347,12 +342,12 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 					Realsense2Library.rs2_frame	frames = rs2.rs2_pipeline_wait_for_frames(pipeline, 500, error);
 
 					tms = (long)rs2.rs2_get_frame_timestamp(frames,error);
-					
+
 					if(tms_offset==0 && tms > 0)
 						tms_offset = tms-System.currentTimeMillis();
-					
-//					if(rs2.rs2_get_static_node(sensor, "node0", node.translation, node.rotation, error)!=0)
-//						System.out.println("Node0");
+
+					//					if(rs2.rs2_get_static_node(sensor, "node0", node.translation, node.rotation, error)!=0)
+					//						System.out.println("Node0");
 
 					frame = rs2.rs2_extract_frame(frames, 0, error);
 					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
@@ -452,78 +447,63 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 						break;
 					}
-		
 
-				if(reset_request) {
-					try {
-						synchronized(this) {
-							reset_request = false;
-							rs2.rs2_pipeline_stop(pipeline, error);
-							try { Thread.sleep(200); } catch (InterruptedException e) {  }
-							rs2.rs2_pipeline_start_with_config(pipeline, config, error);
-							checkError("Restart pipeline",error);
-							tms_offset=0;
-						}
-					} catch(Exception e) { e.printStackTrace(); }
-					continue;
-				}
-				
-				// calculated speed based on position data 
-				pose_speed = Math.abs(current_pose.T.norm() - old_pose.T.norm()) * 1e6 / (DataModel.getSynchronizedPX4Time_us() - pose_speed_tms);
-				old_pose.set(current_pose); pose_speed_tms = DataModel.getSynchronizedPX4Time_us();
-				
-				debug.x = (float)pose_speed;
-				debug.y = (float)current_speed.T.norm();
-				debug.z = (float)(Math.abs(pose_speed - current_speed.T.norm()));
 
-				if(is_initialized) {
-					//System.out.println(pose_speed+" : "+current_speed.T.norm());
-					// Pose jump detection
-					if(Math.abs(pose_speed - current_speed.T.norm() ) > 20) {
-						for(INotificationCallback notification : notifications)
-							notification.notify(pose_speed_tms, POSEJUMP_NOTIFICATION);
+					if(reset_request) {
+						try {
+							synchronized(this) {
+								reset_request = false;
+								rs2.rs2_pipeline_stop(pipeline, error);
+								try { Thread.sleep(200); } catch (InterruptedException e) {  }
+								rs2.rs2_pipeline_start_with_config(pipeline, config, error);
+								checkError("Restart pipeline",error);
+								tms_offset=0;
+							}
+						} catch(Exception e) { e.printStackTrace(); }
+						continue;
 					}
-					
-					for(IPoseCallback callback : callbacks)
-						callback.handle(tms+tms_offset, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
+
+					if(is_initialized) {
+						for(IPoseCallback callback : callbacks)
+							callback.handle(tms+tms_offset, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
+					}
+
+
+				} catch(Exception e) {
+					e.printStackTrace();
 				}
-
-
-			} catch(Exception e) {
-				e.printStackTrace();
 			}
+			rs2.rs2_pipeline_stop(pipeline, error);
+			System.out.println("T265 stopped.");
 		}
-		rs2.rs2_pipeline_stop(pipeline, error);
-		System.out.println("T265 stopped.");
-	}
-}
-
-private synchronized void bufferGrayToU8(Pointer input , Planar<GrayU8> output ) {
-	input.read(0, output.bands[0].data, 0, output.bands[0].data.length);
-	output.bands[1].data = output.bands[0].data;
-	output.bands[2].data = output.bands[0].data;
-}
-
-
-private CameraKannalaBrandt createFisheyeModel(Realsense2Library.rs2_intrinsics in) {
-
-	CameraKannalaBrandt model = new CameraKannalaBrandt();
-
-	model.fx = in.fx;
-	model.fy = in.fy;
-
-	model.width  = x1-x0;
-	model.height = y1-y0;
-
-	model.cx = model.width/2f;
-	model.cy = model.height/2f;
-
-	for(int i=0;i<5;i++) {
-		model.coefSymm[i] = in.coeffs[i];
 	}
 
-	return model;
+	private synchronized void bufferGrayToU8(Pointer input , Planar<GrayU8> output ) {
+		input.read(0, output.bands[0].data, 0, output.bands[0].data.length);
+		output.bands[1].data = output.bands[0].data;
+		output.bands[2].data = output.bands[0].data;
+	}
 
-}
+
+	private CameraKannalaBrandt createFisheyeModel(Realsense2Library.rs2_intrinsics in) {
+
+		CameraKannalaBrandt model = new CameraKannalaBrandt();
+
+		model.fx = in.fx;
+		model.fy = in.fy;
+
+		model.width  = x1-x0;
+		model.height = y1-y0;
+
+		model.cx = model.width/2f;
+		model.cy = model.height/2f;
+
+		for(int i=0;i<5;i++) {
+			model.coefSymm[i] = in.coeffs[i];
+		}
+
+		return model;
+
+	}
 
 }

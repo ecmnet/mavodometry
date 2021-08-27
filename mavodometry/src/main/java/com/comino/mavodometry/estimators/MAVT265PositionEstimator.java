@@ -35,7 +35,6 @@ package com.comino.mavodometry.estimators;
 
 import java.awt.Color;
 import java.awt.Graphics;
-import java.awt.image.BufferedImage;
 import java.text.DecimalFormat;
 
 import org.ejml.data.DMatrixRMaj;
@@ -75,19 +74,13 @@ import com.comino.mavutils.workqueue.WorkQueueException;
 import boofcv.abst.fiducial.FiducialDetector;
 import boofcv.abst.fiducial.FiducialStability;
 import boofcv.alg.distort.pinhole.LensDistortionPinhole;
-import boofcv.alg.filter.misc.AverageDownSampleOps;
 import boofcv.factory.fiducial.ConfigFiducialBinary;
 import boofcv.factory.fiducial.FactoryFiducial;
 import boofcv.factory.filter.binary.ConfigThreshold;
 import boofcv.factory.filter.binary.ThresholdType;
-import boofcv.factory.transform.pyramid.FactoryPyramid;
-import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.calib.CameraKannalaBrandt;
-import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
-import boofcv.struct.image.ImageType;
 import boofcv.struct.image.Planar;
-import boofcv.struct.pyramid.PyramidDiscrete;
 import georegression.geometry.ConvertRotation3D_F64;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.EulerType;
@@ -106,12 +99,12 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final int         FIDUCIAL_HEIGHT     	= 360;
 	private static final int         FIDUCIAL_WIDTH     	= 360;
 
-	private static final int     	 MAX_ERRORS          	= 30;
+	private static final int     	 MAX_ERRORS          	= 5;
 
-	private static final float       MAX_SPEED_DEVIATION   	= 0.3f;    
+//	private static final float       MAX_SPEED_DEVIATION   	= 0.3f;    
 	private static final float       MAX_SPEED_Z_DEVIATION 	= 0.15f;  
 	private static final float       MAX_ATT_DEVIATION     	= 0.20f;
-	private static final float       MAX_ALT_DEVIATION     	= 0.30f;
+//	private static final float       MAX_ALT_DEVIATION     	= 0.30f;
 
 	private static final long        LOCK_TIMEOUT        	= 1000;
 
@@ -131,7 +124,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 
 	// Derived constants
-	private static final float MAX_ATT_DEVIATION_SQ   		= MAX_ATT_DEVIATION * MAX_ATT_DEVIATION;
+//	private static final float MAX_ATT_DEVIATION_SQ   		= MAX_ATT_DEVIATION * MAX_ATT_DEVIATION;
 
 	// MessageBus -> maybe used for failsafe actions
 	// private static final MessageBus bus = MessageBus.getInstance();
@@ -140,7 +133,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	// MAVLink messages
 	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
-	private final msg_vision_position_estimate sms = new msg_vision_position_estimate(1,1);
 	private final msg_odometry                 odo = new msg_odometry(1,1);
 
 	// Controls
@@ -176,9 +168,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private int        confidence_old = 0;
 	private float              dt_sec = 0;
 
-	private boolean      enableStream = false;
-	private boolean    is_originset   = false;
-	private boolean    do_reposition  = false;
+	private boolean    enableStream        = false;
+	private boolean    is_originset        = false;
 
 	// Validity checks
 	private boolean    check_speed_xy = false;
@@ -270,8 +261,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 					switch((int)cmd.param1) {
 					case MSP_COMPONENT_CTRL.ENABLE:
 						if(!model.vision.isStatus(Vision.ENABLED)) {
-							//init("enable");
-							do_reposition("enable"); 
+							init("enable");
 							model.vision.setStatus(Vision.ENABLED, true);
 						}
 						config.updateProperty(MSPParams.PUBLISH_ODOMETRY, "true");
@@ -284,8 +274,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 						if(!t265.isRunning())
 							start();
 						else
-						//	init("reset");
-							do_reposition("reset");
+							init("reset");
 						break;
 					}
 					break;
@@ -355,11 +344,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 			// Note: This takes 1.5sec for T265;
 
-			if((System.currentTimeMillis() - tms_reset) < 2000 || do_reposition) {
+			if((System.currentTimeMillis() - tms_reset) < 2000) {
 				quality = 0; error_count=0; tms_reset = 0; confidence_old = 0;
-
-				do_reposition = false;
-				model.vision.setStatus(Vision.POS_VALID, false);
 
 				// set initial T265 pose as origin
 				to_body.setTranslation(- p.T.x , - p.T.y , - p.T.z );
@@ -408,7 +394,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 				if(stream!=null && enableStream) {
 					stream.addToStream(img, model, tms);
 				}
-				model.vision.setStatus(Vision.RESETTING, true);
 				tms_old = tms;
 				return;
 			}
@@ -416,7 +401,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			model.vision.setStatus(Vision.RESETTING, false);
 
 			if(error_count > MAX_ERRORS) {
-				init("quality");
+				init("maxErrors");
 				return;
 			}
 
@@ -457,41 +442,47 @@ public class MAVT265PositionEstimator extends ControlModule {
 			att.setFromMatrix(ned.R);
 
 			// Consistency checks
+			model.vision.setStatus(Vision.POS_VALID, true);
+			model.vision.setStatus(Vision.SPEED_VALID, true);
 
-			avg_xy_speed_dev.add(MSP3DUtils.distance2D(ned_s.T, lpos_s));
-
-			// Speed check: Is visual XY speed acceptable
-			if(avg_xy_speed_dev.getMeanAbs() > MAX_SPEED_DEVIATION) {
-				if(check_speed_xy) {
-					writeLogMessage(new LogMessage("[vio] T265 XY speed drift vs local.", MAV_SEVERITY.MAV_SEVERITY_INFO));
-					error_count++;
-					//			init("speedXY");
-					avg_xy_speed_dev.clear();
-					return;
-				}
-			}
+//			avg_xy_speed_dev.add(MSP3DUtils.distance2D(ned_s.T, lpos_s));
+//
+//			// Speed check: Is visual XY speed acceptable
+//			if(avg_xy_speed_dev.getMeanAbs() > MAX_SPEED_DEVIATION) {
+//				if(check_speed_xy) {
+//					writeLogMessage(new LogMessage("[vio] T265 XY speed drift vs local.", MAV_SEVERITY.MAV_SEVERITY_INFO));
+//					error_count++;
+//					//			init("speedXY");
+//					avg_xy_speed_dev.clear();
+//					return;
+//				}
+//			}
 		
 
 			// XYPos jump detection
+			// => reset T265
 			if(xy_pos_jump.isJump(ned.T.x, ned.T.y, dt_sec)) {
-				writeLogMessage(new LogMessage("[vio] T265 XY position jump detected.", MAV_SEVERITY.MAV_SEVERITY_ERROR));
+			//	writeLogMessage(new LogMessage("[vio] T265 XY pose jump detected.", MAV_SEVERITY.MAV_SEVERITY_ERROR));
+				writeLogMessage(new LogMessage("[vio] T265: "+xy_pos_jump, MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 				error_count++;
-				//init("posJump");
+				init("poseJump");
 				return;
 			}
 
-			if(Math.abs(ned.T.z - lpos.T.z) > MAX_ALT_DEVIATION) {
-				writeLogMessage(new LogMessage("[vio] EKF2 altitude not aligned to EV.", MAV_SEVERITY.MAV_SEVERITY_ERROR));
-				error_count++;
-				init("altitude");
-				return;
-			}
+//			if(Math.abs(ned.T.z - lpos.T.z) > MAX_ALT_DEVIATION) {
+//				writeLogMessage(new LogMessage("[vio] EKF2 altitude inconsistency.", MAV_SEVERITY.MAV_SEVERITY_ERROR));
+//				error_count++;
+//				init("altitude");
+//				return;
+//			}
 
-			// PoseCeck: Difference between LPOS and Vision (Avoid EKF2 reset of horizontal position)
-			if(  ( (ned.T.x - lpos.T.x) * (ned.T.x - lpos.T.x) + (ned.T.y - lpos.T.y) * (ned.T.y - lpos.T.y) ) > 0.2f) {
+			
+			// PoseCheck: Difference between LPOS and Vision (Avoid EKF2 reset of horizontal position)
+			// => publish speeds only
+			if(((ned.T.x - lpos.T.x) * (ned.T.x - lpos.T.x) + (ned.T.y - lpos.T.y) * (ned.T.y - lpos.T.y)) > ( 0.2f*0.2f)) {
 				writeLogMessage(new LogMessage("[vio] T265 XY position inconsistency.", MAV_SEVERITY.MAV_SEVERITY_INFO));
 				error_count++;
-			//	init("pose");
+				model.vision.setStatus(Vision.POS_VALID, false);
 			}
 
 			// calculate average mean for Z-speed on ground
@@ -511,19 +502,18 @@ public class MAVT265PositionEstimator extends ControlModule {
 			} else
 				avg_z_speed_dev.clear();
 
-			// check attitude drift
-			avg_att_dev.add((model.attitude.p - att.getPitch()) * (model.attitude.p - att.getPitch())
-					+ (model.attitude.r - att.getRoll())  * (model.attitude.r - att.getRoll()) 
-					);
-
-			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION_SQ ) {
-				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_INFO));
-				avg_att_dev.clear();
-				init("attitude");
-				return;
-			}
-
-
+//			// check attitude drift
+//			avg_att_dev.add((model.attitude.p - att.getPitch()) * (model.attitude.p - att.getPitch())
+//					+ (model.attitude.r - att.getRoll())  * (model.attitude.r - att.getRoll()) 
+//					);
+//
+//			if(avg_att_dev.getMeanAbs() > MAX_ATT_DEVIATION_SQ ) {
+//				writeLogMessage(new LogMessage("[vio] T265 attitude drift detected.", MAV_SEVERITY.MAV_SEVERITY_INFO));
+//				avg_att_dev.clear();
+//				init("attitude");
+//				return;
+//			}
+		
 			model.vision.setStatus(Vision.FIDUCIAL_ENABLED, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
 			img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs, fiducial);
 
@@ -541,9 +531,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 				return;
 			}
 
-
-			model.vision.setStatus(Vision.POS_VALID, true);
-
 			switch(mode) {
 
 			case GROUNDTRUTH_MODE:
@@ -556,7 +543,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			case LPOS_ODO_MODE_NED_GND:
 
 				// Publish position data NED frame, speed body frame;  with ground truth
-				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
+				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,model.vision.isStatus(Vision.POS_VALID),tms);
 				publishMSPVision(gnd_ned,ned,ned_s,precision_lock,tms);
 
 				break;
@@ -565,7 +552,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 
 				// Publish position and speed data body frame; with precision lock
-				publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED, true,tms);
+				publishPX4Odometry(body,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED, model.vision.isStatus(Vision.POS_VALID),tms);
 				publishMSPVision(precision_ned,ned,ned_s,precision_lock,tms);
 
 				break;
@@ -619,17 +606,13 @@ public class MAVT265PositionEstimator extends ControlModule {
 			reset_count++;
 			t265.reset();
 			control.writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
-		}
-	}
-	
-	public void do_reposition(String s) {
-		if(t265!=null) {
-			do_reposition = true;
-			control.writeLogMessage(new LogMessage("[vio] T265 reposition performed ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_INFO));
+			model.vision.setStatus(Vision.RESETTING, true);
+			model.vision.setStatus(Vision.POS_VALID, false);
+			model.vision.setStatus(Vision.SPEED_VALID, false);
+			publishMSPFlags(DataModel.getSynchronizedPX4Time_us());
 		}
 	}
 
-	
 	public void start() {
 		if(t265==null)
 			return;
@@ -783,6 +766,14 @@ public class MAVT265PositionEstimator extends ControlModule {
 		msg.gz    =  model.vision.gz;
 		msg.flags = model.vision.flags;
 		control.sendMAVLinkMessage(msg);
+		
+		msg.quality = (int)(quality * 100f);
+		msg.errors  = error_count;
+		msg.tms     = DataModel.getSynchronizedPX4Time_us();
+		msg.flags   = model.vision.flags;
+		msg.fps     = model.vision.fps;
+
+		control.sendMAVLinkMessage(msg);
 
 	}
 
@@ -809,6 +800,19 @@ public class MAVT265PositionEstimator extends ControlModule {
 		msg.h   = (float)att.getYaw();
 		msg.r   = (float)att.getRoll();
 		msg.p   = (float)att.getPitch();
+
+		msg.quality = (int)(quality * 100f);
+		msg.errors  = error_count;
+		msg.tms     = tms * 1000;
+		msg.flags   = model.vision.flags;
+		msg.fps     = model.vision.fps;
+
+		control.sendMAVLinkMessage(msg);
+
+
+	}
+	
+	private void publishMSPFlags(long tms) {
 
 		msg.quality = (int)(quality * 100f);
 		msg.errors  = error_count;
