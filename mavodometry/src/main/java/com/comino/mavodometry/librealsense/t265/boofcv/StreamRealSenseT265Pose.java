@@ -131,7 +131,6 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private Realsense2Library.rs2_extrinsics extrinsics = new Realsense2Library.rs2_extrinsics();
 
 	private final List<IPoseCallback>         callbacks     = new ArrayList<IPoseCallback>();
-	private final List<INotificationCallback> notifications = new ArrayList<INotificationCallback>();
 
 	private final Planar<GrayU8> img     = new Planar<GrayU8>(GrayU8.class,WIDTH,HEIGHT,3);
 
@@ -158,23 +157,23 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	}
 
 
-	public class T265NotificationCallback implements Realsense2Library.rs2_notification_callback_ptr {
+//	public class T265NotificationCallback implements Realsense2Library.rs2_notification_callback_ptr {
+//
+//		//	private PointerByReference notfication = new PointerByReference();
+//
+//		@Override
+//		public void apply(Pointer rs2_notification, Pointer voidPtr1) {
+//			if(is_initialized) {
+//				for(INotificationCallback notification : notifications)
+//					notification.notify(DataModel.getSynchronizedPX4Time_us(), T265_EVENT_NOTIFICATION);
+//			}
+//			//			notfication.setPointer(rs2_notification);
+//			//			int category = rs2.rs2_get_notification_category(notfication, error);
+//			//			System.out.println("Notification "+category);
+//		}  
+//	}
 
-		//	private PointerByReference notfication = new PointerByReference();
-
-		@Override
-		public void apply(Pointer rs2_notification, Pointer voidPtr1) {
-			if(is_initialized) {
-				for(INotificationCallback notification : notifications)
-					notification.notify(DataModel.getSynchronizedPX4Time_us(), T265_EVENT_NOTIFICATION);
-			}
-			//			notfication.setPointer(rs2_notification);
-			//			int category = rs2.rs2_get_notification_category(notfication, error);
-			//			System.out.println("Notification "+category);
-		}  
-	}
-
-	private  T265NotificationCallback cb = new T265NotificationCallback();
+//	private  T265NotificationCallback cb = new T265NotificationCallback();
 
 	private  StreamRealSenseT265Pose(int mount, int width, int height, Debug debug) {
 
@@ -216,14 +215,13 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		setOption(sensor,rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, "RS2_OPTION_FRAMES_QUEUE_SIZE", 3);
 
 		// Callback setup: TODO: Not sure whether this works
-		System.out.println("   -> Notification callback registered");
-		rs2.rs2_set_notifications_callback(sensor,cb,null,error);
+//		System.out.println("   -> Notification callback registered");
+//		rs2.rs2_set_notifications_callback(sensor,cb,null,error);
 
 	}
 
-	public StreamRealSenseT265Pose registerCallback(IPoseCallback callback, INotificationCallback notification) {
+	public StreamRealSenseT265Pose registerCallback(IPoseCallback callback) {
 		this.callbacks.add(callback);
-		this.notifications.add(notification);
 		return this;
 	}
 
