@@ -40,7 +40,9 @@ public class RealsenseDevice  {
 			devices = new Realsense2Library.rs2_device[dev_count];
 			for(int i=0;i<dev_count;i++) {
 				devices[i] = rs2.rs2_create_device(device_list, i, error);
-				System.out.println("-> "+rs2.rs2_get_device_info(devices[i], rs2_camera_info.RS2_CAMERA_INFO_NAME, error).getString(0));
+				System.out.println("-> "+rs2.rs2_get_device_info(devices[i], rs2_camera_info.RS2_CAMERA_INFO_NAME, error).getString(0)+ 
+						               " (USB type "+ rs2.rs2_get_device_info(devices[i], rs2_camera_info.RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR, error).getString(0)+
+				                       ")");
 			}
 		}
 	}
