@@ -61,6 +61,7 @@ import org.jcodec.common.model.Picture;
 import org.jcodec.common.model.Rational;
 
 import com.comino.mavcom.model.DataModel;
+import com.comino.mavodometry.video.INoVideoListener;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.sun.net.httpserver.HttpExchange;
@@ -96,6 +97,10 @@ public class HttpH264Handler<T> implements HttpHandler, IVisualStreamHandler<T> 
 		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
 		this.ioimage = new IIOImage(image, null, null);
 		ImageIO.setUseCache(false);
+	}
+	
+	public void registerNoVideoListener(INoVideoListener no_video_handler) {
+	
 	}
 
 	public void stop() {

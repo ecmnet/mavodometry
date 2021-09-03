@@ -49,6 +49,7 @@ import org.libjpegturbo.turbojpeg.TJCompressor;
 import org.libjpegturbo.turbojpeg.TJException;
 
 import com.comino.mavcom.model.DataModel;
+import com.comino.mavodometry.video.INoVideoListener;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.sun.net.httpserver.HttpExchange;
@@ -108,6 +109,10 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		}
 
 
+	}
+	
+	public void registerNoVideoListener(INoVideoListener no_video_handler) {
+		
 	}
 
 	public void stop() {

@@ -27,6 +27,7 @@ import org.libjpegturbo.turbojpeg.TJException;
 
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.concurrency.OdometryPool;
+import com.comino.mavodometry.video.INoVideoListener;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.rtps.RTPpacket;
@@ -105,6 +106,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private Receiver receiver = new Receiver();
 	private DataModel model;
 
+	private INoVideoListener no_video_handler;
+
 	public RTSPMjpegHandler(int width, int height, DataModel model) {
 
 		this.model = model;
@@ -128,6 +131,10 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 			e1.printStackTrace();
 		}
 
+	}
+	
+	public void registerNoVideoListener(INoVideoListener no_video_handler) {
+		this.no_video_handler = no_video_handler;
 	}
 
 	public void stop() {
@@ -180,7 +187,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 		@SuppressWarnings("unchecked")
 		public void run() {
 
-			long tms;
+			long tms; no_video = false;
 
 			System.out.println("Video streaming started");
 			while(is_running) {
@@ -199,7 +206,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 					if((System.currentTimeMillis()-tms) > 450 ) {
 						if(!no_video) {
-							if(!no_video) {
+							    if(no_video_handler!= null)
+							    	no_video_handler.trigger();
 								no_video = true;
 								ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 								ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
@@ -218,8 +226,6 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 									senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
 									RTPsocket.send(senddp);
 								}
-							}
-							continue;
 						}
 						continue;
 					}
