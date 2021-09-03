@@ -35,8 +35,8 @@
 //
 //import java.awt.image.BufferedImage;
 //
+//import com.comino.mavcom.struct.Attitude3D_F64;
 //import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
-//import com.comino.mavodometry.struct.Attitude3D_F64;
 //import com.comino.mavutils.MSPMathUtils;
 //
 //import boofcv.io.image.ConvertBufferedImage;
@@ -120,7 +120,8 @@
 //
 //		try {
 //
-//		t265 = new StreamRealSenseT265Pose(StreamRealSenseT265Pose.POS_DOWNWARD,WIDTH,HEIGHT,(tms, raw, p , s, a, img) ->  {
+//		t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD,WIDTH,HEIGHT,null);
+//		t265.registerCallback((tms, raw, p , s, a, img) ->  {
 //
 //			ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)img, leftb, true);
 //
