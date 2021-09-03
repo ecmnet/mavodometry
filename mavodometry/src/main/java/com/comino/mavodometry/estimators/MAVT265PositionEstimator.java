@@ -106,8 +106,9 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private static final int     	 MAX_ERRORS          	= 15;
 
-	private static final float       MAX_ATT_DEVIATION_SQ     = 0.20f;
-	private static final long        LOCK_TIMEOUT        	= 1000;
+	private static final float       MAX_ATT_DEVIATION_SQ      = 0.2f;
+	private static final float       MAX_XY_POS_DEVIATION_SQ   = 0.3f * 0.3f;
+	private static final long        LOCK_TIMEOUT        	   = 1000;
 
 	// mounting offset in m
 	private static final double   	 OFFSET_X 				=  0.00;
@@ -161,6 +162,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private boolean    enableStream        = false;
 	private boolean    is_originset        = false;
+	private boolean do_repositioning	   = false;
 
 	private final SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.05);
 	private final PoseJumpValidator_2D     xy_pos_jump        = new PoseJumpValidator_2D(10.0f);
@@ -325,8 +327,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 			// Reset procedure 
 			// Note: This takes 1.5sec for T265;
-			if((System.currentTimeMillis() - tms_reset) < 2000) {
-				tms_reset = 0; confidence_old = 0;
+			if((System.currentTimeMillis() - tms_reset) < 2000 || do_repositioning) {
+				tms_reset = 0; confidence_old = 0; do_repositioning = false;
 
 				// set initial T265 pose as origin
 				to_body.setTranslation(- p.T.x , - p.T.y , - p.T.z );
@@ -430,8 +432,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 
 			// PoseCheck: Difference between LPOS and Vision => set flag to invalid
-			if(((ned.T.x - lpos.T.x) * (ned.T.x - lpos.T.x) + (ned.T.y - lpos.T.y) * (ned.T.y - lpos.T.y)) > ( 0.4f*0.4f)) {
+			if(((ned.T.x - lpos.T.x) * (ned.T.x - lpos.T.x) + (ned.T.y - lpos.T.y) * (ned.T.y - lpos.T.y)) > ( MAX_XY_POS_DEVIATION_SQ)) {
 				model.vision.setStatus(Vision.POS_VALID, false);
+				writeLogMessage(new LogMessage("[vio] T265 Position adjustment.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+				do_repositioning = true;
 			}
 
 			// check attitude drift
