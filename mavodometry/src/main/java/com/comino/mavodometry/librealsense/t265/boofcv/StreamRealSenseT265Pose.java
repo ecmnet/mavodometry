@@ -33,14 +33,13 @@
 
 package com.comino.mavodometry.librealsense.t265.boofcv;
 
-import java.awt.Color;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
 
-import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Debug;
 
 /****************************************************************************
@@ -80,11 +79,9 @@ import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_pipeline_profile;
 import com.comino.mavodometry.librealsense.lib.RealsenseDevice;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
-import com.sun.jna.win32.StdCallLibrary.StdCallCallback;
 
 import boofcv.struct.calib.CameraKannalaBrandt;
 import boofcv.struct.image.GrayU8;
@@ -99,9 +96,10 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private static final int WIDTH  = 848;
 	private static final int HEIGHT = 800;
 
-	public static final  int POS_FOREWARD     = 0;
-	public static final  int POS_DOWNWARD     = 1; // UP
-	public static final  int POS_DOWNWARD_180 = 2; // Jetson
+	public static final  int POS_FOREWARD     			= 0;
+	public static final  int POS_DOWNWARD    			= 1; // UP
+	public static final  int POS_DOWNWARD_180 			= 2; // Jetson
+	public static final  int POS_DOWNWARD_180_PREDICT 	= 3; // Jetson predict
 
 	public static final  int CONFIDENCE_FAILED = 0;
 	public static final  int CONFIDENCE_LOW    = 1;
@@ -120,6 +118,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private PointerByReference sensor = null;
 
 	private Realsense2Library.rs2_pose rawpose = new Realsense2Library.rs2_pose();
+	private Realsense2Library.rs2_pose prepose = new Realsense2Library.rs2_pose();
 	private Realsense2Library.rs2_pose node = new Realsense2Library.rs2_pose();
 
 	private Realsense2Library.rs2_intrinsics intrinsics_left = new Realsense2Library.rs2_intrinsics();
@@ -143,37 +142,37 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private int x0,y0,x1,y1;
 	private int mount;
 
-	private Debug debug;
+	private Debug   debug;
 
 
 	private final DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
 	private final DMatrixRMaj   rtY90P = CommonOps_DDRM.identity( 3 );
 	private final DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
 
-	public static StreamRealSenseT265Pose getInstance(int mount, int width, int height, Debug debug) {
+	public static StreamRealSenseT265Pose getInstance(int mount, int width, int height,  Debug debug) {
 		if(instance==null)
 			instance = new StreamRealSenseT265Pose(mount,width,height, debug);
 		return instance;
 	}
 
 
-//	public class T265NotificationCallback implements Realsense2Library.rs2_notification_callback_ptr {
-//
-//		//	private PointerByReference notfication = new PointerByReference();
-//
-//		@Override
-//		public void apply(Pointer rs2_notification, Pointer voidPtr1) {
-//			if(is_initialized) {
-//				for(INotificationCallback notification : notifications)
-//					notification.notify(DataModel.getSynchronizedPX4Time_us(), T265_EVENT_NOTIFICATION);
-//			}
-//			//			notfication.setPointer(rs2_notification);
-//			//			int category = rs2.rs2_get_notification_category(notfication, error);
-//			//			System.out.println("Notification "+category);
-//		}  
-//	}
+	//	public class T265NotificationCallback implements Realsense2Library.rs2_notification_callback_ptr {
+	//
+	//		//	private PointerByReference notfication = new PointerByReference();
+	//
+	//		@Override
+	//		public void apply(Pointer rs2_notification, Pointer voidPtr1) {
+	//			if(is_initialized) {
+	//				for(INotificationCallback notification : notifications)
+	//					notification.notify(DataModel.getSynchronizedPX4Time_us(), T265_EVENT_NOTIFICATION);
+	//			}
+	//			//			notfication.setPointer(rs2_notification);
+	//			//			int category = rs2.rs2_get_notification_category(notfication, error);
+	//			//			System.out.println("Notification "+category);
+	//		}  
+	//	}
 
-//	private  T265NotificationCallback cb = new T265NotificationCallback();
+	//	private  T265NotificationCallback cb = new T265NotificationCallback();
 
 	private  StreamRealSenseT265Pose(int mount, int width, int height, Debug debug) {
 
@@ -215,8 +214,8 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		setOption(sensor,rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, "RS2_OPTION_FRAMES_QUEUE_SIZE", 3);
 
 		// Callback setup: TODO: Not sure whether this works
-//		System.out.println("   -> Notification callback registered");
-//		rs2.rs2_set_notifications_callback(sensor,cb,null,error);
+		//		System.out.println("   -> Notification callback registered");
+		//		rs2.rs2_set_notifications_callback(sensor,cb,null,error);
 
 	}
 
@@ -312,6 +311,8 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		private Se3_F64    current_speed        = new Se3_F64();
 		private Se3_F64    current_acceleration = new Se3_F64();
 
+		private float      dt_s = 0;
+	
 		private Realsense2Library.rs2_frame  frame;
 
 		@Override
@@ -428,6 +429,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 					case POS_DOWNWARD_180:
 
+
 						current_pose.getTranslation().set( rawpose.translation.z, -rawpose.translation.x, - rawpose.translation.y);
 
 						ConvertRotation3D_F64.quaternionToMatrix(
@@ -439,6 +441,48 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 						CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
 
 						current_speed.getTranslation().set( rawpose.velocity.z, -rawpose.velocity.x, - rawpose.velocity.y);
+						current_speed.getRotation().set(current_pose.getRotation());
+
+						current_acceleration.getTranslation().set(rawpose.acceleration.z, -rawpose.acceleration.x, - rawpose.acceleration.y);
+
+						break;
+
+					case POS_DOWNWARD_180_PREDICT:
+						
+						dt_s = (getUnixTime_ms() - tms) / 1000f;
+
+						if(dt_s > 0) {
+
+							prepose.velocity.x = (dt_s/2 * rawpose.acceleration.x + rawpose.velocity.x);
+							prepose.velocity.y = (dt_s/2 * rawpose.acceleration.y + rawpose.velocity.y);
+							prepose.velocity.z = (dt_s/2 * rawpose.acceleration.z + rawpose.velocity.z);
+
+							prepose.translation.x = dt_s * prepose.velocity.x + rawpose.translation.x;
+							prepose.translation.y = dt_s * prepose.velocity.y + rawpose.translation.y;
+							prepose.translation.z = dt_s * prepose.velocity.z + rawpose.translation.z;
+
+                    
+							// TODO: Predict rotation also
+							//						rs2_vector W = {
+							//								dt_s * (dt_s/2 * rawpose.angular_acceleration.x + rawpose.angular_velocity.x),
+							//								dt_s * (dt_s/2 * rawpose.angular_acceleration.y + rawpose.angular_velocity.y),
+							//								dt_s * (dt_s/2 * rawpose.angular_acceleration.z + rawpose.angular_velocity.z),
+							//						};
+							//						P.rotation = quaternion_multiply(quaternion_exp(W), pose.rotation);
+
+						}
+
+						current_pose.getTranslation().set( prepose.translation.z, -prepose.translation.x, - prepose.translation.y);
+
+						ConvertRotation3D_F64.quaternionToMatrix(
+								rawpose.rotation.w,
+								rawpose.rotation.z,
+								-rawpose.rotation.x,
+								-rawpose.rotation.y, tmp);
+
+						CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
+
+						current_speed.getTranslation().set( prepose.velocity.z, -prepose.velocity.x, - prepose.velocity.y);
 						current_speed.getRotation().set(current_pose.getRotation());
 
 						current_acceleration.getTranslation().set(rawpose.acceleration.z, -rawpose.acceleration.x, - rawpose.acceleration.y);
@@ -465,6 +509,10 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 						for(IPoseCallback callback : callbacks)
 							callback.handle(tms+tms_offset, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 					}
+					
+//					debug.x = (float)current_acceleration.T.x;
+//					debug.y = (float)current_acceleration.T.y;
+//					debug.z = (float)current_acceleration.T.z;
 
 
 				} catch(Exception e) {
@@ -502,6 +550,12 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 		return model;
 
+	}
+	
+	public long getUnixTime_ms() {
+		Instant ins = Instant.now();
+		long now_ns = ins.getEpochSecond() * 1000000000L + ins.getNano();
+		return now_ns/1000000L;
 	}
 
 }
