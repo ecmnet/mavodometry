@@ -5764,7 +5764,7 @@ public interface Realsense2Library extends Library {
 	 * Original signature : <code>rs2_pipeline_profile* rs2_config_resolve(rs2_config*, rs2_pipeline*, rs2_error**)</code><br>
 	 * <i>native declaration : line 2488</i>
 	 */
-	PointerByReference rs2_config_resolve(Realsense2Library.rs2_config config, PointerByReference pipe, PointerByReference error);
+	PointerByReference rs2_config_resolve(Realsense2Library.rs2_config config, Realsense2Library.rs2_pipeline pipe, PointerByReference error);
 
 	/**
 	 * Check if the config can resolve the configuration filters, to find a matching device and streams profiles.<br>
