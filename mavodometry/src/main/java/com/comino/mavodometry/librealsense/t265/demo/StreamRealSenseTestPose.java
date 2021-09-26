@@ -58,8 +58,8 @@
 //
 //public class StreamRealSenseTestPose extends Application  {
 //
-//	private static final int WIDTH  = 848;
-//	private static final int HEIGHT = 800;
+//	private static final int WIDTH  = 640;
+//	private static final int HEIGHT = 480;
 //
 //
 //	private BufferedImage  leftb;
@@ -120,7 +120,7 @@
 //
 //		try {
 //
-//		t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD,WIDTH,HEIGHT,null);
+//		t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD,WIDTH,HEIGHT);
 //		t265.registerCallback((tms, raw, p , s, a, img) ->  {
 //
 //			ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)img, leftb, true);
@@ -135,6 +135,7 @@
 //				quality = 1f;
 //		    else
 //			    System.out.println("TrackerConfidence is "+raw.tracker_confidence);
+//
 //
 //
 //			att.setFromMatrix(p.R);
