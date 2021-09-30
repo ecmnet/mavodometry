@@ -508,23 +508,23 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice {
 
 					case POS_FOREWARD:
 
-						current_pose.getTranslation().set( - rawpose.translation.z, rawpose.translation.x, - rawpose.translation.y);
+						current_pose.getTranslation().setTo( - rawpose.translation.z, rawpose.translation.x, - rawpose.translation.y);
 						ConvertRotation3D_F64.quaternionToMatrix(
 								rawpose.rotation.w,
 								-rawpose.rotation.z,
 								rawpose.rotation.x,
 								-rawpose.rotation.y, current_pose.getRotation());
 
-						current_speed.getTranslation().set(- rawpose.velocity.z, rawpose.velocity.x, - rawpose.velocity.y);
-						current_speed.getRotation().set(current_pose.getRotation());
+						current_speed.getTranslation().setTo(- rawpose.velocity.z, rawpose.velocity.x, - rawpose.velocity.y);
+						current_speed.getRotation().setTo(current_pose.getRotation());
 
-						current_acceleration.getTranslation().set(- rawpose.acceleration.z, rawpose.acceleration.x, - rawpose.acceleration.y);
+						current_acceleration.getTranslation().setTo(- rawpose.acceleration.z, rawpose.acceleration.x, - rawpose.acceleration.y);
 
 						break;
 
 					case POS_DOWNWARD:
 
-						current_pose.getTranslation().set( -rawpose.translation.z, rawpose.translation.x, - rawpose.translation.y);
+						current_pose.getTranslation().setTo( -rawpose.translation.z, rawpose.translation.x, - rawpose.translation.y);
 
 						ConvertRotation3D_F64.quaternionToMatrix(
 								rawpose.rotation.w,
@@ -534,10 +534,10 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice {
 
 						CommonOps_DDRM.mult(tmp, rtY90 , current_pose.getRotation());
 
-						current_speed.getTranslation().set( -rawpose.velocity.z, rawpose.velocity.x, - rawpose.velocity.y);
-						current_speed.getRotation().set(current_pose.getRotation());
+						current_speed.getTranslation().setTo( -rawpose.velocity.z, rawpose.velocity.x, - rawpose.velocity.y);
+						current_speed.getRotation().setTo(current_pose.getRotation());
 
-						current_acceleration.getTranslation().set(- rawpose.acceleration.z, rawpose.acceleration.x, - rawpose.acceleration.y);
+						current_acceleration.getTranslation().setTo(- rawpose.acceleration.z, rawpose.acceleration.x, - rawpose.acceleration.y);
 
 						break;
 
@@ -545,7 +545,7 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice {
 					case POS_DOWNWARD_180:
 
 
-						current_pose.getTranslation().set( rawpose.translation.z, -rawpose.translation.x, - rawpose.translation.y);
+						current_pose.getTranslation().setTo( rawpose.translation.z, -rawpose.translation.x, - rawpose.translation.y);
 
 						ConvertRotation3D_F64.quaternionToMatrix(
 								rawpose.rotation.w,
@@ -555,10 +555,10 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice {
 
 						CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
 
-						current_speed.getTranslation().set( rawpose.velocity.z, -rawpose.velocity.x, - rawpose.velocity.y);
-						current_speed.getRotation().set(current_pose.getRotation());
+						current_speed.getTranslation().setTo( rawpose.velocity.z, -rawpose.velocity.x, - rawpose.velocity.y);
+						current_speed.getRotation().setTo(current_pose.getRotation());
 
-						current_acceleration.getTranslation().set(rawpose.acceleration.z, -rawpose.acceleration.x, - rawpose.acceleration.y);
+						current_acceleration.getTranslation().setTo(rawpose.acceleration.z, -rawpose.acceleration.x, - rawpose.acceleration.y);
 
 						break;
 
@@ -587,7 +587,7 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice {
 
 						}
 
-						current_pose.getTranslation().set( prepose.translation.z, -prepose.translation.x, - prepose.translation.y);
+						current_pose.getTranslation().setTo( prepose.translation.z, -prepose.translation.x, - prepose.translation.y);
 
 						ConvertRotation3D_F64.quaternionToMatrix(
 								rawpose.rotation.w,
@@ -597,10 +597,10 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice {
 
 						CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
 
-						current_speed.getTranslation().set( prepose.velocity.z, -prepose.velocity.x, - prepose.velocity.y);
-						current_speed.getRotation().set(current_pose.getRotation());
+						current_speed.getTranslation().setTo( prepose.velocity.z, -prepose.velocity.x, - prepose.velocity.y);
+						current_speed.getRotation().setTo(current_pose.getRotation());
 
-						current_acceleration.getTranslation().set(rawpose.acceleration.z, -rawpose.acceleration.x, - rawpose.acceleration.y);
+						current_acceleration.getTranslation().setTo(rawpose.acceleration.z, -rawpose.acceleration.x, - rawpose.acceleration.y);
 
 						break;
 					}

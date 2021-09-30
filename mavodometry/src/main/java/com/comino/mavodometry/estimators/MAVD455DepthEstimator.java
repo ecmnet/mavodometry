@@ -340,7 +340,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 					raw_pt.x =  raw_pt.z*norm.x;
 					
 
-					body_pt.set(raw_pt.z, raw_pt.x, raw_pt.y);
+					body_pt.setTo(raw_pt.z, raw_pt.x, raw_pt.y);
 //					body_pt.plusIP(offset);
 //					GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
 //					ned_pt.plusIP(to_ned.T);
@@ -349,9 +349,9 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 					distance = body_pt.norm();
 					if(distance < min_distance) {
-						mindist_pt.set(x,y);
+						mindist_pt.setTo(x,y);
 						min_distance = distance;
-						body_pt_n.set(body_pt);
+						body_pt_n.setTo(body_pt);
 					}
 
 					//						if(ned_pt.z > MIN_ALTITUDE)

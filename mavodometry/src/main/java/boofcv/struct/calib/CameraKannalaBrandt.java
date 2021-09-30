@@ -115,7 +115,7 @@ public class CameraKannalaBrandt extends CameraPinhole {
 	}
 
 	public void set( CameraKannalaBrandt src ) {
-		super.set(src);
+		super.setTo(src);
 
 		this.coefSymm = src.coefSymm.clone();
 		this.coefRad = src.coefRad.clone();

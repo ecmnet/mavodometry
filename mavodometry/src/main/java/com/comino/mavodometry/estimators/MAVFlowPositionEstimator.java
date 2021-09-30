@@ -8,7 +8,7 @@ import com.comino.mavcom.core.ControlModule;
 import com.comino.mavcom.flow.MessageBus;
 import com.comino.mavcom.flow.ModelSubscriber;
 import com.comino.mavcom.model.DataModel;
-import com.comino.mavcom.model.segment.Raw;
+import com.comino.mavcom.model.segment.Flow;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 
@@ -37,7 +37,7 @@ public class MAVFlowPositionEstimator extends ControlModule  {
 		this.model = control.getCurrentModel();
 	
 		
-		ModelSubscriber<Raw> flow_subscriber = new ModelSubscriber<Raw>(Raw.class,(n) -> {
+		ModelSubscriber<Flow> flow_subscriber = new ModelSubscriber<Flow>(Flow.class,(n) -> {
 			if(n.fq > 0)
 			   estimate();
 		});
@@ -48,7 +48,7 @@ public class MAVFlowPositionEstimator extends ControlModule  {
 	
 	public boolean estimate() {
 		
-		float dt_int = model.raw.ius * 1e-6f;
+		float dt_int = model.flow.ius * 1e-6f;
 		float dt_sec = ( System.currentTimeMillis() - tms) / 1000f;
 		tms = System.currentTimeMillis();
 		
@@ -65,12 +65,12 @@ public class MAVFlowPositionEstimator extends ControlModule  {
 		
 		MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
 		
-		flow.set(model.raw.fX * FLOWSCALE, model.raw.fY * FLOWSCALE,0);
-		gyro.set(model.raw.fgX,model.raw.fgY,0);
+		flow.setTo(model.flow.fX * FLOWSCALE, model.flow.fY * FLOWSCALE,0);
+		gyro.setTo(model.flow.fgX,model.flow.fgY,0);
 		
 		float d = model.hud.ar * (float)Math.cos(model.attitude.p) * (float)Math.cos(model.attitude.r);
 		
-		vel_body.set( ( (flow.y - gyro.y) * d ) / dt_int,
+		vel_body.setTo( ( (flow.y - gyro.y) * d ) / dt_int,
 				      (-(flow.x - gyro.x) * d ) / dt_int,
 				      0);
 		
@@ -88,8 +88,8 @@ public class MAVFlowPositionEstimator extends ControlModule  {
 	}
 	
 	public void reset() {
-		pos_ned.set(model.state.l_x, model.state.l_y,model.state.l_z);
-		vel_ned.set(model.state.l_vx, model.state.l_vy,model.state.l_vz);
+		pos_ned.setTo(model.state.l_x, model.state.l_y,model.state.l_z);
+		vel_ned.setTo(model.state.l_vx, model.state.l_vy,model.state.l_vz);
 		tms = 0;
 	}
 	
