@@ -31,7 +31,7 @@
 // *
 // ****************************************************************************/
 //
-//package com.comino.mavodometry.estimators.test;
+//
 //
 //import java.awt.Color;
 //import java.awt.Graphics;
@@ -122,6 +122,8 @@
 //			mouse_x = (int)ev.getX();
 //			mouse_y = (int)ev.getY();
 //		});
+//		
+//		
 //
 //
 //		RealSenseInfo info = new RealSenseInfo(320,240, RealSenseInfo.MODE_RGB);
@@ -176,6 +178,8 @@
 //		output = new BufferedImage(info.width, info.height, BufferedImage.TYPE_INT_RGB);
 //		wirgb = new WritableImage(info.width, info.height);
 //		ivrgb.setImage(wirgb);
+//		
+//	
 //
 //		visualOdometry.reset();
 //

@@ -223,6 +223,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 		OdometryPool.submit(new CombineT265Thread());
 		System.out.println("T265 pose estimation started");
+	
 	}
 
 	public void stop() {
@@ -523,7 +524,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 							synchronized(this) {
 								reset_request = false;
 								rs2.rs2_pipeline_stop(pipeline, error);
-								try { Thread.sleep(200); } catch (InterruptedException e) {  }
+								try { Thread.sleep(100); } catch (InterruptedException e) {  }
 								rs2.rs2_pipeline_start_with_config(pipeline, config, error);
 								fps = 0;
 							}
@@ -536,7 +537,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 						if(tms!=tms0)
 							fps = (int)(1000.0f/(tms - tms0));
 						tms0 = tms;
-
+						
 						for(IPoseCallback callback : callbacks)
 							callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 					}
