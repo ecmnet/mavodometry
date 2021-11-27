@@ -39,8 +39,6 @@ import java.text.DecimalFormat;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
-import org.mavlink.messages.IMAVLinkMessageID;
-import org.mavlink.messages.MAV_CMD;
 import org.mavlink.messages.MAV_ESTIMATOR_TYPE;
 import org.mavlink.messages.MAV_FRAME;
 import org.mavlink.messages.MAV_SEVERITY;
@@ -67,8 +65,6 @@ import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
-import com.comino.mavodometry.utils.PoseJumpValidator_1D;
-import com.comino.mavodometry.utils.PoseJumpValidator_2D;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -91,6 +87,7 @@ import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.point.Vector4D_F64;
 import georegression.struct.se.Se3_F64;
+import georegression.struct.so.Quaternion_F64;
 
 public class MAVT265PositionEstimator extends ControlModule {
 
@@ -111,7 +108,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private static final float       MAX_ATT_DEVIATION_SQ       = 0.5f * 0.5f;
 	private static final float       MAX_XY_POS_DEVIATION_SQ    = 0.3f * 0.3f;
-	private static final float       MAX_XY_SPEED_DEVIATION     = 0.2f;
 
 	private static final long        LOCK_TIMEOUT        	    = 1000;
 
@@ -162,17 +158,15 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private final Vector3D_F64  reposition_ned  = new Vector3D_F64();
 
 	private final Attitude3D_F64   att      	= new Attitude3D_F64();
+	private final Quaternion_F64   att_q        = new Quaternion_F64();
 
 	private float             quality = 0;
 	private long              tms_old = 0;
 	private long            tms_reset = 0;
-	private long             tms_dead = 0;
 	private int        confidence_old = 0;
 	private float              dt_sec = 0;
 
-	private boolean    enableStream        = false;
-	//	private boolean    is_originset        = false;
-	private boolean    do_speed_alignment  = false;
+	private boolean    enableStream   = false;
 
 	private final SimpleLowPassFilter        avg_att_dev      = new SimpleLowPassFilter(0.05);
 
@@ -283,14 +277,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 						writeLogMessage(new LogMessage("[vio] PrecisionLock enabled", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
 				});
 
-
-		// reset vision when absolute position lost and odometry if published
-		//		control.getStatusManager().addListener(StatusManager.TYPE_PX4_STATUS, Status.MSP_ARMED, StatusManager.EDGE_RISING, (n) -> {
-		//			if(model.vision.isStatus(Vision.ENABLED))
-		//				init("Armed");
-		//		});
-
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
+
 
 		try {
 			t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
@@ -351,14 +339,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 				reposition_ned.setTo(0,0,0);
 
-				// Check LPOS valid => continue with reset
-
-				//				if(!is_originset) {
-				//					to_ned.T.setTo(0,0,0);
-				//					publishPX4OdometryZero(MAV_FRAME.MAV_FRAME_LOCAL_NED,tms);
-				//					is_originset = true;
-				//				} 
-
 				// Rotate offset to NED
 				GeometryMath_F64.mult(to_ned.R, offset, offset_pos_ned );
 
@@ -400,11 +380,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 				}
 
 				body_old.setTo(body);
-				tms_old  = tms; tms_dead = tms;
+				tms_old  = tms; 
 				return;
 			}
 
-			//			is_originset = true;
 			dt_sec = (tms - tms_old) / 1000f;
 			model.vision.fps = 1f / dt_sec;
 			tms_old = tms;
@@ -469,16 +448,9 @@ public class MAVT265PositionEstimator extends ControlModule {
 			// get euler angles
 			att.setFromMatrix(ned.R);
 
-			//			// Dead measurements for settling
-			//			if((tms - tms_dead < 75)) {
-			//				return;
-			//			}
-
-
 			// Consistency checks
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.SPEED_VALID, true);
-
 
 			ned.T.plusIP(reposition_ned);
 
@@ -492,20 +464,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 					return;
 				}
 			}
-
-			// Validate XY speed alignment after repositioning
-			// TODO: This does not work with GPS position and Vision speeds
-			//
-			//			// Try to avoid LPOS jumps in repositioning
-			//			if(do_speed_alignment && ( Math.abs(ned_s.T.x - lpos_s.x)  > MAX__XY_SPEED_DEVIATION || 
-			//					                   Math.abs(ned_s.T.y - lpos_s.y)  > MAX__XY_SPEED_DEVIATION ) ) {
-			//				model.vision.setStatus(Vision.POS_VALID, false);
-			//				model.vision.setStatus(Vision.SPEED_VALID, false);
-			//				writeLogMessage(new LogMessage("[vio] T265: Speed disalignment", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-			//				return;
-			//			} 
-
-			do_speed_alignment = false;
 
 
 			// Validate attitude drift
@@ -541,12 +499,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 				publishMSPGroundTruth(ned);
 				return;
 			}
-
-			// Check whether pipeline is ready otherwise reset silently
-			//			if (MSP3DUtils.hasNaN(ned.T) && model.sys.isStatus(Status.MSP_CONNECTED)) {
-			//				init("Pipeline not ready");
-			//				return;
-			//			}
 
 			// Publishing data
 			switch(mode) {
@@ -620,7 +572,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 		reposition_ned.x += (lpos.T.x - ned.T.x);
 		reposition_ned.y += (lpos.T.y - ned.T.y);
 		reposition_ned.z  = 0;
-		do_speed_alignment = true;
 		if(s!=null && model.sys.isStatus(Status.MSP_ARMED))
 			writeLogMessage(new LogMessage("[vio] T265 Pos. adjustment ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 	}
@@ -634,11 +585,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 		System.out.println("[vio] Starting T265....");
 		t265.printDeviceInfo();	
-		//		wq.addSingleTask("LP", 8000, () -> { 
-		//			if(!model.sys.isStatus(Status.MSP_ARMED)) { 
-		//				init("init"); 
-		//			} 
-		//		});
+
 	}
 
 	public void stop() {
@@ -738,11 +685,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 		odo.pose_covariance[0] = Float.NaN;
 		odo.velocity_covariance[0] = Float.NaN;
 
-		//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
-		//		odo.q[0] = (float)att_q.w;
-		//		odo.q[1] = (float)att_q.x;
-		//		odo.q[2] = (float)att_q.y;
-		//		odo.q[3] = (float)att_q.z;
+		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
+		odo.q[0] = (float)att_q.w;
+		odo.q[1] = (float)att_q.x;
+		odo.q[2] = (float)att_q.y;
+		odo.q[3] = (float)att_q.z;
 
 		// do not use twist
 		odo.q[0] = Float.NaN;
@@ -756,38 +703,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 		model.vision.setStatus(Vision.PUBLISHED, true);
 
 	}
-
-	//	private void publishPX4OdometryZero(int frame, long tms) {
-	//
-	//		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
-	//		odo.frame_id       = frame;
-	//		odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
-	//
-	//		odo.time_usec = tms * 1000;
-	//
-	//		odo.x = 0f;
-	//		odo.y = 0f;
-	//		odo.z = 0f;
-	//
-	//
-	//		odo.vx = 0f;
-	//		odo.vy = 0f;
-	//		odo.vz = 0f;
-	//
-	//		// Use EKF params
-	//		odo.pose_covariance[0] = Float.NaN;
-	//		odo.velocity_covariance[0] = Float.NaN;
-	//
-	//		// do not use twist
-	//		odo.q[0] = Float.NaN;
-	//
-	//		odo.reset_counter = reset_count;
-	//
-	//		control.sendMAVLinkMessage(odo);
-	//
-	//	}
-
-
 
 	private void publishMSPGroundTruth(Se3_F64 pose) {
 
@@ -852,7 +767,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 		msg.fps     = model.vision.fps;
 
 		control.sendMAVLinkMessage(msg);
-
 
 	}
 
