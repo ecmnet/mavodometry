@@ -685,11 +685,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 		odo.pose_covariance[0] = Float.NaN;
 		odo.velocity_covariance[0] = Float.NaN;
 
-		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
-		odo.q[0] = (float)att_q.w;
-		odo.q[1] = (float)att_q.x;
-		odo.q[2] = (float)att_q.y;
-		odo.q[3] = (float)att_q.z;
+//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
+//		odo.q[0] = (float)att_q.w;
+//		odo.q[1] = (float)att_q.x;
+//		odo.q[2] = (float)att_q.y;
+//		odo.q[3] = (float)att_q.z;
 
 		// do not use twist
 		odo.q[0] = Float.NaN;
