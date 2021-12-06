@@ -36,6 +36,8 @@ package com.comino.mavodometry.estimators;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.text.DecimalFormat;
+import java.util.ArrayList;
+import java.util.List;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
@@ -84,6 +86,7 @@ import georegression.geometry.ConvertRotation3D_F64;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.EulerType;
 import georegression.struct.point.Point2D_F64;
+import georegression.struct.point.Vector2D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.point.Vector4D_F64;
 import georegression.struct.se.Se3_F64;
@@ -195,7 +198,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 	// Stream data
 	private int   width4;
 
-	private final DecimalFormat flocked  = new DecimalFormat("LockAlt: #0.0m");
+	private final DecimalFormat flocked2  = new DecimalFormat("LockAlt: #0.00m");
+	private final DecimalFormat flocked1 = new DecimalFormat("LockAlt: #0.00m");
 	private String stmp;
 
 	private GrayU8 fiducial = new GrayU8(1,1);
@@ -522,7 +526,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 			// Transfer to local model
 			model.vision.setAttitude(att);
-			model.vision.setPrecisionOffset(precision_lock);
 			model.vision.setPosition(ned.T);
 			model.vision.setSpeed(ned_s.T);
 			model.vision.tms = tms * 1000;
@@ -634,7 +637,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 
 		if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED) && Double.isFinite(precision_lock.z)) {
-			stmp = flocked.format(-precision_lock.z);
+			if(precision_lock.z > 1)
+				stmp = flocked1.format(-precision_lock.z);
+			else
+				stmp = flocked2.format(-precision_lock.z);	
 			ctx.drawString(stmp, width4*3 - ctx.getFontMetrics().stringWidth(stmp)/2, 20);
 		}
 	}
@@ -685,11 +691,11 @@ public class MAVT265PositionEstimator extends ControlModule {
 		odo.pose_covariance[0] = Float.NaN;
 		odo.velocity_covariance[0] = Float.NaN;
 
-//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
-//		odo.q[0] = (float)att_q.w;
-//		odo.q[1] = (float)att_q.x;
-//		odo.q[2] = (float)att_q.y;
-//		odo.q[3] = (float)att_q.z;
+		//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
+		//		odo.q[0] = (float)att_q.w;
+		//		odo.q[1] = (float)att_q.x;
+		//		odo.q[2] = (float)att_q.y;
+		//		odo.q[3] = (float)att_q.z;
 
 		// do not use twist
 		odo.q[0] = Float.NaN;
@@ -785,6 +791,9 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 	private class FiducialHandler implements Runnable {
 
+		//		private final DriftEstimator driftEstimator = new DriftEstimator(5.0);
+		//		private final Vector4D_F64   drift           = new Vector4D_F64();
+
 		@Override
 		public void run() {
 			// Precision lock procedure 
@@ -821,6 +830,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 				if(is_fiducial) {
 
+					// TODO: Drift speed estimation !!
+
 					if(detector.getFiducialToCamera(fiducial_idx, to_tmp)) {
 
 						detector.computeStability(fiducial_idx, 0.25f, stability);
@@ -843,12 +854,20 @@ public class MAVT265PositionEstimator extends ControlModule {
 						precision_lock.setTo(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
 								MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
 
+						model.vision.setPrecisionOffset(precision_lock);
+						
+						//						if(!driftEstimator.add(precision_lock)) {
+						//							if(driftEstimator.estimate(drift))
+						//								System.out.println(drift);
+						//							driftEstimator.clear();
+						//						}
+
 						// TODO: Check consistency of lock with LIDAR data or altitude above ground
 
 						model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
 						locking_tms = System.currentTimeMillis();
 					}
-				}
+				} 
 
 			} catch(Exception e ) {
 				System.out.println(e.getMessage());
@@ -869,4 +888,68 @@ public class MAVT265PositionEstimator extends ControlModule {
 		} 
 
 	}
+
+	//	private class DriftEstimator {
+	//
+	//		private final List<Vector4D_F64> lock_positions  = new ArrayList<Vector4D_F64>();
+	//		private final Vector4D_F64       lock_start      = new Vector4D_F64();
+	//
+	//		private final Vector4D_F64       tmp             = new Vector4D_F64();
+	//
+	//		private double                   max_time        = 5.0;
+	//		private boolean                  estimated       = false;
+	//
+	//
+	//		public DriftEstimator(double max_time) {
+	//			this.max_time = max_time;
+	//		}
+	//
+	//		public boolean add(double t_sec, Vector4D_F64 pos) {
+	//			if(lock_positions.size() > 0 && (t_sec - lock_positions.get(0).w) >= max_time)
+	//				return false;
+	//			if(lock_positions.isEmpty()) {
+	//				lock_start.setTo(pos); lock_start.scale(-1);
+	//			}
+	//			lock_positions.add(new Vector4D_F64(pos.x,pos.y,pos.z, t_sec));
+	//			return true;
+	//		}
+	//
+	//		public boolean add(Vector4D_F64 pos) {
+	//			return add(System.currentTimeMillis()/1000.0,pos);
+	//		}
+	//
+	//		public void clear() {
+	//			lock_positions.clear();
+	//			estimated = false;
+	//		}
+	//
+	//		public int size() {
+	//			return lock_positions.size();
+	//		}
+	//		
+	//		public boolean isEstimated() {
+	//			return estimated;
+	//		}
+	//
+	//		public boolean estimate(Vector4D_F64 drift_estimate) {
+	//			tmp.setTo(0,0,0,0); estimated = false;
+	//
+	//			if(lock_positions.size() < 2)
+	//				return estimated;
+	//
+	//			final double dt_1 = 1 / (lock_positions.get(lock_positions.size()-1).w - lock_positions.get(0).w);
+	//
+	//			for(int i=0;i<lock_positions.size();i++) {
+	//				// TODO: Variance
+	//				tmp.plusIP(lock_positions.get(i));
+	//			}
+	//			tmp.scale(dt_1);
+	//
+	//			// TODO: Check validity
+	//			drift_estimate.setTo(tmp);
+	//			estimated = true;
+	//			
+	//			return estimated;
+	//		}
+	//	}
 }
