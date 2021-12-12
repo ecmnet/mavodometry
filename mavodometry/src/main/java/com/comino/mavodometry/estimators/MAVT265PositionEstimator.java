@@ -36,8 +36,6 @@ package com.comino.mavodometry.estimators;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.text.DecimalFormat;
-import java.util.ArrayList;
-import java.util.List;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
@@ -86,7 +84,6 @@ import georegression.geometry.ConvertRotation3D_F64;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.EulerType;
 import georegression.struct.point.Point2D_F64;
-import georegression.struct.point.Vector2D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.point.Vector4D_F64;
 import georegression.struct.se.Se3_F64;
@@ -112,7 +109,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private static final float       MAX_ATT_DEVIATION_SQ       = 0.5f * 0.5f;
 	private static final float       MAX_XY_POS_DEVIATION_SQ    = 0.3f * 0.3f;
 
-	private static final long        LOCK_TIMEOUT        	    = 1000;
+	private static final long        LOCK_TIMEOUT_MS            = 1000;
 
 	// mounting offset in m
 	private static final double   	 OFFSET_X 					=   0.00;
@@ -157,7 +154,9 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private final Vector3D_F64  offset_pos_ned  = new Vector3D_F64();
 	private final Vector3D_F64  offset_vel_body = new Vector3D_F64();
 	private final Vector3D_F64  angular_rates   = new Vector3D_F64();
-	private final Vector3D_F64  lpos_s     		= new Vector3D_F64();
+	private final Vector3D_F64  lpos_current_s  = new Vector3D_F64();
+	private final Vector3D_F64  vpos_current_s  = new Vector3D_F64();
+	private final Vector3D_F64  vpos_delta_s    = new Vector3D_F64();
 	private final Vector3D_F64  reposition_ned  = new Vector3D_F64();
 
 	private final Attitude3D_F64   att      	= new Attitude3D_F64();
@@ -167,7 +166,8 @@ public class MAVT265PositionEstimator extends ControlModule {
 	private long              tms_old = 0;
 	private long            tms_reset = 0;
 	private int        confidence_old = 0;
-	private float              dt_sec = 0;
+	private double             dt_sec = 0;
+	private double           dt_sec_1 = 0;
 
 	private boolean    enableStream   = false;
 
@@ -353,6 +353,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 				CommonOps_DDRM.transpose(p.R, tmp);
 				CommonOps_DDRM.mult( to_ned.R, tmp , initial_rot );
 
+				p.concat(to_body, body_old);
 
 				if(lensDistortion == null) {
 					CameraKannalaBrandt model = t265.getLeftModel();
@@ -388,8 +389,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 				return;
 			}
 
-			dt_sec = (tms - tms_old) / 1000f;
-			model.vision.fps = 1f / dt_sec;
+			// timea and fps
+			dt_sec   = (tms - tms_old) / 1000f;
+			dt_sec_1 = 1.0 / dt_sec;
+			model.vision.fps = (float)dt_sec_1;
 			tms_old = tms;
 
 			model.vision.setStatus(Vision.RESETTING, false);
@@ -418,14 +421,26 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 			// Get current position and speeds
 			MSP3DUtils.convertModelToSe3_F64(model, lpos);
-			MSP3DUtils.convertCurrentSpeed(model, lpos_s);
+			MSP3DUtils.convertCurrentSpeed(model, lpos_current_s);
 
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 
+			body_old.setTo(body);
 			p.concat(to_body, body);
+
+			// calculate body speed based on position
+			vpos_current_s.x = ( body.getX() - body_old.getX() ) * dt_sec_1;
+			vpos_current_s.y = ( body.getY() - body_old.getY() ) * dt_sec_1;
+			vpos_current_s.z = ( body.getZ() - body_old.getZ() ) * dt_sec_1;
+
+			// body speeds
+			model.debug.x = (float)vpos_current_s.x;
+			model.debug.y = (float)vpos_current_s.y;
+			model.debug.z = (float)vpos_current_s.z;
 
 			// rotate sensor velocities to body frame and correct by offset
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
+
 			// eventually calculate rr,pr,yr and do not use model rates
 			angular_rates.setTo(model.attitude.rr, model.attitude.pr, model.attitude.yr);
 			offset_vel_body.crossSetTo(angular_rates, offset);
@@ -457,6 +472,20 @@ public class MAVT265PositionEstimator extends ControlModule {
 			model.vision.setStatus(Vision.SPEED_VALID, true);
 
 			ned.T.plusIP(reposition_ned);
+
+			// speed variance body speed between pos based and vision
+			vpos_delta_s.setTo(body_s.T);
+			vpos_delta_s.scale(-1);
+			vpos_delta_s.plusIP(vpos_current_s);
+
+			// Speed variance too high => assuming position is not correct, e.g. PoseJump occurred
+			if(vpos_delta_s.norm() > 0.1) {
+				model.vision.setStatus(Vision.POS_VALID, false);
+				if(DO_EV_REPOSITION) {
+					do_repositioning("XYSpeedDev");
+				}
+     			//System.out.println("VisionSpeed vs. VisionPosSpeed: "+vpos_delta_s);
+			}
 
 
 			// Validate XY position
@@ -802,7 +831,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 				return;
 			}
 
-			if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT) {
+			if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT_MS) {
 				precision_lock.setTo(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 			}
@@ -855,7 +884,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 								MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
 
 						model.vision.setPrecisionOffset(precision_lock);
-						
+
 						//						if(!driftEstimator.add(precision_lock)) {
 						//							if(driftEstimator.estimate(drift))
 						//								System.out.println(drift);
