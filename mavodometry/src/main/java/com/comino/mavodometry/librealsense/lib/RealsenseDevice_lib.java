@@ -4,7 +4,7 @@ import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
 import com.sun.jna.ptr.PointerByReference;
 
-public class RealsenseDevice  {
+public class RealsenseDevice_lib  {
 
 	public static Realsense2Library rs2 = Realsense2Library.INSTANCE;
 	
@@ -20,7 +20,7 @@ public class RealsenseDevice  {
 	
 	protected boolean is_initialized = false;
 
-	public RealsenseDevice() {
+	public RealsenseDevice_lib() {
 		
 		is_initialized = false;
 

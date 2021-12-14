@@ -36,7 +36,7 @@ public class MAVWebCamNullEstimator extends ControlModule  {
 		this.height = height;
 	}
 
-	// Main Image processing
+	// Main Image processing just returning quality
 	private int processImage(GrayU8 gray, Planar<GrayU8> color, long tms) {
        return 100;
 	}

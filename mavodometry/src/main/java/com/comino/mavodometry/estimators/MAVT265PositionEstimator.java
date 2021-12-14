@@ -285,8 +285,10 @@ public class MAVT265PositionEstimator extends ControlModule {
 
 
 		try {
+		//	t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
 			t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
-		} catch( IllegalArgumentException e) {
+		} catch( Exception e) {
+			e.printStackTrace();
 			System.out.println("No T265 device found");
 			return;
 		}
@@ -298,7 +300,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 			if((tms-tms_old) < 3)
 				return;
 
-			switch(raw.tracker_confidence) {
+			switch(raw.tracker_confidence()) {
 			case StreamRealSenseT265Pose.CONFIDENCE_FAILED:
 				quality = 0.00f; error_count++; is_fiducial = false; 
 				is_initialized = false;
@@ -315,7 +317,7 @@ public class MAVT265PositionEstimator extends ControlModule {
 				}
 				break;
 			default:
-				System.out.println("TrackerConfidence is "+raw.tracker_confidence);
+				System.out.println("TrackerConfidence is "+raw.tracker_confidence());
 			}
 
 
@@ -324,12 +326,12 @@ public class MAVT265PositionEstimator extends ControlModule {
 				model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK, false);
 			}
 
-			if(raw.tracker_confidence <= StreamRealSenseT265Pose.CONFIDENCE_LOW && confidence_old != raw.tracker_confidence) {
+			if(raw.tracker_confidence() <= StreamRealSenseT265Pose.CONFIDENCE_LOW && confidence_old != raw.tracker_confidence()) {
 				control.writeLogMessage(new LogMessage("[vio] T265 Tracker confidence low", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 				// TODO: Action here
 			}
 
-			confidence_old = raw.tracker_confidence;
+			confidence_old = raw.tracker_confidence();
 
 			// Reset procedure ------------------------------------------------------------------------------------------------
 			// Note: This takes 1.5sec for T265;

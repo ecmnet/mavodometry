@@ -45,7 +45,7 @@ import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_rs400_visual_preset;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream;
-import com.comino.mavodometry.librealsense.lib.RealsenseDevice;
+import com.comino.mavodometry.librealsense.lib.RealsenseDevice_lib;
 import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsics;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.sun.jna.Pointer;
@@ -56,7 +56,7 @@ import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
-public class StreamRealSenseD455Depth extends RealsenseDevice {
+public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 	
 	private static final int FRAMERATE = 15;
 

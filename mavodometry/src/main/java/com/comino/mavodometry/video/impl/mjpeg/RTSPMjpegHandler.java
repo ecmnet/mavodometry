@@ -167,7 +167,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private class Receiver implements Runnable {
 		
-		private final int rate = 700 / FRAME_RATE_FPS ;
+		private final long rate = 700 / FRAME_RATE_FPS ;
 
 		public void add(T in, long tms) {
 			
