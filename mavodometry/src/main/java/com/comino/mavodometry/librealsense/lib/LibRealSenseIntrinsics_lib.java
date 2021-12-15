@@ -31,36 +31,57 @@
  *
  ****************************************************************************/
 
-package com.comino.mavodometry.librealsense.utils;
+package com.comino.mavodometry.librealsense.lib;
 
-
-import org.bytedeco.librealsense2.rs2_intrinsics;
+import com.comino.mavodometry.librealsense.lib.LibRealSense1Library.rs_intrinsics;
+import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
 
 import boofcv.struct.calib.CameraPinholeBrown;
 
-public class LibRealSenseIntrinsics extends CameraPinholeBrown {
+public class LibRealSenseIntrinsics_lib extends CameraPinholeBrown {
 
 	private static final long serialVersionUID = -3525224116201930353L;
 
 	public int model=0;
 
+	public LibRealSenseIntrinsics_lib(rs_intrinsics intrinsics) {
+
+	   this.model = intrinsics.model;
+
+       this.cx = intrinsics.ppx;
+       this.cy = intrinsics.ppy;
+
+       this.width  = intrinsics.width;
+       this.height = intrinsics.height;
+
+       this.fx = intrinsics.fx;
+       this.fy = intrinsics.fy;
+
+       this.radial = new double[5];
+       for(int i=0;i<intrinsics.coeffs.length;i++)
+    	   this.radial[i] = intrinsics.coeffs[i];
+
+       this.t1 = 0;
+       this.t2 = 0;
+
+	}
 	
-	public LibRealSenseIntrinsics(rs2_intrinsics intrinsics) {
+	public LibRealSenseIntrinsics_lib(rs2_intrinsics intrinsics) {
 
-		   this.model = intrinsics.model();
+		   this.model = intrinsics.model;
 
-	       this.cx = intrinsics.ppx();
-	       this.cy = intrinsics.ppy();
+	       this.cx = intrinsics.ppx;
+	       this.cy = intrinsics.ppy;
 
-	       this.width  = intrinsics.width();
-	       this.height = intrinsics.height();
+	       this.width  = intrinsics.width;
+	       this.height = intrinsics.height;
 
-	       this.fx = intrinsics.fx();
-	       this.fy = intrinsics.fy();
+	       this.fx = intrinsics.fx;
+	       this.fy = intrinsics.fy;
 
 	       this.radial = new double[5];
-	       for(int i=0;i<radial.length;i++)
-	    	   this.radial[i] = intrinsics.coeffs(i);
+	       for(int i=0;i<intrinsics.coeffs.length;i++)
+	    	   this.radial[i] = intrinsics.coeffs[i];
 
 	       this.t1 = 0;
 	       this.t2 = 0;

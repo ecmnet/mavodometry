@@ -142,7 +142,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 
 		try {
 			this.realsense = StreamRealSenseD455Depth.getInstance(info);
-		} catch( IllegalArgumentException e) {
+		} catch( Exception e) {
 			System.out.println("No D455 device found");
 			return;
 
@@ -221,7 +221,7 @@ public class MAVD455DepthEstimator extends ControlModule  {
 		System.out.println("D455 depth estimator initialized with offset:"+offset);
 	}
 
-	public void start() {
+	public void start() throws Exception {
 		if(realsense!=null)
 			realsense.start();
 		depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());

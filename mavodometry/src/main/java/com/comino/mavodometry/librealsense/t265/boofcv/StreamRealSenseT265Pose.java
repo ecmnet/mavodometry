@@ -33,34 +33,31 @@
 
 package com.comino.mavodometry.librealsense.t265.boofcv;
 
-import java.nio.ByteBuffer;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_config_can_resolve;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_config_enable_device;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_config_enable_stream;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_create_config;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_create_pipeline;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_embedded_frames_count;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_extract_frame;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_extrinsics;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_data;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_stream_profile;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_timestamp;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_video_stream_intrinsics;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_is_frame_extendable_to;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_keep_frame;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_pipeline_start_with_config;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_pipeline_stop;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_pipeline_wait_for_frames;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_pose_frame_get_pose_data;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_release_frame;
+
 import java.time.Instant;
 import java.util.ArrayList;
 import java.util.List;
 
-import static org.bytedeco.librealsense2.global.realsense2.rs2_create_pipeline;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_create_config;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_config_enable_device;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_config_enable_stream;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_config_can_resolve;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_pipeline_start_with_config;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_pipeline_wait_for_frames;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_embedded_frames_count;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_timestamp;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_extract_frame;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_release_frame;
-import static org.bytedeco.opencv.global.opencv_core.cvSetData;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_is_frame_extendable_to;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_pose_frame_get_pose_data;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_stream_profile;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_get_video_stream_intrinsics;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_keep_frame;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_data;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_get_extrinsics;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_pipeline_stop;
-
 import org.bytedeco.javacpp.BytePointer;
-import org.bytedeco.javacpp.Pointer;
 import org.bytedeco.librealsense2.rs2_config;
 import org.bytedeco.librealsense2.rs2_device;
 import org.bytedeco.librealsense2.rs2_extrinsics;
@@ -72,7 +69,6 @@ import org.bytedeco.librealsense2.rs2_sensor;
 import org.bytedeco.librealsense2.rs2_sensor_list;
 import org.bytedeco.librealsense2.rs2_stream_profile;
 import org.bytedeco.librealsense2.global.realsense2;
-import org.bytedeco.opencv.opencv_core.IplImage;
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
 

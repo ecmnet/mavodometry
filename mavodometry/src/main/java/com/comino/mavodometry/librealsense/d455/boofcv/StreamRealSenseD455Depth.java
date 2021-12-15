@@ -34,29 +34,48 @@
 
 package com.comino.mavodometry.librealsense.d455.boofcv;
 
+import static org.bytedeco.librealsense2.global.realsense2.rs2_config_enable_device;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_config_enable_stream;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_create_config;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_create_pipeline;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_extract_frame;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_data;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_data_size;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_stream_profile;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_timestamp;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_video_stream_intrinsics;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_pipeline_start_with_config;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_pipeline_stop;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_pipeline_wait_for_frames;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_release_frame;
+
 import java.util.ArrayList;
 import java.util.List;
 
+import org.bytedeco.javacpp.BytePointer;
+import org.bytedeco.javacpp.Pointer;
+import org.bytedeco.javacpp.ShortPointer;
+import org.bytedeco.librealsense2.rs2_config;
+import org.bytedeco.librealsense2.rs2_device;
+import org.bytedeco.librealsense2.rs2_frame;
+import org.bytedeco.librealsense2.rs2_intrinsics;
+import org.bytedeco.librealsense2.rs2_pipeline;
+import org.bytedeco.librealsense2.rs2_sensor;
+import org.bytedeco.librealsense2.rs2_sensor_list;
+import org.bytedeco.librealsense2.rs2_stream_profile;
+import org.bytedeco.librealsense2.global.realsense2;
+
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_format;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_rs400_visual_preset;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream;
-import com.comino.mavodometry.librealsense.lib.RealsenseDevice_lib;
+import com.comino.mavodometry.librealsense.javacpp.RealsenseDevice;
 import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsics;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
-import com.sun.jna.Pointer;
-import com.sun.jna.ptr.PointerByReference;
 
 import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
-public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
+public class StreamRealSenseD455Depth extends RealsenseDevice {
 	
 	private static final int FRAMERATE = 15;
 
@@ -69,13 +88,13 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 	private final GrayU16 depth        = new GrayU16(1,1);
 	private final Planar<GrayU8> rgb	 = new Planar<GrayU8>(GrayU8.class,1,1,3);
 
-	private volatile Realsense2Library.rs2_device dev;
-	private volatile Realsense2Library.rs2_pipeline pipeline;
-	private volatile Realsense2Library.rs2_config config;
+	private volatile rs2_device dev;
+	private volatile rs2_pipeline pipeline;
+	private volatile rs2_config config;
 
-	private PointerByReference depth_sensor  = null;
-	private PointerByReference rgb_sensor    = null;
-	private PointerByReference motion_sensor = null;
+	private rs2_sensor         depth_sensor  = null;
+	private rs2_sensor         rgb_sensor    = null;
+	private rs2_sensor         motion_sensor = null;
 	
 	private  final byte[] input;
 
@@ -86,13 +105,13 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 	private boolean is_running;
 
 	
-	public static StreamRealSenseD455Depth getInstance(RealSenseInfo info) {
+	public static StreamRealSenseD455Depth getInstance(RealSenseInfo info) throws Exception {
 		if(instance==null)
 			instance = new StreamRealSenseD455Depth(info);
 		return instance;
 	}
 
-	private StreamRealSenseD455Depth(RealSenseInfo info)
+	private StreamRealSenseD455Depth(RealSenseInfo info) throws Exception
 	{
 
 		super();
@@ -109,39 +128,36 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 			throw new IllegalArgumentException("No device found");
 		}
 		
-		rs2.rs2_hardware_reset(dev, error);
+		hardwareReset(dev);
 
-		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);	
+		rs2_sensor_list sensor_list = getSensorList(dev);	
 		
-		int sensor_count = rs2.rs2_get_sensors_count(sensor_list, error);
+		int sensor_count = getSensorCount(sensor_list);
 		System.out.println("D455 has "+sensor_count+" sensor(s):");
 	
 		
 		// Stereo module
-		depth_sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
-		System.out.println("  "+rs2.rs2_get_sensor_info(depth_sensor, 0, error).getString(0));
-		checkError("Sensors",error);
+		depth_sensor = createSensor(sensor_list, 0);
+		System.out.println("  "+getSensorInfo(depth_sensor, 0));
 		
-		setOption(depth_sensor, rs2_option.RS2_OPTION_EMITTER_ENABLED,"RS2_OPTION_EMITTER_ENABLED",2 );
-//		setOption(depth_sensor, rs2_option.RS2_OPTION_HOLES_FILL,"RS2_OPTION_HOLES_FILL",true );
+		setSensorOption(depth_sensor, realsense2.RS2_OPTION_EMITTER_ENABLED,2 );
+//		setSensorOption(depth_sensor, realsense2.RS2_OPTION_HOLES_FILL,true );
 		
 		// RGB module
-		rgb_sensor = rs2.rs2_create_sensor(sensor_list, 1, error);
-		System.out.println("  "+rs2.rs2_get_sensor_info(rgb_sensor, 0, error).getString(0));
-		checkError("Sensors",error);
+		rgb_sensor = createSensor(sensor_list, 1);
+		System.out.println("  "+getSensorInfo(rgb_sensor, 0));
 			
-		setOption(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_EXPOSURE,"RS2_OPTION_ENABLE_AUTO_EXPOSURE",true );
-//		setOption(rgb_sensor, rs2_option.RS2_OPTION_EXPOSURE,"RS2_OPTION_EXPOSURE",2566*3 );
-//		setOption(rgb_sensor, rs2_option.RS2_OPTION_GAIN,"RS2_OPTION_GAIN",16*4 );
-		setOption(rgb_sensor, rs2_option.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE,"RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE",true );
+		setSensorOption(rgb_sensor, realsense2.RS2_OPTION_ENABLE_AUTO_EXPOSURE,true );
+//		setSensorOption(rgb_sensor, realsense2.RS2_OPTION_EXPOSURE,2566*3 );
+//		setSensorOption(rgb_sensor, realsense2.RS2_OPTION_GAIN,16*4 );
+		setSensorOption(rgb_sensor, realsense2.RS2_OPTION_ENABLE_AUTO_WHITE_BALANCE,true );
 		
 		// Motion module
-		motion_sensor = rs2.rs2_create_sensor(sensor_list, 2, error);
-		System.out.println("  "+rs2.rs2_get_sensor_info(motion_sensor, 0, error).getString(0));
-		checkError("Sensors",error);
+		motion_sensor = createSensor(sensor_list, 2);
+		System.out.println("  "+getSensorInfo(motion_sensor, 0));
 		
 	
-		scale = rs2.rs2_get_option(depth_sensor, rs2_option.RS2_OPTION_DEPTH_UNITS, error);
+		scale = getSensorOption(depth_sensor, realsense2.RS2_OPTION_DEPTH_UNITS);
 
 		depth.reshape(info.width,info.height);
 		rgb.reshape(info.width,info.height);
@@ -158,30 +174,32 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 	}
 
 
-	public void start() {
+	public void start() throws Exception {
 
 		if(dev == null)
 			return;
 
 		// /home/lquac/librealsense/build/examples/C/depth/rs-depth
 
-		config = rs2.rs2_create_config(error);
-		rs2.rs2_config_enable_device(config, rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error),error);
-		pipeline = rs2.rs2_create_pipeline(ctx, error);
+		config = rs2_create_config(error);
+		checkError(error);
+		
+		rs2_config_enable_device(config, getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_SERIAL_NUMBER),error);
+		checkError(error);
+		
+		
+		pipeline = rs2_create_pipeline(ctx, error);
+		checkError(error);
+	
 
 		// Configure streams
-		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_COLOR, 0, info.width, info.height, rs2_format.RS2_FORMAT_RGB8, FRAMERATE, error);
-		checkError("ColorStream",error);
-		rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_DEPTH, 0, info.width, info.height, rs2_format.RS2_FORMAT_Z16, FRAMERATE, error);
-		checkError("DepthStream",error);
-
-		//		PointerByReference profile_list = rs2.rs2_get_stream_profiles(sensor, error);
-		//		PointerByReference profile = rs2.rs2_get_stream_profile(profile_list, 11, error);
-		//		
-		//		rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
-		//		rs2.rs2_get_video_stream_intrinsics(profile, rs_intrinsics, error);
-		//		intrinsics = new LibRealSenseIntrinsics(rs_intrinsics);
-		//		System.out.println(intrinsics);
+		
+		rs2_config_enable_stream(config, realsense2.RS2_STREAM_COLOR, 0, info.width, info.height, realsense2.RS2_FORMAT_RGB8, FRAMERATE , error);
+		checkError(error);
+		
+		rs2_config_enable_stream(config, realsense2.RS2_STREAM_DEPTH, 0, info.width, info.height, realsense2.RS2_FORMAT_Z16, FRAMERATE , error);
+		checkError(error);
+		
 
 		OdometryPool.submit(new CombineD455Thread());
 		System.out.println("D455 depth estimation started");
@@ -214,8 +232,8 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 		private long   tms_rgb;
 		private long   tms_depth;
 		
-		private Realsense2Library.rs2_frame frames;
-		private Realsense2Library.rs2_frame  frame;
+		private rs2_frame frames;
+		private rs2_frame  frame;
 		
 		rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
 
@@ -225,7 +243,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 			
 			try { Thread.sleep(300); } catch (InterruptedException e) {  }
 
-			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
+			rs2_pipeline_start_with_config(pipeline, config, error);
 
 			try { Thread.sleep(200); } catch (InterruptedException e) {  }
 
@@ -235,30 +253,30 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 
 				try {
 
-					frames = rs2.rs2_pipeline_wait_for_frames(pipeline, 1000, error);
+					frames = rs2_pipeline_wait_for_frames(pipeline, 1000, error);
 
-					frame = rs2.rs2_extract_frame(frames, 0, error);
-					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
-						tms_depth = (long)rs2.rs2_get_frame_timestamp(frame,error);
-						bufferDepthToU16(rs2.rs2_get_frame_data(frame, error),depth);
+					frame = rs2_extract_frame(frames, 0, error);
+					if(rs2_get_frame_data_size(frame, error) > 0) {
+						tms_depth = (long)rs2_get_frame_timestamp(frame,error);
+						bufferDepthToU16(rs2_get_frame_data(frame, error),depth);
 					}
 
 					if(intrinsics==null) {
-						PointerByReference mode = rs2.rs2_get_frame_stream_profile(frame,error);
-						rs2.rs2_get_video_stream_intrinsics(mode, rs_intrinsics, error);
+						rs2_stream_profile mode = rs2_get_frame_stream_profile(frame,error);
+						rs2_get_video_stream_intrinsics(mode, rs_intrinsics, error);
 						intrinsics = new LibRealSenseIntrinsics(rs_intrinsics);
 						is_initialized = true;
 					}
 
-					rs2.rs2_release_frame(frame);
+					rs2_release_frame(frame);
 					
-					frame = rs2.rs2_extract_frame(frames, 1, error);
-					if(rs2.rs2_get_frame_data_size(frame, error) > 0) {
-						tms_rgb = (long)rs2.rs2_get_frame_timestamp(frame,error);
-						bufferRgbToMsU8(rs2.rs2_get_frame_data(frame, error),rgb);
+					frame = rs2_extract_frame(frames, 1, error);
+					if(rs2_get_frame_data_size(frame, error) > 0) {
+						tms_rgb = (long)rs2_get_frame_timestamp(frame,error);
+						bufferRgbToMsU8(rs2_get_frame_data(frame, error),rgb);
 					}
 
-					rs2.rs2_release_frame(frame);
+					rs2_release_frame(frame);
 
 
 					if(listeners.size()>0 && is_initialized) {
@@ -267,13 +285,13 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 					}
 
 
-					rs2.rs2_release_frame(frames);
+					rs2_release_frame(frames);
 
 				} catch(Exception e) {
 					e.printStackTrace();
 				}
 			}
-			rs2.rs2_pipeline_stop(pipeline, error);
+			rs2_pipeline_stop(pipeline, error);
 			System.out.println("D455 stopped.");
 		}
 	}
@@ -286,30 +304,34 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 
 
 	public void bufferDepthToU16(Pointer input , GrayU16 output ) {
-		//	output.data = input.getShortArray(0, 678400);
-		input.read(0, output.data, 0, output.data.length);
+		ShortPointer input_short = new ShortPointer(input);
+		input_short.get(output.data);
+		input_short.close();
 	}
 
 	public void bufferRgbToMsU8( Pointer inp , Planar<GrayU8> output ) {
 
+		BytePointer input = new BytePointer(inp);
+		
 		byte[] b0 = output.getBand(0).data;
 		byte[] b1 = output.getBand(1).data;
 		byte[] b2 = output.getBand(2).data;
 
-		inp.read(0, input, 0, input.length);
+		
 		
 		for(int  y = 0; y < output.height; y++ ) {
 //		BoofConcurrency.loopFor(0, output.height, y -> {
 			int indexIn  = y*output.stride * 3;
 			int indexOut = output.startIndex + y*output.stride;
 			for( int x = 0; x < output.width; x++ , indexOut++ ) {
-				b0[indexOut] = input[indexIn++];
-				b1[indexOut] = input[indexIn++];
-				b2[indexOut] = input[indexIn++];
+				b0[indexOut] = input.get(indexIn++);
+				b1[indexOut] = input.get(indexIn++);
+				b2[indexOut] = input.get(indexIn++);
 
 			}
 	//			});
 		}
+		input.close();
 	}
 
 
@@ -323,15 +345,10 @@ public class StreamRealSenseD455Depth extends RealsenseDevice_lib {
 			return;
 		try {
 
-			System.out.println(rs2
-					.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_NAME, error).getString(0));
-			System.out.println(rs2
-					.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error)
-					.getString(0));
-			System.out.println(rs2
-					.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_FIRMWARE_VERSION, error)
-					.getString(0));
-			System.out.println("API version "+Realsense2Library.RS2_API_VERSION_STR);
+			System.out.println(getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_NAME));
+			System.out.println(getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_SERIAL_NUMBER));
+			System.out.println(getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_FIRMWARE_VERSION));
+			System.out.println("API version "+realsense2.RS2_API_VERSION_STR);
 			System.out.println("Scale: "+scale+"m");
 		} catch(Exception e ) { }
 

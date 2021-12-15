@@ -126,7 +126,7 @@ public class MAVExperimentalAIDetector extends ControlModule  {
 			/// TODO: should not create a new instance
 			
 			this.realsense = StreamRealSenseD455Depth.getInstance(info);
-		} catch( IllegalArgumentException e) {
+		} catch( Exception e) {
 			System.out.println("No D455 device found");
 			return;
 
@@ -215,7 +215,7 @@ public class MAVExperimentalAIDetector extends ControlModule  {
 		System.out.println("AI Detector initialized");
 	}
 
-	public void start() {
+	public void start() throws Exception {
 		if(realsense!=null)
 			realsense.start();
 	}

@@ -10,7 +10,9 @@ import static org.bytedeco.librealsense2.global.realsense2.rs2_get_failed_args;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_failed_function;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_query_devices;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_set_option;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_option;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_supports_device_info;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_sensor_info;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_supports_option;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_hardware_reset;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_query_sensors;
@@ -117,6 +119,21 @@ public class RealsenseDevice  {
 		rs2_set_option(options, optionIndex, value, error);
 		checkError(error);
 	}
+	
+	public float getSensorOption(rs2_sensor sensor, int optionIndex)  throws Exception {
+		rs2_options options = new rs2_options(sensor);
+		boolean isSupported = toBoolean(rs2_supports_option(options, optionIndex, error));
+		checkError(error);
+		
+		if (!isSupported) {
+			throw new Exception("Option " + optionIndex + " is not supported!");
+		}
+		
+		float val = rs2_get_option(options, optionIndex, error);
+		checkError(error);
+		
+		return val;
+	}
 
 	protected static void checkError(rs2_error e) throws Exception {
 		if (!e.isNull()) {
@@ -185,6 +202,17 @@ public class RealsenseDevice  {
 
 		// read device info
 		String infoText = rs2_get_device_info(device, info, error).getString();
+		checkError(error);
+
+		return infoText;
+	}
+	
+	protected String getSensorInfo(rs2_sensor sensor, int num) throws Exception {
+		// check if info is supported
+		rs2_error error = new rs2_error();
+		
+		// read device info
+		String infoText = rs2_get_sensor_info(sensor, num, error).getString();
 		checkError(error);
 
 		return infoText;
