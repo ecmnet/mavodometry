@@ -1,4 +1,4 @@
-package com.comino.mavodometry.estimators;
+package com.comino.mavodometry.estimators.position;
 
 /****************************************************************************
  *
@@ -64,6 +64,7 @@ import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
+import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;

@@ -1,4 +1,4 @@
-package com.comino.mavodometry.estimators;
+package com.comino.mavodometry.estimators.position;
 
 //refer to : https://github.com/PX4/PX4-Autopilot/blob/master/src/modules/local_position_estimator/sensors/flow.cpp
 
@@ -11,6 +11,7 @@ import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Flow;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
+import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Vector3D_F64;

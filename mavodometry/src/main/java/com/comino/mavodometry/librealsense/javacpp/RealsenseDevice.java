@@ -94,7 +94,6 @@ public class RealsenseDevice  {
 	}
 
 	protected rs2_device getDeviceByName(String name) throws Exception {
-
 		for(int i=0;i<dev_count;i++) {
 			if(getDeviceInfo(devices[i], realsense2.RS2_CAMERA_INFO_NAME).contains(name)) {
 				return devices[i];
@@ -137,6 +136,7 @@ public class RealsenseDevice  {
 
 	protected static void checkError(rs2_error e) throws Exception {
 		if (!e.isNull()) {
+			System.err.println("Error in: "+rs2_get_failed_function(e).getString()+": "+rs2_get_error_message(e).getString());
 			throw new Exception(String.format("rs_error was raised when calling %s(%s):\n%s\n",
 					rs2_get_failed_function(e).getString(),
 					rs2_get_failed_args(e).getString(),
@@ -164,7 +164,6 @@ public class RealsenseDevice  {
 	}
 	protected rs2_device createDevice(int index) throws Exception {
 		rs2_device device = rs2_create_device(device_list, index, error);
-		checkError(error);
 		return device;
 	}
 	
