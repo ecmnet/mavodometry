@@ -69,7 +69,7 @@ public class RealsenseDevice  {
 
 		if(ctx == null) {
 
-			System.out.println("Using javacv realsense device driver");
+			System.out.println("Using JAVACV Realsense2 device driver");
 
 			ctx = createContext();
 			device_list = createDeviceList();

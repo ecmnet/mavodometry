@@ -89,7 +89,7 @@ import georegression.struct.point.Vector4D_F64;
 import georegression.struct.se.Se3_F64;
 import georegression.struct.so.Quaternion_F64;
 
-public class MAVT265PositionEstimator extends ControlModule {
+public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	// Modes
 	public static final int  GROUNDTRUTH_MODE       			= 1;
@@ -288,7 +288,6 @@ public class MAVT265PositionEstimator extends ControlModule {
 		//	t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
 			t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
 		} catch( Exception e) {
-			e.printStackTrace();
 			System.out.println("No T265 device found");
 			return;
 		}

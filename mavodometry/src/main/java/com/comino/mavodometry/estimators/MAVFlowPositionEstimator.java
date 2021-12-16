@@ -16,7 +16,7 @@ import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class MAVFlowPositionEstimator extends ControlModule  {
+public class MAVFlowPositionEstimator extends MAVAbstractEstimator  {
 	
 	private static final float FLOWSCALE = 1.0f;
 	
@@ -99,6 +99,24 @@ public class MAVFlowPositionEstimator extends ControlModule  {
 	
 	public Vector3D_F64 getPosition() {
 		return pos_ned;
+	}
+
+	@Override
+	public void enableStream(boolean enable) {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void start() throws Exception {
+		// TODO Auto-generated method stub
+		
+	}
+
+	@Override
+	public void stop() {
+		// TODO Auto-generated method stub
+		
 	}
 
 }

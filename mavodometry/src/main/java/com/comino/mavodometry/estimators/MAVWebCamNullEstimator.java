@@ -14,7 +14,7 @@ import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.ImageType;
 import boofcv.struct.image.Planar;
 
-public class MAVWebCamNullEstimator extends ControlModule  {
+public class MAVWebCamNullEstimator extends MAVAbstractEstimator  {
 
 	private final static float FRAME_RATE = 15.0f;
 

@@ -1,6 +1,4 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0"
-	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.comino</groupId>
@@ -40,16 +38,6 @@
 			<version>0.39.1</version>
 		</dependency>
 		<dependency>
-			<groupId>net.java.dev.jna</groupId>
-			<artifactId>jna</artifactId>
-			<version>4.2.2</version>
-		</dependency>
-		<dependency>
-			<groupId>com.nativelibs4java</groupId>
-			<artifactId>jnaerator-runtime</artifactId>
-			<version>0.12</version>
-		</dependency>
-		<dependency>
 			<groupId>com.comino</groupId>
 			<artifactId>mavcom</artifactId>
 			<version>0.0.1</version>
@@ -69,17 +57,19 @@
 			<artifactId>turbojpeg</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-		
-			<dependency>
+
+		<dependency>
 			<groupId>org.boofcv</groupId>
 			<artifactId>boofcv-javacv</artifactId>
 			<version>0.39</version>
 			<exclusions>
-				<exclusion>  <!-- declare the exclusion here -->
+				<exclusion>
+					<!-- declare the exclusion here -->
 					<groupId>org.bytedeco</groupId>
 					<artifactId>javacpp</artifactId>
 				</exclusion>
-				<exclusion>  <!-- declare the exclusion here -->
+				<exclusion>
+					<!-- declare the exclusion here -->
 					<groupId>org.bytedeco</groupId>
 					<artifactId>javacv</artifactId>
 				</exclusion>
@@ -93,6 +83,16 @@
 			<groupId>org.bytedeco</groupId>
 			<artifactId>javacpp</artifactId>
 			<version>1.5.6</version>
+		</dependency>
+		<dependency>
+			<groupId>org.bytedeco</groupId>
+			<artifactId>depthai</artifactId>
+			<version>2.8.0-1.5.6</version>
+		</dependency>
+		<dependency>
+			<groupId>org.bytedeco</groupId>
+			<artifactId>depthai-platform</artifactId>
+			<version>2.8.0-1.5.6</version>
 		</dependency>
 		<dependency>
 			<groupId>org.bytedeco</groupId>
@@ -127,10 +127,6 @@
 					<groupId>org.bytedeco</groupId>
 					<artifactId>librealsense</artifactId>
 				</exclusion>
-<!-- 				<exclusion> -->
-<!-- 					<groupId>org.bytedeco</groupId> -->
-<!-- 					<artifactId>librealsense2</artifactId> -->
-<!-- 				</exclusion> -->
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>tesseract</artifactId>
@@ -174,10 +170,6 @@
 					<groupId>org.bytedeco</groupId>
 					<artifactId>librealsense</artifactId>
 				</exclusion>
-<!-- 				<exclusion> -->
-<!-- 					<groupId>org.bytedeco</groupId> -->
-<!-- 					<artifactId>librealsense2</artifactId> -->
-<!-- 				</exclusion> -->
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>tesseract</artifactId>

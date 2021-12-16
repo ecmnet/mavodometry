@@ -67,7 +67,7 @@ import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class MAVD455DepthEstimator extends ControlModule  {
+public class MAVD455DepthEstimator extends MAVAbstractEstimator  {
 
 	private static final boolean DO_DEPTH_OVERLAY   = true; 
 	private static final float  WARN_OBS_DISTANCE   = 1.5f;
