@@ -48,7 +48,7 @@ import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
-import com.comino.mavodometry.librealsense.d455.boofcv.IDepthCallback;
+import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD455Depth;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;

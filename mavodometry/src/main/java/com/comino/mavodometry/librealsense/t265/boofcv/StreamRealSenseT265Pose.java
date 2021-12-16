@@ -72,6 +72,7 @@ import org.bytedeco.librealsense2.global.realsense2;
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
 
+import com.comino.mavodometry.callback.IPoseCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.librealsense.javacpp.RealsenseDevice;
 

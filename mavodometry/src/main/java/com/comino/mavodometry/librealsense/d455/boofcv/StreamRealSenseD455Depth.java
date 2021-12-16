@@ -65,6 +65,7 @@ import org.bytedeco.librealsense2.rs2_sensor_list;
 import org.bytedeco.librealsense2.rs2_stream_profile;
 import org.bytedeco.librealsense2.global.realsense2;
 
+import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.librealsense.javacpp.RealsenseDevice;
 import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsics;

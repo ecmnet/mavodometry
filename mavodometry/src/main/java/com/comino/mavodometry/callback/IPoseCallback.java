@@ -1,4 +1,4 @@
-package com.comino.mavodometry.librealsense.t265.boofcv;
+package com.comino.mavodometry.callback;
 
 import org.bytedeco.librealsense2.rs2_pose;
 

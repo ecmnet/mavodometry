@@ -14,4 +14,5 @@ public abstract class MAVAbstractEstimator extends ControlModule {
 	public abstract void start() throws Exception;
 	
 	public abstract void stop();
+	
 }
