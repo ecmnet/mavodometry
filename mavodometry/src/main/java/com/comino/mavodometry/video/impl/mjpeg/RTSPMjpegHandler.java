@@ -99,6 +99,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private TJCompressor tj;
 	private final byte[] buffer;
+	private final byte[] packet_bits;
 	
 	private boolean no_video;
 	private int quality = 0;
@@ -116,7 +117,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 		this.ctx = image.createGraphics();
 		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
 
-		this.buffer = new byte[width*height*6];
+		this.buffer      = new byte[width*height*6];
+		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
 
 		last_image_tms = System.currentTimeMillis();
 
@@ -214,12 +216,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 								tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB);
 								RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 
-								//get to total length of the full rtp packet to send
-								int packet_length = rtp_packet.getlength();
-
-								//retrieve the packet bitstream and store it in an array of bytes
-								byte[] packet_bits = new byte[packet_length];
-								rtp_packet.getpacket(packet_bits);
+								int packet_length = rtp_packet.getpacket(packet_bits);
 
 								//send the packet as a DatagramPacket over the UDP socket 
 								if(!RTPsocket.isClosed()) {
@@ -258,13 +255,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB);
 
 					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
-
-					//get to total length of the full rtp packet to send
-					int packet_length = rtp_packet.getlength();
-
-					//retrieve the packet bitstream and store it in an array of bytes
-					byte[] packet_bits = new byte[packet_length];
-					rtp_packet.getpacket(packet_bits);
+					int packet_length = rtp_packet.getpacket(packet_bits);
 
 					//send the packet as a DatagramPacket over the UDP socket 
 					if(!RTPsocket.isClosed() ) { //&& packet_length < 65535) {
@@ -289,9 +280,10 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private int parseRequest() {
 		int request_type = -1;
-		try { 
+		try {
 			//parse request line and extract the request_type:
 			String RequestLine = RTSPBufferedReader.readLine();
+
 			System.out.println("RTSP Server - Received from Client:");
 			System.out.println(RequestLine);
 
