@@ -191,7 +191,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 			long tms; no_video = false;
 
-			System.out.println("Video streaming started");
+			System.out.println("Video streaming started ");
 			while(is_running) {
 
 				try {
@@ -213,7 +213,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 								no_video = true;
 								ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 								ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-								tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB);
+								tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS );
 								RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 
 								int packet_length = rtp_packet.getpacket(packet_bits);
@@ -252,7 +252,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 
 					tj.setJPEGQuality(quality);
-					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB);
+					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS);
 
 					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 					int packet_length = rtp_packet.getpacket(packet_bits);
