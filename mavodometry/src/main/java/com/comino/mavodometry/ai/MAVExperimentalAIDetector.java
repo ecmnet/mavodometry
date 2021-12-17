@@ -48,7 +48,7 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.ITargetListener;
-import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD455Depth;
+import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepth;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 
@@ -82,7 +82,7 @@ public class MAVExperimentalAIDetector extends ControlModule  {
 	private static final double        OFFSET_Y     =  0.00;
 	private static final double        OFFSET_Z     =  0.00;
 
-	private StreamRealSenseD455Depth 	realsense	= null;
+	private StreamRealSenseD4xxDepth 	realsense	= null;
 	private RealSenseInfo               info        = null;
 
 	// Window
@@ -125,7 +125,7 @@ public class MAVExperimentalAIDetector extends ControlModule  {
 			
 			/// TODO: should not create a new instance
 			
-			this.realsense = StreamRealSenseD455Depth.getInstance(info);
+			this.realsense = StreamRealSenseD4xxDepth.getInstance(info);
 		} catch( Exception e) {
 			System.out.println("No D455 device found");
 			return;

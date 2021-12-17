@@ -99,7 +99,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final int         FIDUCIAL_ID            	= 284;
 	private static final float       FIDUCIAL_SIZE          	= 0.168f;
 	private static final int         FIDUCIAL_RATE_SCAN     	= 500;
-	private static final int         FIDUCIAL_RATE_ACTIVE   	= 100;
+	private static final int         FIDUCIAL_RATE_ACTIVE   	= 200;
 
 	private static final int         FIDUCIAL_HEIGHT     		= 360;
 	private static final int         FIDUCIAL_WIDTH     		= 360;
@@ -835,6 +835,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			if((System.currentTimeMillis() - locking_tms) > LOCK_TIMEOUT_MS) {
 				precision_lock.setTo(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
+				model.vision.setPrecisionOffset(precision_lock);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 			}
 

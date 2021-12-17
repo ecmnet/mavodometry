@@ -58,6 +58,7 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bytedeco.javacpp.BytePointer;
+import org.bytedeco.javacpp.Pointer;
 import org.bytedeco.librealsense2.rs2_config;
 import org.bytedeco.librealsense2.rs2_device;
 import org.bytedeco.librealsense2.rs2_extrinsics;
@@ -74,7 +75,7 @@ import org.ejml.dense.row.CommonOps_DDRM;
 
 import com.comino.mavodometry.callback.IPoseCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.javacpp.RealsenseDevice;
+import com.comino.mavodometry.librealsense.utils.RealsenseDevice;
 
 import boofcv.struct.calib.CameraKannalaBrandt;
 import boofcv.struct.image.GrayU8;
@@ -361,6 +362,8 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 						count_framesets++;
 
 						num_of_frames = rs2_embedded_frames_count(frames, error);
+						if(num_of_frames < 1)
+							continue;
 
 						if(num_of_frames == 1) {
 							// Odometry only at 50Hz
@@ -370,8 +373,8 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 							// Full set
 							skipper = 1;
 
-						tms = (long)rs2_get_frame_timestamp(frames,error);
 
+						tms = (long)rs2_get_frame_timestamp(frames,error);
 
 						left = false; 
 
@@ -392,8 +395,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 										left_model = createFisheyeModel(intrinsics_left);
 									} else {
 										rs2_keep_frame(frame);
-										bufferGrayToU8(new BytePointer(rs2_get_frame_data(frame, error)),img);
-										checkError(error);
+										bufferGrayToU8(rs2_get_frame_data(frame, error).getPointer(BytePointer.class),img);
 									} 
 								} else {
 									if(mode_right==null) {
@@ -555,8 +557,6 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		input.get( output.bands[0].data);
 		output.bands[1].data = output.bands[0].data;
 		output.bands[2].data = output.bands[0].data;
-		
-		
 	}
 
 

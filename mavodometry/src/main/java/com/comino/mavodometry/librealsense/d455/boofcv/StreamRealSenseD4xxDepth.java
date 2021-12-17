@@ -67,21 +67,21 @@ import org.bytedeco.librealsense2.global.realsense2;
 
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.javacpp.RealsenseDevice;
 import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsics;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
+import com.comino.mavodometry.librealsense.utils.RealsenseDevice;
 
 import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
-public class StreamRealSenseD455Depth extends RealsenseDevice {
+public class StreamRealSenseD4xxDepth extends RealsenseDevice {
 	
 	private static final int FRAMERATE = 15;
 
 
-	private static StreamRealSenseD455Depth instance;
+	private static StreamRealSenseD4xxDepth instance;
 	
 	private final List<IDepthCallback> listeners;
 
@@ -106,13 +106,13 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	private boolean is_running;
 
 	
-	public static StreamRealSenseD455Depth getInstance(RealSenseInfo info) throws Exception {
+	public static StreamRealSenseD4xxDepth getInstance(RealSenseInfo info) throws Exception {
 		if(instance==null)
-			instance = new StreamRealSenseD455Depth(info);
+			instance = new StreamRealSenseD4xxDepth(info);
 		return instance;
 	}
 
-	private StreamRealSenseD455Depth(RealSenseInfo info) throws Exception
+	private StreamRealSenseD4xxDepth(RealSenseInfo info) throws Exception
 	{
 
 		super();
@@ -169,7 +169,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 	}
 
 
-	public StreamRealSenseD455Depth registerCallback(IDepthCallback listener) {
+	public StreamRealSenseD4xxDepth registerCallback(IDepthCallback listener) {
 		listeners.add(listener);
 		return this;
 	}
@@ -259,7 +259,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 					frame = rs2_extract_frame(frames, 0, error);
 					if(rs2_get_frame_data_size(frame, error) > 0) {
 						tms_depth = (long)rs2_get_frame_timestamp(frame,error);
-						bufferDepthToU16(rs2_get_frame_data(frame, error),depth);
+						bufferDepthToU16(rs2_get_frame_data(frame, error).getPointer(ShortPointer.class),depth);
 					}
 
 					if(intrinsics==null) {
@@ -274,7 +274,7 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 					frame = rs2_extract_frame(frames, 1, error);
 					if(rs2_get_frame_data_size(frame, error) > 0) {
 						tms_rgb = (long)rs2_get_frame_timestamp(frame,error);
-						bufferRgbToMsU8(rs2_get_frame_data(frame, error),rgb);
+						bufferRgbToMsU8(rs2_get_frame_data(frame, error).getPointer(BytePointer.class),rgb);
 					}
 
 					rs2_release_frame(frame);
@@ -304,21 +304,18 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 //	}
 
 
-	public void bufferDepthToU16(Pointer input , GrayU16 output ) {
-		ShortPointer input_short = new ShortPointer(input);
-		input_short.get(output.data);
-		input_short.close();
+	public void bufferDepthToU16(ShortPointer input , GrayU16 output ) {
+		input.get(output.data);
 	}
 
-	public void bufferRgbToMsU8( Pointer inp , Planar<GrayU8> output ) {
+	public void bufferRgbToMsU8(BytePointer input , Planar<GrayU8> output ) {
 
-		BytePointer input = new BytePointer(inp);
 		
 		byte[] b0 = output.getBand(0).data;
 		byte[] b1 = output.getBand(1).data;
 		byte[] b2 = output.getBand(2).data;
-
 		
+		// TODO: Use eventually ByteIndexer
 		
 		for(int  y = 0; y < output.height; y++ ) {
 //		BoofConcurrency.loopFor(0, output.height, y -> {
@@ -328,11 +325,10 @@ public class StreamRealSenseD455Depth extends RealsenseDevice {
 				b0[indexOut] = input.get(indexIn++);
 				b1[indexOut] = input.get(indexIn++);
 				b2[indexOut] = input.get(indexIn++);
-
 			}
 	//			});
 		}
-		input.close();
+		
 	}
 
 

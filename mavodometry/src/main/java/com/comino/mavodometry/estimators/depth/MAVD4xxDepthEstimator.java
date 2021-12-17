@@ -51,7 +51,7 @@ import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
-import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD455Depth;
+import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepth;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -69,7 +69,7 @@ import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class MAVD455DepthEstimator extends MAVAbstractEstimator  {
+public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 	private static final boolean DO_DEPTH_OVERLAY   = true; 
 	private static final float  WARN_OBS_DISTANCE   = 1.5f;
@@ -86,7 +86,7 @@ public class MAVD455DepthEstimator extends MAVAbstractEstimator  {
 	
 	private static final int             DEPTH_RATE = 135;
 
-	private StreamRealSenseD455Depth 	realsense	= null;
+	private StreamRealSenseD4xxDepth 	realsense	= null;
 	private RealSenseInfo               info        = null;
 
 
@@ -124,7 +124,7 @@ public class MAVD455DepthEstimator extends MAVAbstractEstimator  {
 
 
 	@SuppressWarnings("unused")
-	public <T> MAVD455DepthEstimator(IMAVMSPController control, ITargetListener targetListener, LocalMap3D map, MSPConfig config, int width, int height,
+	public <T> MAVD4xxDepthEstimator(IMAVMSPController control, ITargetListener targetListener, LocalMap3D map, MSPConfig config, int width, int height,
 			IVisualStreamHandler<Planar<GrayU8>> stream) {
 
 		super(control);
@@ -143,7 +143,7 @@ public class MAVD455DepthEstimator extends MAVAbstractEstimator  {
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
 		try {
-			this.realsense = StreamRealSenseD455Depth.getInstance(info);
+			this.realsense = StreamRealSenseD4xxDepth.getInstance(info);
 		} catch( Exception e) {
 			System.out.println("No D455 device found");
 			return;
