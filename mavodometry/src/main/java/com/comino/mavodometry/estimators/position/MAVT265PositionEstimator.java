@@ -66,6 +66,7 @@ import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseCV;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseLegacy;
+import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -130,7 +131,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final msg_odometry                 odo = new msg_odometry(1,1);
 
 	// Controls
-	private StreamRealSenseT265PoseLegacy t265;
+	private StreamRealSenseT265PoseCV t265;
 
 	// 3D transformation matrices
 	private final Se3_F64          to_ned          	= new Se3_F64();
@@ -286,8 +287,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 
 		try {
-		//	t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
-			t265 = StreamRealSenseT265PoseLegacy.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
+			t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
 		} catch( Exception e) {
 			System.out.println("No T265 device found");
 			return;
@@ -301,18 +301,18 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				return;
 
 			switch(confidence) {
-			case StreamRealSenseT265PoseCV.CONFIDENCE_FAILED:
+			case CONFIDENCE_FAILED:
 				quality = 0.00f; error_count++; is_fiducial = false; 
 				is_initialized = false;
 				break;
-			case StreamRealSenseT265PoseCV.CONFIDENCE_LOW:
+			case CONFIDENCE_LOW:
 				quality = 0.33f; error_count++;
 				break;
-			case StreamRealSenseT265PoseCV.CONFIDENCE_MEDIUM:
+			case CONFIDENCE_MEDIUM:
 				quality = 0.66f; error_count = 0;
 				break;
-			case StreamRealSenseT265PoseCV.CONFIDENCE_HIGH:
-				if(confidence_old != StreamRealSenseT265PoseCV.CONFIDENCE_HIGH) {
+			case CONFIDENCE_HIGH:
+				if(confidence_old != CONFIDENCE_HIGH) {
 					quality = 1f; error_count = 0;
 				}
 				break;
@@ -326,7 +326,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK, false);
 			}
 
-			if(confidence <= StreamRealSenseT265PoseCV.CONFIDENCE_LOW && confidence_old != confidence) {
+			if(confidence <= CONFIDENCE_LOW && confidence_old != confidence) {
 				control.writeLogMessage(new LogMessage("[vio] T265 Tracker confidence low", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 				// TODO: Action here
 			}

@@ -88,16 +88,11 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 	private static final int WIDTH  = 848;
 	private static final int HEIGHT = 800;
-
+	
 	public static final  int POS_FOREWARD     			= 0;
 	public static final  int POS_DOWNWARD    			= 1; // UP
 	public static final  int POS_DOWNWARD_180 			= 2; // Jetson
 	public static final  int POS_DOWNWARD_180_PREDICT 	= 3; // Jetson predict
-
-	public static final  int CONFIDENCE_FAILED = 0;
-	public static final  int CONFIDENCE_LOW    = 1;
-	public static final  int CONFIDENCE_MEDIUM = 2;
-	public static final  int CONFIDENCE_HIGH   = 3;
 
 	public static final  int T265_EVENT_NOTIFICATION = 0;
 

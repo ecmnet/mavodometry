@@ -50,6 +50,7 @@ import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepthCV;
 import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepthLegacy;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
@@ -84,7 +85,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 	
 	private static final int             DEPTH_RATE = 135;
 
-	private StreamRealSenseD4xxDepthLegacy 	realsense	= null;
+	private StreamRealSenseD4xxDepthCV 	realsense	= null;
 	private RealSenseInfo                   info        = null;
 
 
@@ -141,7 +142,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
 		try {
-			this.realsense = StreamRealSenseD4xxDepthLegacy.getInstance(info);
+			this.realsense = StreamRealSenseD4xxDepthCV.getInstance(info);
 		} catch( Exception e) {
 			System.out.println("No D455 device found");
 			return;
