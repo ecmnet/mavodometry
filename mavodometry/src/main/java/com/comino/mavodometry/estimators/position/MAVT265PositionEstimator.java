@@ -321,18 +321,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			}
 
 
-			model.vision.setStatus(Vision.AVAILABLE, true);
-			if(!t265.isVideoEnabled()) {
-				model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK, false);
-			}
-
-			if(confidence <= CONFIDENCE_LOW && confidence_old != confidence) {
-				control.writeLogMessage(new LogMessage("[vio] T265 Tracker confidence low", MAV_SEVERITY.MAV_SEVERITY_WARNING));
-				// TODO: Action here
-			}
-
-			confidence_old = confidence;
-
 			// Reset procedure ------------------------------------------------------------------------------------------------
 			// Note: This takes 1.5sec for T265;
 
@@ -390,6 +378,18 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				tms_old  = tms; 
 				return;
 			}
+			
+			model.vision.setStatus(Vision.AVAILABLE, true);
+			if(!t265.isVideoEnabled()) {
+				model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK, false);
+			}
+
+			if(confidence <= CONFIDENCE_LOW && confidence_old != confidence) {
+				control.writeLogMessage(new LogMessage("[vio] T265 Tracker confidence low", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+				// TODO: Action here
+			}
+
+			confidence_old = confidence;
 
 			// timea and fps
 			dt_sec   = (tms - tms_old) / 1000f;
