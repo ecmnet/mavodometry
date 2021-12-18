@@ -6,9 +6,9 @@ import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavodometry.libwebcam.StreamWebcam;
+import com.comino.mavodometry.libwebcam.StreamWebcam.SimpleSequence;
 import com.comino.mavodometry.video.IVisualStreamHandler;
-import com.comino.mavodometry.webcam.MAVWebcam;
-import com.comino.mavodometry.webcam.MAVWebcam.SimpleSequence;
 
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.ImageType;
@@ -63,7 +63,7 @@ public class MAVWebCamNullEstimator extends MAVAbstractEstimator  {
 	private class WebCamThread extends Thread {
 
 		private Planar<GrayU8> img;
-		private MAVWebcam webcam;
+		private StreamWebcam webcam;
 		private SimpleSequence<Planar<GrayU8>> sequence;
 
 		private int count=0;
@@ -72,7 +72,7 @@ public class MAVWebCamNullEstimator extends MAVAbstractEstimator  {
 		public WebCamThread(DataModel model) {
 
 			this.model = model;
-			this.webcam = new MAVWebcam();
+			this.webcam = new StreamWebcam();
 			this.sequence = (SimpleSequence<Planar<GrayU8>>) webcam.open("0",width,height,FRAME_RATE, ImageType.pl(3,GrayU8.class) );
 
 		}

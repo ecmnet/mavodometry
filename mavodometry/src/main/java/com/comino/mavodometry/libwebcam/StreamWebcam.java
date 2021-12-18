@@ -16,7 +16,7 @@
  * limitations under the License.
  */
 
-package com.comino.mavodometry.webcam;
+package com.comino.mavodometry.libwebcam;
 
 import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.FrameGrabber;
@@ -35,7 +35,7 @@ import boofcv.struct.image.ImageType;
  *
  * @author Peter Abeles
  */
-public class MAVWebcam  {
+public class StreamWebcam  {
 	
 	private OpenCVFrameGrabber grabber = null;
 	

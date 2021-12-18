@@ -82,6 +82,8 @@ import boofcv.struct.image.Planar;
 import georegression.geometry.ConvertRotation3D_F64;
 import georegression.struct.se.Se3_F64;
 
+// Note: D455 not found with this driver. Use legacy (2.30) instead.
+
 public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 	private static StreamRealSenseT265PoseCV instance;
