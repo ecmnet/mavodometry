@@ -40,40 +40,8 @@ import java.util.List;
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
 
-import com.comino.mavodometry.callback.IPoseCallbackLegacy;
+import com.comino.mavodometry.callback.IPoseCallback;
 
-/****************************************************************************
- *
- *   Copyright (c) 2020 Eike Mansfeld ecm@gmx.de. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name of the copyright holder nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- ****************************************************************************/
 
 import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library;
@@ -133,7 +101,7 @@ public class StreamRealSenseT265PoseLegacy extends RealsenseDeviceLegacy {
 
 	private Realsense2Library.rs2_extrinsics extrinsics = new Realsense2Library.rs2_extrinsics();
 
-	private final List<IPoseCallbackLegacy>         callbacks     = new ArrayList<IPoseCallbackLegacy>();
+	private final List<IPoseCallback>         callbacks     = new ArrayList<IPoseCallback>();
 
 	private final Planar<GrayU8> img     = new Planar<GrayU8>(GrayU8.class,WIDTH,HEIGHT,3);
 
@@ -205,7 +173,7 @@ public class StreamRealSenseT265PoseLegacy extends RealsenseDeviceLegacy {
 
 	}
 
-	public StreamRealSenseT265PoseLegacy registerCallback(IPoseCallbackLegacy callback) {
+	public StreamRealSenseT265PoseLegacy registerCallback(IPoseCallback callback) {
 		this.callbacks.add(callback);
 		return this;
 	}
@@ -337,7 +305,7 @@ public class StreamRealSenseT265PoseLegacy extends RealsenseDeviceLegacy {
 			pipeline = rs2.rs2_create_pipeline(ctx, error);
 
 			config = rs2.rs2_create_config(error);
-			rs2.rs2_config_enable_device(config, rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error),error);
+		//	rs2.rs2_config_enable_device(config, rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error),error);
 			rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_POSE, 0, 0, 0, rs2_format.RS2_FORMAT_6DOF, 200 , error);
 
 			// Enable video stream on USB3 Ports
@@ -548,8 +516,8 @@ public class StreamRealSenseT265PoseLegacy extends RealsenseDeviceLegacy {
 							fps = (int)(1000.0f/(tms - tms0));
 						tms0 = tms;
 						
-						for(IPoseCallbackLegacy callback : callbacks)
-							callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
+						for(IPoseCallback callback : callbacks)
+							callback.handle(tms, rawpose.tracker_confidence, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 					}
 
 

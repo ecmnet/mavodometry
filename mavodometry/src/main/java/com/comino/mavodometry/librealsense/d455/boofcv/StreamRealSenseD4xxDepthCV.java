@@ -66,7 +66,7 @@ import org.bytedeco.librealsense2.global.realsense2;
 
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsicsCV;
+import com.comino.mavodometry.librealsense.utils.RealSenseIntrinsics;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.librealsense.utils.RealsenseDeviceCV;
 
@@ -99,7 +99,7 @@ public class StreamRealSenseD4xxDepthCV extends RealsenseDeviceCV {
 	
 
 	private final RealSenseInfo          info;
-	private LibRealSenseIntrinsicsCV intrinsics;
+	private RealSenseIntrinsics intrinsics;
 	private float scale;
 
 	private boolean is_running;
@@ -182,8 +182,8 @@ public class StreamRealSenseD4xxDepthCV extends RealsenseDeviceCV {
 		config = rs2_create_config(error);
 		checkError(error);
 		
-		rs2_config_enable_device(config, getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_SERIAL_NUMBER),error);
-		checkError(error);
+//		rs2_config_enable_device(config, getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_SERIAL_NUMBER),error);
+//		checkError(error);
 		
 		
 		pipeline = rs2_create_pipeline(ctx, error);
@@ -262,7 +262,7 @@ public class StreamRealSenseD4xxDepthCV extends RealsenseDeviceCV {
 					if(intrinsics==null) {
 						rs2_stream_profile mode = rs2_get_frame_stream_profile(frame,error);
 						rs2_get_video_stream_intrinsics(mode, rs_intrinsics, error);
-						intrinsics = new LibRealSenseIntrinsicsCV(rs_intrinsics);
+						intrinsics = new RealSenseIntrinsics(rs_intrinsics);
 						is_initialized = true;
 					}
 

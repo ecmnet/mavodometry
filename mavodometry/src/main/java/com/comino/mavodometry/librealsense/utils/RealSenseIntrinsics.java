@@ -1,4 +1,3 @@
-package com.comino.mavodometry.librealsense.utils;
 /****************************************************************************
  *
  *   Copyright (c) 2017 Eike Mansfeld ecm@gmx.de. All rights reserved.
@@ -32,19 +31,40 @@ package com.comino.mavodometry.librealsense.utils;
  *
  ****************************************************************************/
 
+package com.comino.mavodometry.librealsense.utils;
 
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
 
 import boofcv.struct.calib.CameraPinholeBrown;
 
-public class LibRealSenseIntrinsicsLegacy extends CameraPinholeBrown {
+public class RealSenseIntrinsics extends CameraPinholeBrown {
 
 	private static final long serialVersionUID = -3525224116201930353L;
 
 	public int model=0;
 
 	
-	public LibRealSenseIntrinsicsLegacy(rs2_intrinsics intrinsics) {
+	public RealSenseIntrinsics(org.bytedeco.librealsense2.rs2_intrinsics intrinsics) {
+
+		   this.model = intrinsics.model();
+
+	       this.cx = intrinsics.ppx();
+	       this.cy = intrinsics.ppy();
+
+	       this.width  = intrinsics.width();
+	       this.height = intrinsics.height();
+
+	       this.fx = intrinsics.fx();
+	       this.fy = intrinsics.fy();
+
+	       this.radial = new double[5];
+	       for(int i=0;i<radial.length;i++)
+	    	   this.radial[i] = intrinsics.coeffs(i);
+
+	       this.t1 = 0;
+	       this.t2 = 0;
+		}
+
+	public RealSenseIntrinsics(com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics intrinsics) {
 
 		   this.model = intrinsics.model;
 
@@ -58,7 +78,7 @@ public class LibRealSenseIntrinsicsLegacy extends CameraPinholeBrown {
 	       this.fy = intrinsics.fy;
 
 	       this.radial = new double[5];
-	       for(int i=0;i<intrinsics.coeffs.length;i++)
+	       for(int i=0;i<radial.length;i++)
 	    	   this.radial[i] = intrinsics.coeffs[i];
 
 	       this.t1 = 0;

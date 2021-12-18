@@ -47,7 +47,7 @@ import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
-import com.comino.mavodometry.callback.IDepthCallbackLegacy;
+import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepthLegacy;
@@ -85,7 +85,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 	private static final int             DEPTH_RATE = 135;
 
 	private StreamRealSenseD4xxDepthLegacy 	realsense	= null;
-	private RealSenseInfo               info        = null;
+	private RealSenseInfo                   info        = null;
 
 
 	// Window
@@ -167,7 +167,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 			});
 		}
 
-		realsense.registerCallback(new IDepthCallbackLegacy() {
+		realsense.registerCallback(new IDepthCallback() {
 
 //			int y0=0; int x; int y; int depth_z; int raw_z;
 //

@@ -294,13 +294,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		}
 
 
-		t265.registerCallback((tms, raw, p, s, a, img) ->  {
+		t265.registerCallback((tms, confidence, p, s, a, img) ->  {
 
 			// Bug in CB; sometimes called twice
 			if((tms-tms_old) < 3)
 				return;
 
-			switch(raw.tracker_confidence()) {
+			switch(confidence) {
 			case StreamRealSenseT265PoseCV.CONFIDENCE_FAILED:
 				quality = 0.00f; error_count++; is_fiducial = false; 
 				is_initialized = false;
@@ -317,7 +317,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				}
 				break;
 			default:
-				System.out.println("TrackerConfidence is "+raw.tracker_confidence());
+				System.out.println("TrackerConfidence is "+confidence);
 			}
 
 
@@ -326,12 +326,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK, false);
 			}
 
-			if(raw.tracker_confidence <= StreamRealSenseT265PoseCV.CONFIDENCE_LOW && confidence_old != raw.tracker_confidence()) {
+			if(confidence <= StreamRealSenseT265PoseCV.CONFIDENCE_LOW && confidence_old != confidence) {
 				control.writeLogMessage(new LogMessage("[vio] T265 Tracker confidence low", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 				// TODO: Action here
 			}
 
-			confidence_old = raw.tracker_confidence();
+			confidence_old = confidence;
 
 			// Reset procedure ------------------------------------------------------------------------------------------------
 			// Note: This takes 1.5sec for T265;

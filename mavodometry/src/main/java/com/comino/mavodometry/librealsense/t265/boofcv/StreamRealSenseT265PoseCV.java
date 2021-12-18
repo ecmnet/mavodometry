@@ -325,8 +325,8 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 				config = rs2_create_config(error);
 				checkError(error);
 
-				rs2_config_enable_device(config, getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_SERIAL_NUMBER),error);
-				checkError(error);
+//				rs2_config_enable_device(config, getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_SERIAL_NUMBER),error);
+//				checkError(error);
 
 				rs2_config_enable_stream(config, realsense2.RS2_STREAM_POSE, 0, 0, 0, realsense2.RS2_FORMAT_6DOF, 200 , error);
 				checkError(error);
@@ -548,7 +548,7 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 							tms0 = tms;
 
 							for(IPoseCallback callback : callbacks)
-								callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
+								callback.handle(tms, rawpose.tracker_confidence(), current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 						}
 
 					} catch(Exception e) {

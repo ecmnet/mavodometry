@@ -1,6 +1,5 @@
 package com.comino.mavodometry.callback;
 
-import org.bytedeco.librealsense2.rs2_pose;
 
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
@@ -8,6 +7,6 @@ import georegression.struct.se.Se3_F64;
 
 public interface IPoseCallback {
 
-	public void handle(long tms, rs2_pose rawpose , Se3_F64 pose, Se3_F64 speed, Se3_F64 acc, Planar<GrayU8> img);
+	public void handle(long tms, int tracker_confidence , Se3_F64 pose, Se3_F64 speed, Se3_F64 acc, Planar<GrayU8> img);
 
 }

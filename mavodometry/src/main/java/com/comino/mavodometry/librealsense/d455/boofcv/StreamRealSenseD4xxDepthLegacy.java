@@ -36,7 +36,7 @@ package com.comino.mavodometry.librealsense.d455.boofcv;
 import java.util.ArrayList;
 import java.util.List;
 
-import com.comino.mavodometry.callback.IDepthCallbackLegacy;
+import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
@@ -44,8 +44,8 @@ import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_format;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_intrinsics;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream;
-import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsicsLegacy;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
+import com.comino.mavodometry.librealsense.utils.RealSenseIntrinsics;
 import com.comino.mavodometry.librealsense.utils.RealsenseDeviceLegacy;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
@@ -62,11 +62,11 @@ public class StreamRealSenseD4xxDepthLegacy extends RealsenseDeviceLegacy {
 
 	private static StreamRealSenseD4xxDepthLegacy instance;
 	
-	private final List<IDepthCallbackLegacy> listeners;
+	private final List<IDepthCallback> listeners;
 
 	// image with depth information
 	private final GrayU16 depth        = new GrayU16(1,1);
-	private final Planar<GrayU8> rgb	 = new Planar<GrayU8>(GrayU8.class,1,1,3);
+	private final Planar<GrayU8> rgb   = new Planar<GrayU8>(GrayU8.class,1,1,3);
 
 	private volatile Realsense2Library.rs2_device dev;
 	private volatile Realsense2Library.rs2_pipeline pipeline;
@@ -79,7 +79,7 @@ public class StreamRealSenseD4xxDepthLegacy extends RealsenseDeviceLegacy {
 	private  final byte[] input;
 
 	private final RealSenseInfo          info;
-	private LibRealSenseIntrinsicsLegacy intrinsics;
+	private RealSenseIntrinsics    intrinsics;
 	private float scale;
 
 	private boolean is_running;
@@ -98,7 +98,7 @@ public class StreamRealSenseD4xxDepthLegacy extends RealsenseDeviceLegacy {
 
 		this.input = new byte[info.width * info.height * 3];
 
-		this.listeners = new ArrayList<IDepthCallbackLegacy>();
+		this.listeners = new ArrayList<IDepthCallback>();
 		this.info = info;
 
 		dev = getDeviceByName("D455");
@@ -151,7 +151,7 @@ public class StreamRealSenseD4xxDepthLegacy extends RealsenseDeviceLegacy {
 	}
 
 
-	public StreamRealSenseD4xxDepthLegacy registerCallback(IDepthCallbackLegacy listener) {
+	public StreamRealSenseD4xxDepthLegacy registerCallback(IDepthCallback listener) {
 		listeners.add(listener);
 		return this;
 	}
@@ -165,7 +165,7 @@ public class StreamRealSenseD4xxDepthLegacy extends RealsenseDeviceLegacy {
 		// /home/lquac/librealsense/build/examples/C/depth/rs-depth
 
 		config = rs2.rs2_create_config(error);
-		rs2.rs2_config_enable_device(config, rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error),error);
+	//	rs2.rs2_config_enable_device(config, rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error),error);
 		pipeline = rs2.rs2_create_pipeline(ctx, error);
 
 		// Configure streams
@@ -216,7 +216,7 @@ public class StreamRealSenseD4xxDepthLegacy extends RealsenseDeviceLegacy {
 		private Realsense2Library.rs2_frame frames;
 		private Realsense2Library.rs2_frame  frame;
 		
-		rs2_intrinsics rs_intrinsics = new rs2_intrinsics();
+		rs2_intrinsics rs2_intrinsics = new rs2_intrinsics();
 
 		@Override
 		public void run() {
@@ -244,8 +244,8 @@ public class StreamRealSenseD4xxDepthLegacy extends RealsenseDeviceLegacy {
 
 					if(intrinsics==null) {
 						PointerByReference mode = rs2.rs2_get_frame_stream_profile(frame,error);
-						rs2.rs2_get_video_stream_intrinsics(mode, rs_intrinsics, error);
-						intrinsics = new LibRealSenseIntrinsicsLegacy(rs_intrinsics);
+						rs2.rs2_get_video_stream_intrinsics(mode, rs2_intrinsics, error);
+						intrinsics = new RealSenseIntrinsics(rs2_intrinsics);
 						is_initialized = true;
 					}
 
@@ -261,7 +261,7 @@ public class StreamRealSenseD4xxDepthLegacy extends RealsenseDeviceLegacy {
 
 
 					if(listeners.size()>0 && is_initialized) {
-						for(IDepthCallbackLegacy listener : listeners)
+						for(IDepthCallback listener : listeners)
 							listener.process(rgb, depth, tms_rgb, tms_depth);
 					}
 
@@ -335,6 +335,7 @@ public class StreamRealSenseD4xxDepthLegacy extends RealsenseDeviceLegacy {
 		} catch(Exception e ) { }
 
 	}
-
+	
+	
 
 }
