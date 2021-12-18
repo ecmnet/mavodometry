@@ -358,7 +358,8 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 					try {
 
-						frames = rs2_pipeline_wait_for_frames(pipeline, 2500, error);
+						// Note: Timeout set to max as RTC is reset via NTP
+						frames = rs2_pipeline_wait_for_frames(pipeline, Integer.MAX_VALUE, error);
 						checkError(error);
 
 						tms = (long)rs2_get_frame_timestamp(frames,error);
@@ -549,7 +550,11 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 						}
 
 					} catch(Exception e) {
+						
 						System.err.println(e.getMessage());
+						rs2_pipeline_stop(pipeline, error);
+						try { Thread.sleep(100); } catch (InterruptedException k) {  }
+						rs2_pipeline_start_with_config(pipeline, config, error);
 					}
 				}
 

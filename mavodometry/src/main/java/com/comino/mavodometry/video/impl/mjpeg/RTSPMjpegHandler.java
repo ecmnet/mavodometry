@@ -336,6 +336,9 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	public void close() {
 
+		if(!is_running)
+			return;
+		
 		System.out.println("Closing video stream");
 
 //		rtcpReceiver.stopRcv();
@@ -487,8 +490,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 						else if (request_type == TEARDOWN) {
 							//send back response
 							sendResponse();
-							is_running = false;
 							close();
+							is_running = false;
 						}
 						else if (request_type == DESCRIBE) {
 							System.out.println("Received DESCRIBE request");
