@@ -158,7 +158,6 @@ public class RealsenseDeviceCV  {
 
 	protected int getDeviceCount() throws Exception {
 		int count = rs2_get_device_count(device_list, error);
-
 		checkError(error);
 		return count;
 	}
