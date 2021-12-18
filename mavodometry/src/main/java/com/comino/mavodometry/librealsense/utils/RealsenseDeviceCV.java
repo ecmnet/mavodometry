@@ -3,21 +3,21 @@ package com.comino.mavodometry.librealsense.utils;
 import static org.bytedeco.librealsense2.global.realsense2.RS2_API_VERSION;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_create_context;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_create_device;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_create_sensor;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_device_count;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_device_info;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_error_message;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_failed_args;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_failed_function;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_query_devices;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_set_option;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_option;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_supports_device_info;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_sensor_info;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_supports_option;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_hardware_reset;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_query_sensors;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_sensors_count;
-import static org.bytedeco.librealsense2.global.realsense2.rs2_create_sensor;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_hardware_reset;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_query_devices;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_query_sensors;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_set_option;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_supports_device_info;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_supports_option;
 
 import org.bytedeco.javacpp.Loader;
 import org.bytedeco.javacv.FrameGrabber;
@@ -32,7 +32,7 @@ import org.bytedeco.librealsense2.rs2_sensor;
 import org.bytedeco.librealsense2.rs2_sensor_list;
 import org.bytedeco.librealsense2.global.realsense2;
 
-public class RealsenseDevice  {
+public class RealsenseDeviceCV  {
 
 
 	public static final float OPTION_ENABLE  = 1.0f;
@@ -63,7 +63,7 @@ public class RealsenseDevice  {
 
 	protected boolean is_initialized = false;
 
-	public RealsenseDevice() throws Exception {
+	public RealsenseDeviceCV() throws Exception {
 
 		is_initialized = false;
 
@@ -221,6 +221,7 @@ public class RealsenseDevice  {
 	protected static boolean toBoolean(int value) {
 		return value >= 1;
 	}
+	
 
 
 }

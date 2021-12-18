@@ -1,10 +1,10 @@
-package com.comino.mavodometry.librealsense.lib;
+package com.comino.mavodometry.librealsense.utils;
 
+import com.comino.mavodometry.librealsense.lib.Realsense2Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
 import com.sun.jna.ptr.PointerByReference;
 
-public class RealsenseDevice_lib  {
+public class RealsenseDeviceLegacy  {
 
 	public static Realsense2Library rs2 = Realsense2Library.INSTANCE;
 	
@@ -20,13 +20,13 @@ public class RealsenseDevice_lib  {
 	
 	protected boolean is_initialized = false;
 
-	public RealsenseDevice_lib() {
+	public RealsenseDeviceLegacy() {
 		
 		is_initialized = false;
 
 		if(ctx == null) {
 
-			System.out.println("Using realsense device driver");
+			System.out.println("Using realsense legacy device driver");
 
 			ctx = rs2.rs2_create_context(Realsense2Library.RS2_API_VERSION, error);
 			

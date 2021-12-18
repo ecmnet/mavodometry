@@ -1,6 +1,5 @@
 package com.comino.mavodometry.utils;
 
-import boofcv.struct.ImageRectangle;
 import boofcv.struct.image.GrayU16;
 
 // Histogram based distance determination of surrounding box

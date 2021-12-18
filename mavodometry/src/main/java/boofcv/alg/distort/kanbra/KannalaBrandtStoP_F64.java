@@ -18,11 +18,12 @@
 
 package boofcv.alg.distort.kanbra;
 
+import org.ejml.UtilEjml;
+
 import boofcv.struct.calib.CameraKannalaBrandt;
 import boofcv.struct.distort.Point3Transform2_F64;
 import georegression.geometry.UtilPoint3D_F64;
 import georegression.struct.point.Point2D_F64;
-import org.ejml.UtilEjml;
 
 /**
  * Forward projection model for {@link CameraKannalaBrandt}.  Takes a 3D point in camera unit sphere

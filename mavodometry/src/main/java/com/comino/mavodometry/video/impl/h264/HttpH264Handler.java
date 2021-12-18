@@ -40,7 +40,6 @@ import java.awt.image.BufferedImage;
 import java.io.BufferedOutputStream;
 import java.io.IOException;
 import java.io.OutputStream;
-import java.nio.ByteBuffer;
 import java.util.ArrayList;
 import java.util.Iterator;
 import java.util.List;
@@ -53,12 +52,7 @@ import javax.imageio.ImageWriter;
 import javax.imageio.plugins.jpeg.JPEGImageWriteParam;
 import javax.imageio.stream.ImageOutputStream;
 
-import org.jcodec.api.SequenceEncoder;
-import org.jcodec.common.Codec;
-
-
 import org.jcodec.common.model.Picture;
-import org.jcodec.common.model.Rational;
 
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.video.INoVideoListener;

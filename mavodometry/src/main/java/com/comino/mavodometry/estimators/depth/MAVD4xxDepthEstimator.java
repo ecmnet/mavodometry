@@ -43,20 +43,18 @@ import java.text.DecimalFormat;
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
-import com.comino.mavcom.core.ControlModule;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
-import com.comino.mavodometry.callback.IDepthCallback;
+import com.comino.mavodometry.callback.IDepthCallbackLegacy;
 import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
-import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepth;
+import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepthLegacy;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.workqueue.WorkQueue;
 
-import boofcv.concurrency.BoofConcurrency;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
@@ -86,7 +84,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 	
 	private static final int             DEPTH_RATE = 135;
 
-	private StreamRealSenseD4xxDepth 	realsense	= null;
+	private StreamRealSenseD4xxDepthLegacy 	realsense	= null;
 	private RealSenseInfo               info        = null;
 
 
@@ -143,7 +141,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
 		try {
-			this.realsense = StreamRealSenseD4xxDepth.getInstance(info);
+			this.realsense = StreamRealSenseD4xxDepthLegacy.getInstance(info);
 		} catch( Exception e) {
 			System.out.println("No D455 device found");
 			return;
@@ -169,7 +167,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 			});
 		}
 
-		realsense.registerCallback(new IDepthCallback() {
+		realsense.registerCallback(new IDepthCallbackLegacy() {
 
 //			int y0=0; int x; int y; int depth_z; int raw_z;
 //

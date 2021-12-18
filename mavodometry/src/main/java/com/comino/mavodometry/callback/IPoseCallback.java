@@ -2,8 +2,6 @@ package com.comino.mavodometry.callback;
 
 import org.bytedeco.librealsense2.rs2_pose;
 
-import com.comino.mavodometry.librealsense.lib.Realsense2Library;
-
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.struct.se.Se3_F64;

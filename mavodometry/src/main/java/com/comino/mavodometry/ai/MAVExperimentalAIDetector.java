@@ -35,20 +35,18 @@ package com.comino.mavodometry.ai;
 
 import static boofcv.factory.distort.LensDistortionFactory.narrow;
 
-import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.core.ControlModule;
-import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.ITargetListener;
-import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepth;
+import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepthCV;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 
@@ -57,8 +55,6 @@ import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import edu.mines.jtk.awt.ColorMap;
-import georegression.geometry.GeometryMath_F64;
-import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
@@ -82,7 +78,7 @@ public class MAVExperimentalAIDetector extends ControlModule  {
 	private static final double        OFFSET_Y     =  0.00;
 	private static final double        OFFSET_Z     =  0.00;
 
-	private StreamRealSenseD4xxDepth 	realsense	= null;
+	private StreamRealSenseD4xxDepthCV 	realsense	= null;
 	private RealSenseInfo               info        = null;
 
 	// Window
@@ -125,7 +121,7 @@ public class MAVExperimentalAIDetector extends ControlModule  {
 			
 			/// TODO: should not create a new instance
 			
-			this.realsense = StreamRealSenseD4xxDepth.getInstance(info);
+			this.realsense = StreamRealSenseD4xxDepthCV.getInstance(info);
 		} catch( Exception e) {
 			System.out.println("No D455 device found");
 			return;

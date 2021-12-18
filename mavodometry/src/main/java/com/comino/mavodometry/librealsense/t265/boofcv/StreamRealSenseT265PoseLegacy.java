@@ -40,7 +40,7 @@ import java.util.List;
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
 
-import com.comino.mavcom.model.segment.Debug;
+import com.comino.mavodometry.callback.IPoseCallbackLegacy;
 
 /****************************************************************************
  *
@@ -76,17 +76,14 @@ import com.comino.mavcom.model.segment.Debug;
  ****************************************************************************/
 
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.lib.IPoseCallback_lib;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_camera_info;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_extension;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_format;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_frame;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_option;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_sensor;
 import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream;
-import com.comino.mavodometry.librealsense.lib.Realsense2Library.rs2_stream_profile;
-import com.comino.mavodometry.librealsense.lib.RealsenseDevice_lib;
+import com.comino.mavodometry.librealsense.utils.RealsenseDeviceLegacy;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
@@ -96,15 +93,12 @@ import boofcv.struct.image.Planar;
 import georegression.geometry.ConvertRotation3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
+public class StreamRealSenseT265PoseLegacy extends RealsenseDeviceLegacy {
 
-	private static StreamRealSenseT265Pose2_backup instance;
+	private static StreamRealSenseT265PoseLegacy instance;
 
-	private static final int WIDTH      = 848;
-	private static final int HEIGHT     = 800;
-
-	private static final int RATE_FPS   = 30;
-
+	private static final int WIDTH  = 848;
+	private static final int HEIGHT = 800;
 
 	public static final  int POS_FOREWARD     			= 0;
 	public static final  int POS_DOWNWARD    			= 1; // UP
@@ -129,7 +123,7 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 
 	private Realsense2Library.rs2_pose rawpose = new Realsense2Library.rs2_pose();
 	private Realsense2Library.rs2_pose prepose = new Realsense2Library.rs2_pose();
-
+	private Realsense2Library.rs2_pose node = new Realsense2Library.rs2_pose();
 
 	private Realsense2Library.rs2_intrinsics intrinsics_left = new Realsense2Library.rs2_intrinsics();
 	private PointerByReference mode_left = null;
@@ -139,30 +133,29 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 
 	private Realsense2Library.rs2_extrinsics extrinsics = new Realsense2Library.rs2_extrinsics();
 
-	private final List<IPoseCallback_lib>         callbacks     = new ArrayList<IPoseCallback_lib>();
+	private final List<IPoseCallbackLegacy>         callbacks     = new ArrayList<IPoseCallbackLegacy>();
 
 	private final Planar<GrayU8> img     = new Planar<GrayU8>(GrayU8.class,WIDTH,HEIGHT,3);
 
 	private long   tms0, tms;
 	private int    fps;
 
-	private boolean is_running      = false;
-	private boolean reset_request   = false;
-	private boolean enable_video    = true;
+	private boolean is_running;
+	private boolean reset_request;
+	private boolean video_enabled;
 
 	private int x0,y0,x1,y1;
 	private int mount;
 
-	private CombineT265Thread worker = null;
 
 
 	private final DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
 	private final DMatrixRMaj   rtY90P = CommonOps_DDRM.identity( 3 );
 	private final DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
 
-	public static StreamRealSenseT265Pose2_backup getInstance(int mount, int width, int height) {
+	public static StreamRealSenseT265PoseLegacy getInstance(int mount, int width, int height) {
 		if(instance==null)
-			instance = new StreamRealSenseT265Pose2_backup(mount,width,height);
+			instance = new StreamRealSenseT265PoseLegacy(mount,width,height);
 		return instance;
 	}
 
@@ -183,11 +176,9 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 	//		}  
 	//	}
 
+	//	private  T265NotificationCallback cb = new T265NotificationCallback();
 
-
-	//private final T265FrameCallback cb = new T265FrameCallback();
-
-	private  StreamRealSenseT265Pose2_backup(int mount, int width, int height) {
+	private  StreamRealSenseT265PoseLegacy(int mount, int width, int height) {
 
 		super();
 
@@ -196,6 +187,7 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 		this.x1 = x0 + width;
 		this.y1 = y0 + height;
 		this.mount = mount;
+
 
 		ConvertRotation3D_F64.rotY(Math.PI/2,rtY90);
 		ConvertRotation3D_F64.rotY(-Math.PI/2,rtY90P);
@@ -207,34 +199,19 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 			throw new IllegalArgumentException("No device found");
 		}
 
-
-		// Settings some options for the pose sensor
-
-		PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);
-
-		int sensor_count = rs2.rs2_get_sensors_count(sensor_list, error);
-		System.out.println("T265 has "+sensor_count+" sensor(s)");
-
-		sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
-
-		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, "RS2_OPTION_ENABLE_POSE_JUMPING", false);
-		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAPPING, "RS2_OPTION_ENABLE_MAPPING", true);
-		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, "RS2_OPTION_ENABLE_MAP_PRESERVATION", false);
-		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION, "RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION", true);
-		setOption(sensor,rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, "RS2_OPTION_ENABLE_RELOCALIZATION", false);
-
-
-		setOption(sensor,rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, "RS2_OPTION_FRAMES_QUEUE_SIZE", 3);
-
 		// Callback setup: TODO: Not sure whether this works
 		//		System.out.println("   -> Notification callback registered");
 		//		rs2.rs2_set_notifications_callback(sensor,cb,null,error);
 
 	}
 
-	public StreamRealSenseT265Pose2_backup registerCallback(IPoseCallback_lib callback) {
+	public StreamRealSenseT265PoseLegacy registerCallback(IPoseCallbackLegacy callback) {
 		this.callbacks.add(callback);
 		return this;
+	}
+	
+	public boolean isVideoEnabled() {
+		return video_enabled;
 	}
 
 	public void start() {
@@ -242,46 +219,17 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 		if(dev == null)
 			return;
 
-		if(rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_FIRMWARE_VERSION, error)
-				.getString(0).contains("951"))
-		{
-			System.out.println("T265 hardware reset performed..");
-			rs2.rs2_hardware_reset(dev, error);
-			try { Thread.sleep(200); } catch (InterruptedException e) {  }
-		}
-
-		pipeline = rs2.rs2_create_pipeline(ctx, error);
-
-		config = rs2.rs2_create_config(error);
-		rs2.rs2_config_enable_device(config, rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error),error);
-
-
-		// TODO: Selection of streams does not work
-		//					rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_POSE, -1, 0, 0, rs2_format.RS2_FORMAT_6DOF, 0 , error);
-		//					rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_FISHEYE, 0, WIDTH, HEIGHT, rs2_format.RS2_FORMAT_Y8, 0, error);
-		//					rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_FISHEYE, 1, WIDTH, HEIGHT, rs2_format.RS2_FORMAT_Y8, 0, error);
-		if(enable_video) {
-
-		}
-
-		//	
-
 		is_running = true;
 
-		worker = new CombineT265Thread();
-		OdometryPool.submit(worker);
-
-
-		//	rs2.rs2_pipeline_start_with_config_and_callback(pipeline, config, cb, null, error);
-
-
+		OdometryPool.submit(new CombineT265Thread());
 		System.out.println("T265 pose estimation started");
+	
 	}
 
 	public void stop() {
 		if(dev == null)
 			return;
-		is_running = false; 
+		is_running = false;
 		try { Thread.sleep(200); } catch (InterruptedException e) { }
 	}
 
@@ -292,11 +240,6 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 
 	public void reset() {
 		reset_request = true;
-	}
-
-	public void reset(boolean enable_video_stream) {
-		reset_request = true;
-		enable_video = enable_video_stream;
 	}
 
 	public int getFrameRate() {
@@ -340,89 +283,6 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 		return is_running;
 	}
 
-	//	public class T265FrameCallback implements Realsense2Library.rs2_frame_callback_ptr {
-	//
-	//		private Se3_F64    current_pose         = new Se3_F64();
-	//		private Se3_F64    current_speed        = new Se3_F64();
-	//		private Se3_F64    current_acceleration = new Se3_F64();
-	//
-	//		private int num_of_frames = 0;
-	//
-	//		@Override
-	//		public void apply(Pointer rs2_frame, Pointer voidPtr1) {
-	//			rs2_frame frames =  new rs2_frame(rs2_frame);
-	//			num_of_frames = rs2.rs2_embedded_frames_count(frames, error);
-	//
-	//			// Images as frameset)
-	//			if(num_of_frames > 0) {
-	//
-	//				rs2_frame frame = rs2.rs2_extract_frame(frames, 0, error);
-	//				tms = (long)rs2.rs2_get_frame_timestamp(frame,error);
-	//
-	//				if(0 != rs2.rs2_is_frame_extendable_to(frame, rs2_extension.RS2_EXTENSION_VIDEO_FRAME, error) ) {
-	//					if(mode_left==null) {
-	//						mode_left = rs2.rs2_get_frame_stream_profile(frame,error);
-	//						rs2.rs2_get_video_stream_intrinsics(mode_left, intrinsics_left, error);
-	//						left_model = createFisheyeModel(intrinsics_left);
-	//					} else {
-	//						bufferGrayToU8(rs2.rs2_get_frame_data(frame, error),img);
-	//					}
-	//					worker.trigger();
-	//				}
-	//				rs2.rs2_release_frame(frame);
-	//
-	//			} else {
-	//
-	//				if(0 != rs2.rs2_is_frame_extendable_to(frames, rs2_extension.RS2_EXTENSION_POSE_FRAME, error)) {
-	//					rs2.rs2_pose_frame_get_pose_data(frames, rawpose, error);
-	//				}
-	//			}
-	//
-	//
-	//			rs2.rs2_release_frame(frames);
-	//		}  
-	//	}
-
-	//	private class CombineT265Thread extends Thread {
-	//
-	//		private Se3_F64    current_pose         = new Se3_F64();
-	//		private Se3_F64    current_speed        = new Se3_F64();
-	//		private Se3_F64    current_acceleration = new Se3_F64();
-	//
-	//		private float      dt_s = 0;
-	//
-	//		private boolean    transfer             = false;
-	//
-	//
-	//		@Override
-	//		public void run() {
-	//			while(is_running) {
-	//				try {
-	//
-	//					synchronized(this) {
-	//						while(!transfer)
-	//							this.wait();
-	//						System.out.println(tms+":"+rawpose.translation);
-	//						for(IPoseCallback callback : callbacks)
-	//							callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
-	//					transfer = false;
-	//				}
-	//
-	//
-	//			} catch (InterruptedException e) {
-	//				e.printStackTrace();
-	//			}
-	//
-	//		}
-	//	}
-	//
-	//	public synchronized void trigger() {
-	//		transfer = true;
-	//		notify();	
-	//	}
-	//}
-
-
 	private class CombineT265Thread extends Thread {
 
 		private Se3_F64    current_pose         = new Se3_F64();
@@ -430,29 +290,76 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 		private Se3_F64    current_acceleration = new Se3_F64();
 
 		private float      dt_s = 0;
+		private int num_of_frames = 0;
+		private boolean left;
 
+		private long count_framesets = 0;
+		private long skipper = 1;
+
+		private Realsense2Library.rs2_frame  frame;
 
 		@Override
 		public void run() {
+			
+			long tms_old = 0;
 
 			is_initialized = false;
 			reset_request = false;
 
-			//	try { Thread.sleep(300); } catch (InterruptedException e) {  }
+			if(rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_FIRMWARE_VERSION, error)
+					.getString(0).contains("951"))
+			{
+				System.out.println("T265 hardware reset performed..");
+				rs2.rs2_hardware_reset(dev, error);
+				try { Thread.sleep(500); } catch (InterruptedException e) {  }
+			}
 
-			//			rs2_pipeline_profile profile = 
+			// Settings some options for the pose sensor
+
+			//rs2.rs2_log_to_console(1, error);
+
+			PointerByReference sensor_list = rs2.rs2_query_sensors(dev, error);
+
+			int sensor_count = rs2.rs2_get_sensors_count(sensor_list, error);
+			System.out.println("T265 has "+sensor_count+" sensor(s)");
+
+			sensor = rs2.rs2_create_sensor(sensor_list, 0, error);
+
+			// Test: enable pose jumping and check velocity drift
+			setOption(sensor,rs2_option.RS2_OPTION_ENABLE_POSE_JUMPING, "RS2_OPTION_ENABLE_POSE_JUMPING", true);
+			setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAPPING, "RS2_OPTION_ENABLE_MAPPING", true);
+			setOption(sensor,rs2_option.RS2_OPTION_ENABLE_MAP_PRESERVATION, "RS2_OPTION_ENABLE_MAP_PRESERVATION", false);
+			setOption(sensor,rs2_option.RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION, "RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION", true);
+			setOption(sensor,rs2_option.RS2_OPTION_ENABLE_RELOCALIZATION, "RS2_OPTION_ENABLE_RELOCALIZATION", true);
+
+			setOption(sensor,rs2_option.RS2_OPTION_FRAMES_QUEUE_SIZE, "RS2_OPTION_FRAMES_QUEUE_SIZE", 1);
+
+			pipeline = rs2.rs2_create_pipeline(ctx, error);
+
+			config = rs2.rs2_create_config(error);
+			rs2.rs2_config_enable_device(config, rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_SERIAL_NUMBER, error),error);
+			rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_POSE, 0, 0, 0, rs2_format.RS2_FORMAT_6DOF, 200 , error);
+
+			// Enable video stream on USB3 Ports
+			if(rs2.rs2_get_device_info(dev, rs2_camera_info.RS2_CAMERA_INFO_USB_TYPE_DESCRIPTOR, error).getString(0).startsWith("3")) {
+				
+                System.out.println("T265 video streams enabled...");
+				rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_FISHEYE, 1, WIDTH, HEIGHT, rs2_format.RS2_FORMAT_Y8, 30, error);
+				rs2.rs2_config_enable_stream(config, rs2_stream.RS2_STREAM_FISHEYE, 2, WIDTH, HEIGHT, rs2_format.RS2_FORMAT_Y8, 30, error);
+				video_enabled = true;
+				
+			} else
+				video_enabled = false;
 
 
-			try { Thread.sleep(200); } catch (InterruptedException e) {  }
+			if(rs2.rs2_config_can_resolve(config, pipeline, error) ==0) {
+				System.out.println("T265 configuration cannot be resolved. Device not started.");
+				is_running = false;
+			}
 
-			int num_of_frames = 0;
-			boolean left = false;
-
-			rs2_frame frame;
-			
 			rs2.rs2_pipeline_start_with_config(pipeline, config, error);
 
-			System.out.println("T265 pipeline started. Video is enabled : "+enable_video);
+			System.out.println("T265 pipeline started");
 
 
 			while(is_running) {
@@ -461,11 +368,27 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 
 					rs2_frame frames = rs2.rs2_pipeline_wait_for_frames(pipeline, 15000, error);
 
-					num_of_frames = rs2.rs2_embedded_frames_count(frames, error);
 					tms = (long)rs2.rs2_get_frame_timestamp(frames,error);
-					if(tms!=tms0)
-						fps = (int)(1000.0f/(tms - tms0));
-					tms0 = tms;
+					
+
+					num_of_frames = rs2.rs2_embedded_frames_count(frames, error);
+
+					if(num_of_frames == 1) {
+						// Odometry only at 50Hz
+						skipper = 4;
+						is_initialized = true;
+					} else
+						// Full set
+						skipper = 1;
+					
+					// avoid doubled triggers
+					if((tms - tms_old) < 1) {
+						rs2.rs2_release_frame(frames);
+						continue;
+					}
+					tms_old = tms;
+
+					count_framesets++;
 
 					left = false; 
 
@@ -475,7 +398,6 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 
 						if(0 != rs2.rs2_is_frame_extendable_to(frame, rs2_extension.RS2_EXTENSION_POSE_FRAME, error)) {
 							rs2.rs2_pose_frame_get_pose_data(frame, rawpose, error);
-						//	System.out.println(rawpose.translation);
 						}
 
 						if(0 != rs2.rs2_is_frame_extendable_to(frame, rs2_extension.RS2_EXTENSION_VIDEO_FRAME, error)) {
@@ -486,6 +408,7 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 									rs2.rs2_get_video_stream_intrinsics(mode_left, intrinsics_left, error);
 									left_model = createFisheyeModel(intrinsics_left);
 								} else {
+									rs2.rs2_keep_frame(frame);
 									bufferGrayToU8(rs2.rs2_get_frame_data(frame, error),img);
 								} 
 							} else {
@@ -503,7 +426,6 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 					}
 
 					rs2.rs2_release_frame(frames);
-
 
 					switch(mount) {
 
@@ -610,40 +532,37 @@ public class StreamRealSenseT265Pose2_backup extends RealsenseDevice_lib {
 					if(reset_request) {
 						try {
 							synchronized(this) {
-								reset_request = false; tms0 = 0;
+								reset_request = false;
 								rs2.rs2_pipeline_stop(pipeline, error);
-								try { Thread.sleep(200); } catch (InterruptedException e) {  }
-								//								if(!enable_video) {
-								//									rs2.rs2_config_disable_stream(config, 1, error);
-								//									rs2.rs2_config_disable_stream(config, 2, error);
-								//								}
+								try { Thread.sleep(100); } catch (InterruptedException e) {  }
 								rs2.rs2_pipeline_start_with_config(pipeline, config, error);
-								checkError("Restart pipeline",error);
+								fps = 0;
 							}
 						} catch(Exception e) { e.printStackTrace(); }
 						continue;
 					}
 
-					if(is_initialized && tms > 0) {
-						for(IPoseCallback_lib callback : callbacks)
-							if(enable_video)
-								callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
-							else
-								callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, null);
+					// Note: Limit callback rate via skipper
+					if(is_initialized && (count_framesets % skipper) == 0) {
+						if(tms!=tms0)
+							fps = (int)(1000.0f/(tms - tms0));
+						tms0 = tms;
+						
+						for(IPoseCallbackLegacy callback : callbacks)
+							callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 					}
+
 
 				} catch(Exception e) {
 					e.printStackTrace();
 				}
 			}
 			rs2.rs2_pipeline_stop(pipeline, error);
-			rs2.rs2_delete_pipeline(pipeline);
-			rs2.rs2_delete_config(config);
 			System.out.println("T265 stopped.");
 		}
 	}
 
-	private void bufferGrayToU8(Pointer input , Planar<GrayU8> output ) {
+	private synchronized void bufferGrayToU8(Pointer input , Planar<GrayU8> output ) {
 		input.read(0, output.bands[0].data, 0, output.bands[0].data.length);
 		output.bands[1].data = output.bands[0].data;
 		output.bands[2].data = output.bands[0].data;

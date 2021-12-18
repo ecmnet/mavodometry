@@ -26,12 +26,10 @@ import org.libjpegturbo.turbojpeg.TJCompressor;
 import org.libjpegturbo.turbojpeg.TJException;
 
 import com.comino.mavcom.model.DataModel;
-import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.video.INoVideoListener;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.rtps.RTPpacket;
-import com.comino.mavutils.workqueue.WorkQueue;
 
 import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.image.GrayU8;
@@ -44,7 +42,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private static final int 		FRAME_RATE_MAX        = Integer.MAX_VALUE;
 	
 	private static final int 		FRAME_RATE_FPS        = 15;
-	private static final int		DEFAULT_VIDEO_QUALITY = 80;
+	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		LOW_VIDEO_QUALITY     = 10;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
@@ -199,7 +197,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					synchronized(this) {
 						tms = System.currentTimeMillis();
 						if(!isReady) {
-							wait(500);
+							wait(1000);
 						}	  
 					}
 					isReady = false;
@@ -213,7 +211,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 								no_video = true;
 								ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 								ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-								tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS );
+								tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
 								RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 
 								int packet_length = rtp_packet.getpacket(packet_bits);
@@ -454,7 +452,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 							//init RTP
 							try {
 								RTPsocket = new DatagramSocket();
-								RTPsocket.setSendBufferSize(256*1024);
+								RTPsocket.setSendBufferSize(512*1024);
 								RTPsocket.setTrafficClass(0x08);
 							} catch (SocketException e) {
 								e.printStackTrace();

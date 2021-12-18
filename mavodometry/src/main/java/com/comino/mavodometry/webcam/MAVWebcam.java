@@ -18,16 +18,17 @@
 
 package com.comino.mavodometry.webcam;
 
-import boofcv.io.image.SimpleImageSequence;
-import boofcv.io.wrapper.WebcamInterface;
-import boofcv.javacv.ConvertOpenCvFrame;
-import boofcv.struct.image.ImageBase;
-import boofcv.struct.image.ImageType;
 import org.bytedeco.javacv.Frame;
 import org.bytedeco.javacv.FrameGrabber;
 import org.bytedeco.javacv.FrameGrabber.Exception;
 import org.bytedeco.javacv.OpenCVFrameGrabber;
 import org.ddogleg.struct.DogArray_I8;
+
+import boofcv.io.image.SimpleImageSequence;
+import boofcv.io.wrapper.WebcamInterface;
+import boofcv.javacv.ConvertOpenCvFrame;
+import boofcv.struct.image.ImageBase;
+import boofcv.struct.image.ImageType;
 
 /**
  * Implementation of {@link WebcamInterface} for OpenCV.

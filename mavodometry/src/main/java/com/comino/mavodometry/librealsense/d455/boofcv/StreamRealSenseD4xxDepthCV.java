@@ -53,7 +53,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bytedeco.javacpp.BytePointer;
-import org.bytedeco.javacpp.Pointer;
 import org.bytedeco.javacpp.ShortPointer;
 import org.bytedeco.librealsense2.rs2_config;
 import org.bytedeco.librealsense2.rs2_device;
@@ -67,21 +66,21 @@ import org.bytedeco.librealsense2.global.realsense2;
 
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsics;
+import com.comino.mavodometry.librealsense.utils.LibRealSenseIntrinsicsCV;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
-import com.comino.mavodometry.librealsense.utils.RealsenseDevice;
+import com.comino.mavodometry.librealsense.utils.RealsenseDeviceCV;
 
 import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
-public class StreamRealSenseD4xxDepth extends RealsenseDevice {
+public class StreamRealSenseD4xxDepthCV extends RealsenseDeviceCV {
 	
 	private static final int FRAMERATE = 15;
 
 
-	private static StreamRealSenseD4xxDepth instance;
+	private static StreamRealSenseD4xxDepthCV instance;
 	
 	private final List<IDepthCallback> listeners;
 
@@ -100,19 +99,19 @@ public class StreamRealSenseD4xxDepth extends RealsenseDevice {
 	private  final byte[] input;
 
 	private final RealSenseInfo          info;
-	private LibRealSenseIntrinsics intrinsics;
+	private LibRealSenseIntrinsicsCV intrinsics;
 	private float scale;
 
 	private boolean is_running;
 
 	
-	public static StreamRealSenseD4xxDepth getInstance(RealSenseInfo info) throws Exception {
+	public static StreamRealSenseD4xxDepthCV getInstance(RealSenseInfo info) throws Exception {
 		if(instance==null)
-			instance = new StreamRealSenseD4xxDepth(info);
+			instance = new StreamRealSenseD4xxDepthCV(info);
 		return instance;
 	}
 
-	private StreamRealSenseD4xxDepth(RealSenseInfo info) throws Exception
+	private StreamRealSenseD4xxDepthCV(RealSenseInfo info) throws Exception
 	{
 
 		super();
@@ -169,7 +168,7 @@ public class StreamRealSenseD4xxDepth extends RealsenseDevice {
 	}
 
 
-	public StreamRealSenseD4xxDepth registerCallback(IDepthCallback listener) {
+	public StreamRealSenseD4xxDepthCV registerCallback(IDepthCallback listener) {
 		listeners.add(listener);
 		return this;
 	}
@@ -265,7 +264,7 @@ public class StreamRealSenseD4xxDepth extends RealsenseDevice {
 					if(intrinsics==null) {
 						rs2_stream_profile mode = rs2_get_frame_stream_profile(frame,error);
 						rs2_get_video_stream_intrinsics(mode, rs_intrinsics, error);
-						intrinsics = new LibRealSenseIntrinsics(rs_intrinsics);
+						intrinsics = new LibRealSenseIntrinsicsCV(rs_intrinsics);
 						is_initialized = true;
 					}
 

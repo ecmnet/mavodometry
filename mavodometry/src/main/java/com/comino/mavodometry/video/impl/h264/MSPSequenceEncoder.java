@@ -1,6 +1,5 @@
 package com.comino.mavodometry.video.impl.h264;
 
-import java.awt.image.BufferedImage;
 import java.io.IOException;
 import java.nio.ByteBuffer;
 import java.util.ArrayList;

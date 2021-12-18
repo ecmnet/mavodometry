@@ -58,7 +58,6 @@ import java.util.ArrayList;
 import java.util.List;
 
 import org.bytedeco.javacpp.BytePointer;
-import org.bytedeco.javacpp.Pointer;
 import org.bytedeco.librealsense2.rs2_config;
 import org.bytedeco.librealsense2.rs2_device;
 import org.bytedeco.librealsense2.rs2_extrinsics;
@@ -75,7 +74,7 @@ import org.ejml.dense.row.CommonOps_DDRM;
 
 import com.comino.mavodometry.callback.IPoseCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
-import com.comino.mavodometry.librealsense.utils.RealsenseDevice;
+import com.comino.mavodometry.librealsense.utils.RealsenseDeviceCV;
 
 import boofcv.struct.calib.CameraKannalaBrandt;
 import boofcv.struct.image.GrayU8;
@@ -83,9 +82,9 @@ import boofcv.struct.image.Planar;
 import georegression.geometry.ConvertRotation3D_F64;
 import georegression.struct.se.Se3_F64;
 
-public class StreamRealSenseT265Pose extends RealsenseDevice {
+public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
-	private static StreamRealSenseT265Pose instance;
+	private static StreamRealSenseT265PoseCV instance;
 
 	private static final int WIDTH  = 848;
 	private static final int HEIGHT = 800;
@@ -141,9 +140,9 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 	private final DMatrixRMaj   rtY90P = CommonOps_DDRM.identity( 3 );
 	private final DMatrixRMaj   tmp    = CommonOps_DDRM.identity( 3 );
 
-	public static StreamRealSenseT265Pose getInstance(int mount, int width, int height) throws Exception {
+	public static StreamRealSenseT265PoseCV getInstance(int mount, int width, int height) throws Exception {
 		if(instance==null)
-			instance = new StreamRealSenseT265Pose(mount,width,height);
+			instance = new StreamRealSenseT265PoseCV(mount,width,height);
 		return instance;
 	}
 
@@ -166,7 +165,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 	//	private  T265NotificationCallback cb = new T265NotificationCallback();
 
-	private  StreamRealSenseT265Pose(int mount, int width, int height) throws Exception {
+	private  StreamRealSenseT265PoseCV(int mount, int width, int height) throws Exception {
 
 		super();
 
@@ -193,7 +192,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 	}
 
-	public StreamRealSenseT265Pose registerCallback(IPoseCallback callback) {
+	public StreamRealSenseT265PoseCV registerCallback(IPoseCallback callback) {
 		this.callbacks.add(callback);
 		return this;
 	}
@@ -280,13 +279,17 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 		private long skipper = 1;
 
 		private rs2_frame  frame;
+		private rs2_frame  frames;
 
 		@Override
 		public void run() {
 
+			long tms_old = 0;
+
+			is_initialized = false;
+
 			try {
 
-				is_initialized = false;
 				reset_request = false;
 
 				if(getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_FIRMWARE_VERSION).contains("951"))
@@ -308,11 +311,11 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 				sensor = createSensor(sensor_list, 0);
 
 				// Test: enable pose jumping and check velocity drift
-				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_POSE_JUMPING,  true);
+				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_POSE_JUMPING,  false);
 				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_MAPPING,  true);
 				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_MAP_PRESERVATION, false);
 				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION,  true);
-				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_RELOCALIZATION,  true);
+				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_RELOCALIZATION,  false);
 
 				setSensorOption(sensor,realsense2.RS2_OPTION_FRAMES_QUEUE_SIZE,  1);
 
@@ -350,6 +353,7 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 				rs2_pipeline_start_with_config(pipeline, config, error);
 				checkError(error);
 
+				try { Thread.sleep(100); } catch (InterruptedException e) {  }
 				System.out.println("T265 pipeline started");
 
 
@@ -357,9 +361,18 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 
 					try {
 
-						rs2_frame frames = rs2_pipeline_wait_for_frames(pipeline, 15000, error);
+						frames = rs2_pipeline_wait_for_frames(pipeline, 2500, error);
+						checkError(error);
 
-						count_framesets++;
+						tms = (long)rs2_get_frame_timestamp(frames,error);
+
+						// avoid doubled triggers
+						if((tms - tms_old) < 1) {
+							rs2_release_frame(frames);
+							continue;
+						}
+						tms_old = tms;
+
 
 						num_of_frames = rs2_embedded_frames_count(frames, error);
 						if(num_of_frames < 1)
@@ -370,13 +383,13 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 							skipper = 4;
 							is_initialized = true;
 						} else
-							// Full set
+							// Full set at 30 Hz
 							skipper = 1;
 
-
-						tms = (long)rs2_get_frame_timestamp(frames,error);
+						count_framesets++;
 
 						left = false; 
+
 
 						for(int i = 0; i < num_of_frames;i++) {
 
@@ -538,16 +551,17 @@ public class StreamRealSenseT265Pose extends RealsenseDevice {
 								callback.handle(tms, rawpose, current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 						}
 
-
 					} catch(Exception e) {
-						e.printStackTrace();
+						System.err.println(e.getMessage());
 					}
 				}
+
 				rs2_pipeline_stop(pipeline, error);
 				System.out.println("T265 stopped.");
 
 			} catch(Exception e) {
 				e.printStackTrace();
+				System.out.println("T265 stopped.");
 				is_running = false;
 			}
 		}

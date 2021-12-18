@@ -2,7 +2,7 @@ package com.comino.mavodometry.estimators.position;
 
 /****************************************************************************
  *
- *   Copyright (c) 2020,21 Eike Mansfeld ecm@gmx.de. All rights reserved.
+ *   Copyright (c) 2020,2022 Eike Mansfeld ecm@gmx.de. All rights reserved.
  *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions
@@ -53,7 +53,6 @@ import org.mavlink.messages.lquac.msg_set_gps_global_origin;
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
-import com.comino.mavcom.core.ControlModule;
 import com.comino.mavcom.log.MSPLogger;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
@@ -65,7 +64,8 @@ import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
-import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265Pose;
+import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseCV;
+import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseLegacy;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -104,7 +104,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final int         FIDUCIAL_HEIGHT     		= 360;
 	private static final int         FIDUCIAL_WIDTH     		= 360;
 
-	private static final int     	 MAX_ERRORS          		= 60;
+	private static final int     	 MAX_ERRORS          		= 200;
 	private static final boolean     DO_EV_REPOSITION       	= false;
 
 	private static final float       MAX_ATT_DEVIATION_SQ       = 0.5f * 0.5f;
@@ -130,7 +130,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final msg_odometry                 odo = new msg_odometry(1,1);
 
 	// Controls
-	private StreamRealSenseT265Pose t265;
+	private StreamRealSenseT265PoseLegacy t265;
 
 	// 3D transformation matrices
 	private final Se3_F64          to_ned          	= new Se3_F64();
@@ -287,7 +287,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		try {
 		//	t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
-			t265 = StreamRealSenseT265Pose.getInstance(StreamRealSenseT265Pose.POS_DOWNWARD_180,width,height);
+			t265 = StreamRealSenseT265PoseLegacy.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
 		} catch( Exception e) {
 			System.out.println("No T265 device found");
 			return;
@@ -300,24 +300,24 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			if((tms-tms_old) < 3)
 				return;
 
-			switch(raw.tracker_confidence()) {
-			case StreamRealSenseT265Pose.CONFIDENCE_FAILED:
+			switch(raw.tracker_confidence) {
+			case StreamRealSenseT265PoseCV.CONFIDENCE_FAILED:
 				quality = 0.00f; error_count++; is_fiducial = false; 
 				is_initialized = false;
-				return;
-			case StreamRealSenseT265Pose.CONFIDENCE_LOW:
-				quality = 0.33f; error_count++;
-				return;
-			case StreamRealSenseT265Pose.CONFIDENCE_MEDIUM:
-				quality = 0.66f;
 				break;
-			case StreamRealSenseT265Pose.CONFIDENCE_HIGH:
-				if(confidence_old != StreamRealSenseT265Pose.CONFIDENCE_HIGH) {
+			case StreamRealSenseT265PoseCV.CONFIDENCE_LOW:
+				quality = 0.33f; error_count++;
+				break;
+			case StreamRealSenseT265PoseCV.CONFIDENCE_MEDIUM:
+				quality = 0.66f; error_count = 0;
+				break;
+			case StreamRealSenseT265PoseCV.CONFIDENCE_HIGH:
+				if(confidence_old != StreamRealSenseT265PoseCV.CONFIDENCE_HIGH) {
 					quality = 1f; error_count = 0;
 				}
 				break;
 			default:
-				System.out.println("TrackerConfidence is "+raw.tracker_confidence());
+				System.out.println("TrackerConfidence is "+raw.tracker_confidence);
 			}
 
 
@@ -326,18 +326,18 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK, false);
 			}
 
-			if(raw.tracker_confidence() <= StreamRealSenseT265Pose.CONFIDENCE_LOW && confidence_old != raw.tracker_confidence()) {
+			if(raw.tracker_confidence <= StreamRealSenseT265PoseCV.CONFIDENCE_LOW && confidence_old != raw.tracker_confidence) {
 				control.writeLogMessage(new LogMessage("[vio] T265 Tracker confidence low", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 				// TODO: Action here
 			}
 
-			confidence_old = raw.tracker_confidence();
+			confidence_old = raw.tracker_confidence;
 
 			// Reset procedure ------------------------------------------------------------------------------------------------
 			// Note: This takes 1.5sec for T265;
 
 			if((System.currentTimeMillis() - tms_reset) < 2500 || !is_initialized) {
-				tms_reset = 0; confidence_old = 0; is_initialized = true;
+				tms_reset = 0; confidence_old = 0; is_initialized = true; error_count = 0;
 
 				// set initial T265 pose as origin
 				to_body.setTranslation(- p.T.x , - p.T.y , - p.T.z );
@@ -399,15 +399,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			model.vision.setStatus(Vision.RESETTING, false);
 
-			if(quality <= 0.33f) {
-				System.out.println("Quality: "+quality);
-				return;
-			}
-
 			if(error_count > MAX_ERRORS) {
 				init("maxErrors");
 				return;
 			}
+			
 
 			//No flight controller connected => publish raw pose and speed for debugging purpose
 			if(!model.sys.isStatus(Status.MSP_CONNECTED)) {
@@ -479,6 +475,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			vpos_delta_s.setTo(body_s.T);
 			vpos_delta_s.scale(-1);
 			vpos_delta_s.plusIP(vpos_current_s);
+			
 
 			// Speed variance too high => assuming position is not correct, e.g. PoseJump occurred
 			if(vpos_delta_s.norm() > 0.1) {
@@ -576,7 +573,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		}
 
 
-		if(t265.getMount() == StreamRealSenseT265Pose.POS_DOWNWARD)
+		if(t265.getMount() == StreamRealSenseT265PoseCV.POS_DOWNWARD)
 			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted downwards");
 		else
 			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted forewards");

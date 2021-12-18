@@ -3,16 +3,10 @@ package com.comino.mavodometry.estimators.depth;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
-import com.comino.mavcom.core.ControlModule;
-import com.comino.mavcom.model.DataModel;
-import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.video.IVisualStreamHandler;
-import com.comino.mavodometry.webcam.MAVWebcam;
 
-import com.comino.mavodometry.webcam.MAVWebcam.SimpleSequence;
 import boofcv.struct.image.GrayU8;
-import boofcv.struct.image.ImageType;
 import boofcv.struct.image.Planar;
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {

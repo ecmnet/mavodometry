@@ -4,7 +4,6 @@ package com.comino.mavodometry.estimators.position;
 
 
 import com.comino.mavcom.control.IMAVMSPController;
-import com.comino.mavcom.core.ControlModule;
 import com.comino.mavcom.flow.MessageBus;
 import com.comino.mavcom.flow.ModelSubscriber;
 import com.comino.mavcom.model.DataModel;
