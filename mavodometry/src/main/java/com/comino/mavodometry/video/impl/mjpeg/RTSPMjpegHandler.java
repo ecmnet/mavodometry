@@ -40,7 +40,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	// Note: Relies on https://libjpeg-turbo.org
 
 	private static final int 		FRAME_RATE_MAX        = Integer.MAX_VALUE;
-	
+
 	private static final int 		FRAME_RATE_FPS        = 15;
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		LOW_VIDEO_QUALITY     = 10;
@@ -75,7 +75,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private InetAddress ClientIPAddr;         //Client IP address
 	private int RTP_dest_port = 0;            //destination port for RTP packets  (given by the RTSP Client)
 	private int RTSP_dest_port = 0;
-	
+
 
 	private static BufferedReader RTSPBufferedReader;
 	private static BufferedWriter RTSPBufferedWriter;
@@ -98,7 +98,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private TJCompressor tj;
 	private final byte[] buffer;
 	private final byte[] packet_bits;
-	
+
 	private boolean no_video;
 	private int quality = 0;
 
@@ -120,7 +120,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 		last_image_tms = System.currentTimeMillis();
 
-	//	rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
+		//	rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
 
 		try {
 			tj = new TJCompressor();
@@ -132,13 +132,13 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 		}
 
 	}
-	
+
 	public void registerNoVideoListener(INoVideoListener no_video_handler) {
 		this.no_video_handler = no_video_handler;
 	}
 
 	public void stop() {
-//		rtcpReceiver.stopRcv();
+		//		rtcpReceiver.stopRcv();
 		System.out.println("Video stopped");
 		is_running = false;
 	}
@@ -166,16 +166,16 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 
 	private class Receiver implements Runnable {
-		
+
 		private final long rate = 700 / FRAME_RATE_FPS ;
 
 		public void add(T in, long tms) {
-			
+
 			if((tms - last_image_in) < rate  )
 				return;
-			
+
 			last_image_in = tms;
-			
+
 			input = in;
 			synchronized(this) {
 				isReady = true;
@@ -206,21 +206,21 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 					if((System.currentTimeMillis()-tms) > 450 ) {
 						if(!no_video) {
-							    if(no_video_handler!= null)
-							    	no_video_handler.trigger();
-								no_video = true;
-								ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-								ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-								tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
-								RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
+							if(no_video_handler!= null)
+								no_video_handler.trigger();
+							no_video = true;
+							ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
+							ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
+							tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
+							RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 
-								int packet_length = rtp_packet.getpacket(packet_bits);
+							int packet_length = rtp_packet.getpacket(packet_bits);
 
-								//send the packet as a DatagramPacket over the UDP socket 
-								if(!RTPsocket.isClosed()) {
-									senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
-									RTPsocket.send(senddp);
-								}
+							//send the packet as a DatagramPacket over the UDP socket 
+							if(!RTPsocket.isClosed()) {
+								senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
+								RTPsocket.send(senddp);
+							}
 						}
 						continue;
 					}
@@ -232,20 +232,20 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) / 60f;
 					last_image_tms = System.currentTimeMillis();
 
-				//	synchronized(this) {
+					//	synchronized(this) {
 
-						if(input instanceof Planar) {
-							ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
-						}
-						else if(input instanceof GrayU8)
-							ConvertBufferedImage.convertTo((GrayU8)input, image, true);
+					if(input instanceof Planar) {
+						ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
+					}
+					else if(input instanceof GrayU8)
+						ConvertBufferedImage.convertTo((GrayU8)input, image, true);
 
 
-						if(listeners.size()>0) {
-							for(IOverlayListener listener : listeners)
-								listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
-						}
-			//		}
+					if(listeners.size()>0) {
+						for(IOverlayListener listener : listeners)
+							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+					}
+					//		}
 
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 
@@ -336,12 +336,10 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	public void close() {
 
-		if(!is_running)
-			return;
-		
-		System.out.println("Closing video stream");
+		if(is_running)
+			System.out.println("Closing video stream");
 
-//		rtcpReceiver.stopRcv();
+		//		rtcpReceiver.stopRcv();
 
 		try {
 			RTSPBufferedReader.close();
@@ -357,7 +355,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 		done = false;
 		state = INIT;
-		
+
 		try {
 			Thread.sleep(200);
 		} catch (InterruptedException e) { }
@@ -472,7 +470,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 							//send back response
 							sendResponse();
 							//start timer
-	//						rtcpReceiver.startRcv();
+							//						rtcpReceiver.startRcv();
 							is_running = true;
 							new Thread(receiver).start();
 							state = PLAYING;
@@ -482,7 +480,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 							//send back response
 							sendResponse();
 							//stop timer
-//							rtcpReceiver.stopRcv();
+							//							rtcpReceiver.stopRcv();
 							//update state
 							state = READY;
 							System.out.println("New RTSP state: READY");
