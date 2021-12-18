@@ -306,11 +306,11 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 				sensor = createSensor(sensor_list, 0);
 
 				// Test: enable pose jumping and check velocity drift
-				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_POSE_JUMPING,  false);
+				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_POSE_JUMPING,  true);
 				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_MAPPING,  true);
 				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_MAP_PRESERVATION, false);
 				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION,  true);
-				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_RELOCALIZATION,  false);
+				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_RELOCALIZATION,  true);
 
 				setSensorOption(sensor,realsense2.RS2_OPTION_FRAMES_QUEUE_SIZE,  1);
 

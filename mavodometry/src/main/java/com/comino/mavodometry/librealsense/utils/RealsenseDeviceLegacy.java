@@ -26,7 +26,7 @@ public class RealsenseDeviceLegacy  {
 
 		if(ctx == null) {
 
-			System.out.println("Using realsense legacy device driver");
+			System.out.println("Using realsense legacy device driver version "+Realsense2Library.RS2_API_VERSION);
 
 			ctx = rs2.rs2_create_context(Realsense2Library.RS2_API_VERSION, error);
 			

@@ -69,12 +69,13 @@ public class RealsenseDeviceCV  {
 
 		if(ctx == null) {
 
-			System.out.println("Using JAVACV Realsense2 device driver");
+			System.out.println("Using JAVACV Realsense2 device driver version "+RS2_API_VERSION);
 
-			ctx = createContext();
-			device_list = createDeviceList();
-
-			dev_count = getDeviceCount();
+			ctx = rs2_create_context(RS2_API_VERSION, error);
+			
+			device_list = rs2_query_devices(ctx,error);
+			dev_count = rs2_get_device_count(device_list, error);
+			
 			if(dev_count < 1) {
 				throw new IllegalArgumentException("No realsense device found");
 			}
@@ -118,19 +119,19 @@ public class RealsenseDeviceCV  {
 		rs2_set_option(options, optionIndex, value, error);
 		checkError(error);
 	}
-	
+
 	public float getSensorOption(rs2_sensor sensor, int optionIndex)  throws Exception {
 		rs2_options options = new rs2_options(sensor);
 		boolean isSupported = toBoolean(rs2_supports_option(options, optionIndex, error));
 		checkError(error);
-		
+
 		if (!isSupported) {
 			throw new Exception("Option " + optionIndex + " is not supported!");
 		}
-		
+
 		float val = rs2_get_option(options, optionIndex, error);
 		checkError(error);
-		
+
 		return val;
 	}
 
@@ -166,24 +167,24 @@ public class RealsenseDeviceCV  {
 		checkError(error);
 		return device;
 	}
-	
+
 	protected void hardwareReset(rs2_device device) throws Exception {
 		rs2_hardware_reset(device, error);
 		checkError(error);
 	}
-	
+
 	protected rs2_sensor_list getSensorList(rs2_device device)  throws Exception {
 		rs2_sensor_list sensors = rs2_query_sensors(device, error);
 		checkError(error);
 		return sensors;
 	}
-	
+
 	protected int getSensorCount(rs2_sensor_list sensors)  throws Exception {
 		int count = rs2_get_sensors_count(sensors, error);
 		checkError(error);
 		return count;
 	}
-	
+
 	protected rs2_sensor createSensor(rs2_sensor_list sensors, int num)  throws Exception {
 		rs2_sensor sensor = rs2_create_sensor(sensors, num, error);
 		checkError(error);
@@ -205,11 +206,11 @@ public class RealsenseDeviceCV  {
 
 		return infoText;
 	}
-	
+
 	protected String getSensorInfo(rs2_sensor sensor, int num) throws Exception {
 		// check if info is supported
 		rs2_error error = new rs2_error();
-		
+
 		// read device info
 		String infoText = rs2_get_sensor_info(sensor, num, error).getString();
 		checkError(error);
@@ -220,7 +221,7 @@ public class RealsenseDeviceCV  {
 	protected static boolean toBoolean(int value) {
 		return value >= 1;
 	}
-	
+
 
 
 }
