@@ -96,7 +96,7 @@ public class StreamRealSenseD4xxDepthCV extends RealsenseDeviceCV {
 	private rs2_sensor         rgb_sensor    = null;
 	private rs2_sensor         motion_sensor = null;
 	
-	private  final byte[] input;
+	
 
 	private final RealSenseInfo          info;
 	private LibRealSenseIntrinsicsCV intrinsics;
@@ -115,8 +115,6 @@ public class StreamRealSenseD4xxDepthCV extends RealsenseDeviceCV {
 	{
 
 		super();
-
-		this.input = new byte[info.width * info.height * 3];
 
 		this.listeners = new ArrayList<IDepthCallback>();
 		this.info = info;

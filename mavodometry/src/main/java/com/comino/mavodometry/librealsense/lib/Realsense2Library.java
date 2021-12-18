@@ -1476,6 +1476,11 @@ public interface Realsense2Library extends Library {
 		public rs2_pose() {
 			super();
 		}
+		
+		public int tracker_confidence() {
+			return tracker_confidence;
+		}
+		
 		protected List<String> getFieldOrder() {
 			return Arrays.asList("translation", "velocity", "acceleration", "rotation", "angular_velocity", "angular_acceleration", "tracker_confidence", "mapper_confidence");
 		}
