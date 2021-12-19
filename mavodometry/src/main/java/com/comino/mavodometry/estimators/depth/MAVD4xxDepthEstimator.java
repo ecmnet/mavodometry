@@ -82,7 +82,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 	private static final double   	   OFFSET_X     =  0.00;
 	private static final double        OFFSET_Y     =  0.00;
 	private static final double        OFFSET_Z     =  0.00;
-	
+
 	private static final int             DEPTH_RATE = 135;
 
 	private StreamRealSenseD4xxDepthCV 	realsense	= null;
@@ -117,14 +117,14 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 	private GrayU16 sub  = new GrayU16(1,1);
 	private GrayU16 proc = new GrayU16(1,1);
-	
+
 	private final WorkQueue wq = WorkQueue.getInstance();
 	private int depth_worker;
 
 
 	@SuppressWarnings("unused")
 	public <T> MAVD4xxDepthEstimator(IMAVMSPController control, ITargetListener targetListener, LocalMap3D map, MSPConfig config, int width, int height,
-			IVisualStreamHandler<Planar<GrayU8>> stream) {
+			IVisualStreamHandler<Planar<GrayU8>> stream) throws Exception {
 
 		super(control);
 
@@ -141,13 +141,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 		this.info = new RealSenseInfo(width,height, RealSenseInfo.MODE_RGB);
 
-		try {
-			this.realsense = StreamRealSenseD4xxDepthCV.getInstance(info);
-		} catch( Exception e) {
-			System.out.println("No D455 device found");
-			return;
-
-		}
+		this.realsense = StreamRealSenseD4xxDepthCV.getInstance(info);
 
 		// configs
 		offset.x = -config.getFloatProperty(MSPParams.D455_OFFSET_X, String.valueOf(OFFSET_X));
@@ -170,19 +164,19 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 		realsense.registerCallback(new IDepthCallback() {
 
-//			int y0=0; int x; int y; int depth_z; int raw_z;
-//
-//			Point3D_F64 raw_pt      =  new Point3D_F64();
-//			Point3D_F64 body_pt     =  new Point3D_F64();
-//			Point3D_F64 ned_pt      =  new Point3D_F64();
-//			Point3D_F64 body_pt_n   =  new Point3D_F64();
-//			Point3D_F64 ned_pt_n    =  new Point3D_F64();
-//
-//			double min_distance;
-//			double distance;
-//
+			//			int y0=0; int x; int y; int depth_z; int raw_z;
+			//
+			//			Point3D_F64 raw_pt      =  new Point3D_F64();
+			//			Point3D_F64 body_pt     =  new Point3D_F64();
+			//			Point3D_F64 ned_pt      =  new Point3D_F64();
+			//			Point3D_F64 body_pt_n   =  new Point3D_F64();
+			//			Point3D_F64 ned_pt_n    =  new Point3D_F64();
+			//
+			//			double min_distance;
+			//			double distance;
+			//
 			long tms = 0; 
-//			int quality = 0;
+			//			int quality = 0;
 
 			@Override
 			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
@@ -193,9 +187,9 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 				// Bug in CB; sometimes called twice
 				if((timeRgb-tms) < 3)
 					return;
-				
+
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
-//				model.slam.fps = model.slam.fps * 0.7f +(float)Math.round(10000.0f / (timeRgb - tms))/10.0f *0.3f;
+				//				model.slam.fps = model.slam.fps * 0.7f +(float)Math.round(10000.0f / (timeRgb - tms))/10.0f *0.3f;
 				model.slam.fps = 1000f / (timeRgb - tms);
 				tms = timeRgb;
 
@@ -205,14 +199,14 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 					return;
 
 				}
-				
+
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
 					stream.addToStream(rgb, model, timeDepth);
 				}
 				if(depth_overlay && enableStream)
 					overlayDepth(sub, img);
-				
+
 				// make a copy of the depth area for asybchronous processing
 				depth.subimage(depth_x_offs, depth_y_offs, depth_x_offs+DEPTH_WIDTH, depth_y_offs+DEPTH_HEIGHT, sub);	
 
@@ -296,9 +290,9 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 		}
 		return image;
 	}
-	
+
 	private class DepthHandler implements Runnable {
-		
+
 		Point3D_F64 raw_pt      =  new Point3D_F64();
 		Point3D_F64 body_pt     =  new Point3D_F64();
 		Point3D_F64 ned_pt      =  new Point3D_F64();
@@ -307,17 +301,17 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 		double min_distance;
 		double distance;
-		
+
 		int depth_z; int raw_z;
 		long tms = 0; int quality = 0;
-		
+
 		int y0=0; int x; int y;
 
 		@Override
 		public void run() {
-			
+
 			quality = 0;
-			
+
 			MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
 			proc.setTo(sub);
@@ -325,7 +319,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 			min_distance = Double.MAX_VALUE;
 			// TODO: Eventually BOOF Concurrency here
-		//				BoofConcurrency.loopFor(0, DEPTH_WIDTH, x -> {
+			//				BoofConcurrency.loopFor(0, DEPTH_WIDTH, x -> {
 			for(x = 0; x < DEPTH_WIDTH;x++) {
 				for(y = 0; y < DEPTH_HEIGHT;y++) {
 					raw_z = proc.unsafe_get(x, y);
@@ -339,14 +333,14 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 					raw_pt.z =  raw_z*1e-3;
 					raw_pt.y = -raw_pt.z*norm.y;
 					raw_pt.x =  raw_pt.z*norm.x;
-					
+
 
 					body_pt.setTo(raw_pt.z, raw_pt.x, raw_pt.y);
-//					body_pt.plusIP(offset);
-//					GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
-//					ned_pt.plusIP(to_ned.T);
+					//					body_pt.plusIP(offset);
+					//					GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
+					//					ned_pt.plusIP(to_ned.T);
 
-//					System.out.println(norm.x+"/"+norm.y);
+					//					System.out.println(norm.x+"/"+norm.y);
 
 					distance = body_pt.norm();
 					if(distance < min_distance) {
@@ -364,7 +358,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 				}
 			}
-//					});
+			//					});
 
 			model.slam.quality = model.slam.quality * 0.7f + (quality * quality_factor ) * 0.3f;
 
@@ -376,16 +370,16 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 				model.slam.ox = (float)ned_pt_n.x;
 				model.slam.oy = (float)ned_pt_n.y;
 				model.slam.oz = (float)ned_pt_n.z;
-				
-//				map.update(to_ned.T, ned_pt_n, 1);
+
+				//				map.update(to_ned.T, ned_pt_n, 1);
 
 				model.slam.dm = (float)min_distance; 
-				
+
 			} else
 				model.slam.dm = Float.NaN; 
 
 		}
-		
+
 	}
 
 }

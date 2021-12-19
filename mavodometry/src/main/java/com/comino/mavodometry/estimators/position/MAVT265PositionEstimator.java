@@ -210,7 +210,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 
 	@SuppressWarnings("unused")
-	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
+	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) 
+			throws Exception {
 
 		super(control);
 
@@ -285,15 +286,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
-
-		try {
-			t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
-		} catch( Exception e) {
-			System.out.println("No T265 device found");
-			return;
-		}
-
-
+		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
 		t265.registerCallback((tms, confidence, p, s, a, img) ->  {
 
 			// Bug in CB; sometimes called twice
@@ -378,7 +371,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				tms_old  = tms; 
 				return;
 			}
-			
+
 			model.vision.setStatus(Vision.AVAILABLE, true);
 			if(!t265.isVideoEnabled()) {
 				model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK, false);
@@ -403,7 +396,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				init("maxErrors");
 				return;
 			}
-			
+
 
 			//No flight controller connected => publish raw pose and speed for debugging purpose
 			if(!model.sys.isStatus(Status.MSP_CONNECTED)) {
@@ -475,7 +468,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			vpos_delta_s.setTo(body_s.T);
 			vpos_delta_s.scale(-1);
 			vpos_delta_s.plusIP(vpos_current_s);
-			
+
 
 			// Speed variance too high => assuming position is not correct, e.g. PoseJump occurred
 			if(vpos_delta_s.norm() > 0.1) {
@@ -483,7 +476,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				if(DO_EV_REPOSITION) {
 					do_repositioning("XYSpeedDev");
 				}
-     			//System.out.println("VisionSpeed vs. VisionPosSpeed: "+vpos_delta_s);
+				//System.out.println("VisionSpeed vs. VisionPosSpeed: "+vpos_delta_s);
 			}
 
 
@@ -633,7 +626,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) || model.sys.isStatus(Status.MSP_GPOS_VALID))
 			return;
-		
+
 		// Note: In SITL Set global origin causes BARO failure 
 		// TODO: To be investigated in PX4
 		if(control.isSimulation())
@@ -653,7 +646,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		init("init");
 
 	}
-	
+
 	private void overlayFeatures(Graphics ctx, long tms) {
 
 		ctx.setColor(Color.white);
