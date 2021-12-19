@@ -1,22 +1,16 @@
 package com.comino.mavodometry.estimators.position;
 
-import org.mavlink.messages.MAV_SEVERITY;
-import org.mavlink.messages.MSP_CMD;
-import org.mavlink.messages.MSP_COMPONENT_CTRL;
-import org.mavlink.messages.lquac.msg_msp_command;
 import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
-import org.mavlink.messages.lquac.msg_set_gps_global_origin;
 
-import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
-import com.comino.mavcom.log.MSPLogger;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavutils.workqueue.WorkQueue;
 
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Vector3D_F64;
@@ -26,6 +20,7 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IMAVLinkListener  {
 
+	private final WorkQueue wq = WorkQueue.getInstance();
 
 	private final DataModel 	     model;
 	private final Vector3D_F64       vel_ned    = new Vector3D_F64();
@@ -41,6 +36,18 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 		super(control);
 		this.model = control.getCurrentModel();
 		control.addMAVLinkListener(this);
+
+
+		control.sendMAVLinkMessage(msg);
+
+		wq.addCyclicTask("LP", 40, () -> {
+			if(is_running) {
+				msg.fps     = 1000f / (System.currentTimeMillis() - tms);
+				tms = System.currentTimeMillis();
+				control.sendMAVLinkMessage(msg);
+			}
+		});
+
 	}
 
 	@Override
@@ -51,6 +58,7 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 
 		if(!is_running) {
 			model.vision.setStatus(Vision.ENABLED, true);
+			model.vision.setStatus(Vision.AVAILABLE, true);
 			model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.SPEED_VALID, true);
@@ -83,11 +91,6 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 		msg.errors  = 0;
 		msg.tms     = odometry.time_usec;
 		msg.flags   = model.vision.flags;
-
-		msg.fps     = 1000f / (System.currentTimeMillis() - tms);
-		tms = System.currentTimeMillis();
-
-		control.sendMAVLinkMessage(msg);
 
 	}
 
