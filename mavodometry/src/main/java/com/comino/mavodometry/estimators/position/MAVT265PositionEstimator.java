@@ -653,6 +653,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		init("init");
 
 	}
+	
 	private void overlayFeatures(Graphics ctx, long tms) {
 
 		ctx.setColor(Color.white);
