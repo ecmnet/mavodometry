@@ -628,9 +628,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 
+	// TODO: Mpve to commander
 	private void setGlobalOrigin(double lat, double lon, double altitude) {
 
 		if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) || model.sys.isStatus(Status.MSP_GPOS_VALID))
+			return;
+		
+		// Note: In SITL Set global origin causes BARO failure 
+		// TODO: To be investigated in PX4
+		if(control.isSimulation())
 			return;
 
 		msg_set_gps_global_origin gor = new msg_set_gps_global_origin(1,1);
