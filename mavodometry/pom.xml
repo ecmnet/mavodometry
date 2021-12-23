@@ -47,6 +47,13 @@
 			<artifactId>mavmap</artifactId>
 			<version>0.0.1</version>
 		</dependency>
+<!--
+        <dependency>
+			<groupId>com.comino</groupId>
+			<artifactId>mavgazebo</artifactId>
+			<version>0.0.1</version>
+		</dependency>
+-->
 		<dependency>
 			<groupId>org.jcodec</groupId>
 			<artifactId>jcodec</artifactId>
@@ -57,7 +64,7 @@
 			<artifactId>turbojpeg</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-
+        
 		<dependency>
 			<groupId>org.boofcv</groupId>
 			<artifactId>boofcv-javacv</artifactId>
