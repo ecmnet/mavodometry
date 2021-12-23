@@ -14,7 +14,7 @@ import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.ImageType;
 import boofcv.struct.image.Planar;
 
-public class MAVCameraNullEstimator extends MAVAbstractEstimator  {
+public class MAVFPVCameraNullEstimator extends MAVAbstractEstimator  {
 
 	private final static float FRAME_RATE = 15.0f;
 
@@ -29,7 +29,7 @@ public class MAVCameraNullEstimator extends MAVAbstractEstimator  {
 	private final int height;
 
 
-	public <T> MAVCameraNullEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
+	public <T> MAVFPVCameraNullEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
 		this.stream = stream;
 		this.width  = width;
