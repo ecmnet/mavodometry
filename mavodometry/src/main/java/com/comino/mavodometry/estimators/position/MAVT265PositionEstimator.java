@@ -424,10 +424,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			vpos_current_s.y = ( body.getY() - body_old.getY() ) * dt_sec_1;
 			vpos_current_s.z = ( body.getZ() - body_old.getZ() ) * dt_sec_1;
 
-			// body speeds
-			model.debug.x = (float)vpos_current_s.x;
-			model.debug.y = (float)vpos_current_s.y;
-			model.debug.z = (float)vpos_current_s.z;
+			// Debug body speed based on position
+			// model.debug.set(vpos_current_s);
 
 			// rotate sensor velocities to body frame and correct by offset
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
@@ -437,6 +435,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			offset_vel_body.crossSetTo(angular_rates, offset);
 			offset_vel_body.scale(-1);
 			body_s.T.plusIP(offset_vel_body);
+			
+			// Debug speed offsets 
+			model.debug.set(offset_vel_body);
 
 			// Get model attitude rotation
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
