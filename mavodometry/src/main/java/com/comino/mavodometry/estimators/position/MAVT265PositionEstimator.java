@@ -567,10 +567,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		}
 
 
-		if(t265.getMount() == StreamRealSenseT265PoseCV.POS_DOWNWARD)
-			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted downwards");
-		else
+		if(t265.getMount() == StreamRealSenseT265PoseCV.POS_FOREWARD)
 			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted forewards");
+		else
+			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted downwards");
 
 	}
 
