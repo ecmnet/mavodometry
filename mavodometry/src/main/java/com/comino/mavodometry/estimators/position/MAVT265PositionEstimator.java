@@ -65,8 +65,6 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseCV;
-import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseLegacy;
-import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -121,6 +119,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final double      FIDUCIAL_OFFSET_X 			=  -0.08;
 	private static final double      FIDUCIAL_OFFSET_Y 			=   0.05;
 	private static final double      FIDUCIAL_OFFSET_Z 			=   0.00;
+	
+	// Static T265 speed drift compensation
+	private static final double   	 SPEED_DRIFT_X 				=   0;//0.000290;
+	private static final double      SPEED_DRIFT_Y				=   0;//0.000272;
 
 
 	private final WorkQueue wq = WorkQueue.getInstance();
@@ -162,7 +164,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Vector3D_F64  reposition_ned  = new Vector3D_F64();
 
 	private final Attitude3D_F64   att      	= new Attitude3D_F64();
-	private final Quaternion_F64   att_q        = new Quaternion_F64();
+//	private final Quaternion_F64   att_q        = new Quaternion_F64();
 
 	private float             quality = 0;
 	private long              tms_old = 0;
@@ -425,19 +427,26 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			vpos_current_s.z = ( body.getZ() - body_old.getZ() ) * dt_sec_1;
 
 			// Debug body speed based on position
-			// model.debug.set(vpos_current_s);
+			 model.debug.set(vpos_current_s);
 
 			// rotate sensor velocities to body frame and correct by offset
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
 
 			// eventually calculate rr,pr,yr and do not use model rates
+			// should compesate rotations in speed
+			// TODO: To be tested in real flight
+			
 			angular_rates.setTo(model.attitude.rr, model.attitude.pr, model.attitude.yr);
 			offset_vel_body.crossSetTo(angular_rates, offset);
 			offset_vel_body.scale(-1);
-			body_s.T.plusIP(offset_vel_body);
+			//body_s.T.plusIP(offset_vel_body);
+			
+			// Fixed drift compensation
+			body_s.T.x = body_s.T.x - SPEED_DRIFT_X;
+			body_s.T.y = body_s.T.y - SPEED_DRIFT_Y;
 			
 			// Debug speed offsets 
-			model.debug.set(offset_vel_body);
+			// model.debug.set(body_s.T);
 
 			// Get model attitude rotation
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
