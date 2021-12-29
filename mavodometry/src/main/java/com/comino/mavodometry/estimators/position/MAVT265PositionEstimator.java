@@ -159,8 +159,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Vector3D_F64  offset_vel_body = new Vector3D_F64();
 	private final Vector3D_F64  angular_rates   = new Vector3D_F64();
 	private final Vector3D_F64  lpos_current_s  = new Vector3D_F64();
-	private final Vector3D_F64  vpos_current_s  = new Vector3D_F64();
-	private final Vector3D_F64  vpos_delta_s    = new Vector3D_F64();
+	private final Vector3D_F64  vpos_body_s     = new Vector3D_F64();
+	private final Vector3D_F64  vpos_ned_s      = new Vector3D_F64();
 	private final Vector3D_F64  reposition_ned  = new Vector3D_F64();
 
 	private final Attitude3D_F64   att      	= new Attitude3D_F64();
@@ -418,17 +418,16 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 
-			body_old.setTo(body);
 			p.concat(to_body, body);
 
 			// calculate body speed based on position
-			vpos_current_s.x = ( body.getX() - body_old.getX() ) * dt_sec_1;
-			vpos_current_s.y = ( body.getY() - body_old.getY() ) * dt_sec_1;
-			vpos_current_s.z = ( body.getZ() - body_old.getZ() ) * dt_sec_1;
+			vpos_body_s.x = ( body.T.x - body_old.T.x ) * dt_sec_1;
+			vpos_body_s.y = ( body.T.y - body_old.T.y ) * dt_sec_1;
+			vpos_body_s.z = ( body.T.z - body_old.T.z ) * dt_sec_1;
+			
+			body_old.setTo(body);
 
 			// Debug body speed based on position
-			 model.debug.set(vpos_current_s);
-
 			// rotate sensor velocities to body frame and correct by offset
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
 
@@ -444,9 +443,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Fixed drift compensation
 			body_s.T.x = body_s.T.x - SPEED_DRIFT_X;
 			body_s.T.y = body_s.T.y - SPEED_DRIFT_Y;
-			
-			// Debug speed offsets 
-			// model.debug.set(body_s.T);
 
 			// Get model attitude rotation
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
@@ -456,6 +452,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			//	CommonOps_DDRM.mult( body.R, to_ned.R, ned_s.R );
 			GeometryMath_F64.mult(to_ned.R, body_s.T,ned_s.T);
 			GeometryMath_F64.mult(to_ned.R, offset, offset_pos_ned );
+			
+			// rotate position based speed to ned (only for debugging purposes)
+			GeometryMath_F64.mult(to_ned.R, vpos_body_s, vpos_ned_s );
+			model.debug.set(vpos_ned_s);
 
 			// add rotated offset
 			offset_pos_ned.scale(-1);
@@ -473,22 +473,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			model.vision.setStatus(Vision.SPEED_VALID, true);
 
 			ned.T.plusIP(reposition_ned);
-
-			// speed variance body speed between pos based and vision
-			vpos_delta_s.setTo(body_s.T);
-			vpos_delta_s.scale(-1);
-			vpos_delta_s.plusIP(vpos_current_s);
-
-
-			// Speed variance too high => assuming position is not correct, e.g. PoseJump occurred
-			if(vpos_delta_s.norm() > 0.1) {
-				model.vision.setStatus(Vision.POS_VALID, false);
-				if(DO_EV_REPOSITION) {
-					do_repositioning("XYSpeedDev");
-				}
-				//System.out.println("VisionSpeed vs. VisionPosSpeed: "+vpos_delta_s);
-			}
-
 
 			// Validate XY position
 			if(((ned.T.x - lpos.T.x) * (ned.T.x - lpos.T.x) + (ned.T.y - lpos.T.y) * (ned.T.y - lpos.T.y)) >  MAX_XY_POS_DEVIATION_SQ) {
@@ -548,7 +532,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			case LPOS_ODO_MODE_POSITION:
 
 				// Publish position data NED frame, speed body frame;  with ground truth
-				publishPX4Odometry(ned,body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
+				publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
+				
+			//  Test: Use position based speed
+			//	publishPX4Odometry(ned.T,vpos_body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
 				publishMSPVision(gnd_ned,ned,ned_s,precision_lock,tms);
 
 				break;
@@ -702,7 +689,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 
-	private void publishPX4Odometry(Se3_F64 pose, Se3_F64 speed, int frame, boolean pose_is_valid, long tms) {
+	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, boolean pose_is_valid, long tms) {
 
 		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
 		odo.frame_id       = frame;
@@ -712,18 +699,18 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 
 		if(pose_is_valid) {
-			odo.x = (float) pose.T.x;
-			odo.y = (float) pose.T.y;
-			odo.z = (float) pose.T.z;
+			odo.x = (float) pose.x;
+			odo.y = (float) pose.y;
+			odo.z = (float) pose.z;
 		} else {
 			odo.x = Float.NaN;
 			odo.y = Float.NaN;
 			odo.z = Float.NaN;
 		}
 
-		odo.vx = (float) speed.T.x;
-		odo.vy = (float) speed.T.y;
-		odo.vz = (float) speed.T.z;
+		odo.vx = (float) speed.x;
+		odo.vy = (float) speed.y;
+		odo.vz = (float) speed.z;
 
 		// Use EKF params
 		odo.pose_covariance[0] = Float.NaN;
