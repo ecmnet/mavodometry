@@ -64,6 +64,7 @@ import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavodometry.estimators.drift.MAVDriftSpeedEstimator;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseCV;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;
@@ -208,7 +209,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	private GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;
-
+	
+	private MAVDriftSpeedEstimator drift = new MAVDriftSpeedEstimator(0.1,0.2,30);
 
 
 	@SuppressWarnings("unused")
@@ -371,6 +373,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				body_old.setTo(body);
 				tms_old  = tms; 
+				
+				drift.reset();
 				return;
 			}
 
@@ -430,6 +434,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Debug body speed based on position
 			// rotate sensor velocities to body frame and correct by offset
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
+			
+			// Drift estimation
+			if(drift.estimate(body_s.T, vpos_body_s)) {
+				model.debug.set(drift.get());
+			}
 
 			// eventually calculate rr,pr,yr and do not use model rates
 			// should compesate rotations in speed
@@ -455,7 +464,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			
 			// rotate position based speed to ned (only for debugging purposes)
 			GeometryMath_F64.mult(to_ned.R, vpos_body_s, vpos_ned_s );
-			model.debug.set(vpos_ned_s);
+			//model.debug.set(vpos_ned_s);
 
 			// add rotated offset
 			offset_pos_ned.scale(-1);
@@ -534,8 +543,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				// Publish position data NED frame, speed body frame;  with ground truth
 				publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
 				
-			//  Test: Use position based speed
+			//  TODO Test: Use position based speed
+			//       Check drift using this speed source. Should elimate T265 drift
 			//	publishPX4Odometry(ned.T,vpos_body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
+				
+				// Publish to GCL
 				publishMSPVision(gnd_ned,ned,ned_s,precision_lock,tms);
 
 				break;
