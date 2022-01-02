@@ -1,8 +1,12 @@
 package com.comino.mavodometry.estimators.position;
 
+import org.mavlink.messages.MSP_CMD;
+import org.mavlink.messages.MSP_COMPONENT_CTRL;
+import org.mavlink.messages.lquac.msg_msp_command;
 import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
 
+import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
@@ -40,10 +44,10 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 		this.model = control.getCurrentModel();
 		control.addMAVLinkListener(this);
 
-
 		control.sendMAVLinkMessage(msg);
 
 		wq.addCyclicTask("LP", 30, () -> {
+			
 			if(is_running) {
 				msg.fps     = 1000f / (System.currentTimeMillis() - tms);
 				tms = System.currentTimeMillis();
@@ -53,10 +57,6 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 				if(drift.estimate(vel_body, vpo_body)) {
 					model.debug.set(drift.get());
 				}
-				
-				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
-				vel_body.setTo(msg.vx,msg.vy,msg.vz);
-				GeometryMath_F64.mult(to_ned.R, vel_body,vel_ned);
 
 			}
 		});
@@ -88,11 +88,14 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 		msg.y =  odometry.y;
 		msg.z =  odometry.z;
 		
+		MSP3DUtils.convertModelToSe3_F64(model, to_ned);
+		vel_body.setTo(odometry.vx,odometry.vy,odometry.vz);
+		GeometryMath_F64.mult(to_ned.R, vel_body,vel_ned);
+		
 		msg.vx = (float)vel_ned.x;
 		msg.vy = (float)vel_ned.y;
 		msg.vz = (float)vel_ned.z;
 		
-		vel_body.setTo(msg.vx, msg.vy,msg.vz);
 		vpo_body.setTo(msg.vx+0.03+Math.random()/1000.0, msg.vy+Math.random()/1000.0,msg.vz);
 
 		msg.p  = model.attitude.p;
@@ -110,7 +113,7 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 
 
 	public void reset() {
-
+		
 	}
 
 
