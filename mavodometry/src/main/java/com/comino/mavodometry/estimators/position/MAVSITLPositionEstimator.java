@@ -88,6 +88,7 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 		msg.y =  odometry.y;
 		msg.z =  odometry.z;
 		
+		// Convert body velocities to NED
 		MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 		vel_body.setTo(odometry.vx,odometry.vy,odometry.vz);
 		GeometryMath_F64.mult(to_ned.R, vel_body,vel_ned);
@@ -96,6 +97,7 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 		msg.vy = (float)vel_ned.y;
 		msg.vz = (float)vel_ned.z;
 		
+		// Simulate drift estimation
 		vpo_body.setTo(msg.vx+0.03+Math.random()/1000.0, msg.vy+Math.random()/1000.0,msg.vz);
 
 		msg.p  = model.attitude.p;
@@ -113,28 +115,25 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 
 
 	public void reset() {
-		
+		drift.reset();
 	}
 
 
 	@Override
 	public void enableStream(boolean enable) {
-		// TODO Auto-generated method stub
+		
 
 	}
 
 	@Override
 	public void start() throws Exception {
-		// TODO Auto-generated method stub
+		drift.reset();
 
 	}
 
 	@Override
 	public void stop() {
-		// TODO Auto-generated method stub
-
+		drift.reset();
 	}
-
-
 
 }

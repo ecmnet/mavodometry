@@ -61,6 +61,7 @@ import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.struct.Attitude3D_F64;
+import com.comino.mavcom.utils.MSP3DComplementaryFilter;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
@@ -88,7 +89,6 @@ import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.point.Vector4D_F64;
 import georegression.struct.se.Se3_F64;
-import georegression.struct.so.Quaternion_F64;
 
 public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
@@ -120,11 +120,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final double      FIDUCIAL_OFFSET_X 			=  -0.08;
 	private static final double      FIDUCIAL_OFFSET_Y 			=   0.05;
 	private static final double      FIDUCIAL_OFFSET_Z 			=   0.00;
-	
-	// Static T265 speed drift compensation
-	private static final double   	 SPEED_DRIFT_X 				=   0;//0.000290;
-	private static final double      SPEED_DRIFT_Y				=   0;//0.000272;
-
 
 	private final WorkQueue wq = WorkQueue.getInstance();
 	private  boolean is_initialized      = false;
@@ -165,7 +160,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Vector3D_F64  reposition_ned  = new Vector3D_F64();
 
 	private final Attitude3D_F64   att      	= new Attitude3D_F64();
-//	private final Quaternion_F64   att_q        = new Quaternion_F64();
+	//	private final Quaternion_F64   att_q        = new Quaternion_F64();
 
 	private float             quality = 0;
 	private long              tms_old = 0;
@@ -209,8 +204,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	private GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;
-	
-	private MAVDriftSpeedEstimator drift = new MAVDriftSpeedEstimator(0.1,0.2,30);
+
+	private boolean drift_compensation_enabled = false;
+	private final MAVDriftSpeedEstimator drift = new MAVDriftSpeedEstimator(0.1,0.15,30);
+	private final MSP3DComplementaryFilter vf  = new MSP3DComplementaryFilter(0.15);
 
 
 	@SuppressWarnings("unused")
@@ -233,16 +230,19 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		offset.x = config.getFloatProperty(MSPParams.T265_OFFSET_X, String.valueOf(OFFSET_X));
 		offset.y = config.getFloatProperty(MSPParams.T265_OFFSET_Y, String.valueOf(OFFSET_Y));
 		offset.z = config.getFloatProperty(MSPParams.T265_OFFSET_Z, String.valueOf(OFFSET_Z));
-
 		System.out.println("T265 Mounting offset: "+offset);
+		
+		// drift compensation
+		drift_compensation_enabled = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "true");
+		System.out.println("T265 drift compensation enabled: "+drift_compensation_enabled);
 
+		// fiducial settings
 		fiducial_size   = config.getFloatProperty(MSPParams.T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
 		System.out.println("Fiducial size: "+fiducial_size+"m");
 
 		fiducial_offset.x = -config.getFloatProperty(MSPParams.T265_FIDUCIAL_OFFSET_X, String.valueOf(FIDUCIAL_OFFSET_X));
 		fiducial_offset.y = -config.getFloatProperty(MSPParams.T265_FIDUCIAL_OFFSET_Y, String.valueOf(FIDUCIAL_OFFSET_Y));
 		fiducial_offset.z = -config.getFloatProperty(MSPParams.T265_FIDUCIAL_OFFSET_Z, String.valueOf(FIDUCIAL_OFFSET_Z));
-
 		System.out.println("T265 Fiducial offset: "+fiducial_offset);
 
 		ConvertRotation3D_F64.rotZ(Math.PI/2,to_rotz90.R);
@@ -373,8 +373,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				body_old.setTo(body);
 				tms_old  = tms; 
-				
-				drift.reset();
+
+				drift.reset(); vf.reset();
 				return;
 			}
 
@@ -428,30 +428,42 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			vpos_body_s.x = ( body.T.x - body_old.T.x ) * dt_sec_1;
 			vpos_body_s.y = ( body.T.y - body_old.T.y ) * dt_sec_1;
 			vpos_body_s.z = ( body.T.z - body_old.T.z ) * dt_sec_1;
-			
+
 			body_old.setTo(body);
 
-			// Debug body speed based on position
-			// rotate sensor velocities to body frame and correct by offset
+			// rotate sensor velocities to body frame
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
-			
-			// Drift estimation
-			if(drift.estimate(body_s.T, vpos_body_s)) {
-				model.debug.set(drift.get());
+
+			// Drift estimation if enabled
+			if(drift_compensation_enabled) {
+
+				// TEST 1:
+				// Compensates T265 speed drift vs. T265 position based speed
+				// Idea: identify drift and correct T265 speed estimate
+				if(drift.estimate(body_s.T, vpos_body_s)) {
+					//              model.debug.set(drift.get());
+					//				body_s.T.x = body_s.T.x - drift.get().x;
+					//				body_s.T.y = body_s.T.y - drift.get().y;				
+				}
+
+				// TEST 2:
+				// Complementary filter
+				// Idea: Use filtered value as speed estimate for vpos based speeds < 3 m/s
+				if(vpos_body_s.normSq() < 9) {
+					vf.add(body_s.T, vpos_body_s);
+					model.debug.set(vf.get());
+				}
+
 			}
 
 			// eventually calculate rr,pr,yr and do not use model rates
 			// should compesate rotations in speed
 			// TODO: To be tested in real flight
-			
+
 			angular_rates.setTo(model.attitude.rr, model.attitude.pr, model.attitude.yr);
 			offset_vel_body.crossSetTo(angular_rates, offset);
 			offset_vel_body.scale(-1);
 			//body_s.T.plusIP(offset_vel_body);
-			
-			// Fixed drift compensation
-			body_s.T.x = body_s.T.x - SPEED_DRIFT_X;
-			body_s.T.y = body_s.T.y - SPEED_DRIFT_Y;
 
 			// Get model attitude rotation
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
@@ -461,7 +473,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			//	CommonOps_DDRM.mult( body.R, to_ned.R, ned_s.R );
 			GeometryMath_F64.mult(to_ned.R, body_s.T,ned_s.T);
 			GeometryMath_F64.mult(to_ned.R, offset, offset_pos_ned );
-			
+
 			// rotate position based speed to ned (only for debugging purposes)
 			GeometryMath_F64.mult(to_ned.R, vpos_body_s, vpos_ned_s );
 			//model.debug.set(vpos_ned_s);
@@ -542,11 +554,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Publish position data NED frame, speed body frame;  with ground truth
 				publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
-				
-			//  TODO Test: Use position based speed
-			//       Check drift using this speed source. Should elimate T265 drift
-			//	publishPX4Odometry(ned.T,vpos_body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
-				
+
+				//  TODO Test: Use position based speed
+				//       Check drift using this speed source. Should elimate T265 drift
+				//	publishPX4Odometry(ned.T,vpos_body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
+
 				// Publish to GCL
 				publishMSPVision(gnd_ned,ned,ned_s,precision_lock,tms);
 
