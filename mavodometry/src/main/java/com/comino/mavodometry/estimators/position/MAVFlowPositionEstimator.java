@@ -1,5 +1,8 @@
 package com.comino.mavodometry.estimators.position;
 
+import org.mavlink.messages.lquac.msg_optical_flow;
+import org.mavlink.messages.lquac.msg_optical_flow_rad;
+
 //refer to : https://github.com/PX4/PX4-Autopilot/blob/master/src/modules/local_position_estimator/sensors/flow.cpp
 
 
@@ -34,21 +37,21 @@ public class MAVFlowPositionEstimator extends MAVAbstractEstimator  {
 
 	public MAVFlowPositionEstimator(IMAVMSPController control) {
 		super(control);
-		this.model = control.getCurrentModel();
-	
+		this.model = control.getCurrentModel();	
 		
-		ModelSubscriber<Flow> flow_subscriber = new ModelSubscriber<Flow>(Flow.class,(n) -> {
-			if(n.fq > 0)
-			   estimate();
+		control.addMAVLinkListener(msg_optical_flow_rad.class, (o) -> {
+			
+			msg_optical_flow_rad flw = (msg_optical_flow_rad)o;
+			
+			flow.setTo(flw.integrated_x * FLOWSCALE, flw.integrated_y * FLOWSCALE,0);
+			gyro.setTo(flw.integrated_xgyro,flw.integrated_ygyro,0);
+			
+			estimate(flw.integration_time_us * 1e-6f);
 		});
-
-		MessageBus.getInstance().subscribe(flow_subscriber);
-		
 	}
 	
-	public boolean estimate() {
+	public boolean estimate(float dt_int) {
 		
-		float dt_int = model.flow.ius * 1e-6f;
 		float dt_sec = ( System.currentTimeMillis() - tms) / 1000f;
 		tms = System.currentTimeMillis();
 		
@@ -65,16 +68,15 @@ public class MAVFlowPositionEstimator extends MAVAbstractEstimator  {
 		
 		MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
 		
-		flow.setTo(model.flow.fX * FLOWSCALE, model.flow.fY * FLOWSCALE,0);
-		gyro.setTo(model.flow.fgX,model.flow.fgY,0);
-		
 		float d = model.hud.ar * (float)Math.cos(model.attitude.p) * (float)Math.cos(model.attitude.r);
 		
-		vel_body.setTo( ( (flow.y - gyro.y) * d ) / dt_int,
+		vel_body.setTo(((flow.y - gyro.y) * d ) / dt_int,
 				      (-(flow.x - gyro.x) * d ) / dt_int,
 				      0);
 		
 		GeometryMath_F64.mult(to_ned.R, vel_body,vel_ned);
+		
+		model.debug.set(vel_ned);
 		
 		vel_ned.scale(dt_sec);
 		pos_ned.plusIP(vel_ned);
@@ -109,13 +111,12 @@ public class MAVFlowPositionEstimator extends MAVAbstractEstimator  {
 
 	@Override
 	public void start() throws Exception {
-		// TODO Auto-generated method stub
 		
 	}
 
 	@Override
 	public void stop() {
-		// TODO Auto-generated method stub
+		
 		
 	}
 
