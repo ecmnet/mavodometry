@@ -544,7 +544,7 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 							if(tms!=tms0)
 								fps = (int)(1000.0f/(tms - tms0));
 							tms0 = tms;
-
+							
 							for(IPoseCallback callback : callbacks)
 								callback.handle(tms, rawpose.tracker_confidence(), current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
 						}
