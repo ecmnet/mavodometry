@@ -120,6 +120,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final double      FIDUCIAL_OFFSET_X 			=  -0.08;
 	private static final double      FIDUCIAL_OFFSET_Y 			=   0.05;
 	private static final double      FIDUCIAL_OFFSET_Z 			=   0.00;
+	
+//	// Covariances
+//	private static final double      linear_accel_cov = 0.01;
+//	private static final double  	 angular_vel_cov  = 0.01;
+//	
+//	private float cov_vel;
+//	private float cov_twist;
 
 	private final WorkQueue wq = WorkQueue.getInstance();
 	private  boolean is_initialized      = false;
@@ -206,7 +213,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private int fiducial_worker;
 
 	private boolean drift_compensation_enabled = false;
-	private final MAVDriftSpeedEstimator drift = new MAVDriftSpeedEstimator(0.1,0.15,30);
+	private final MAVDriftSpeedEstimator drift = new MAVDriftSpeedEstimator(0.1,0.05,30);
 	private final MSP3DComplementaryFilter vf  = new MSP3DComplementaryFilter(0.15);
 
 
@@ -238,12 +245,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		// fiducial settings
 		fiducial_size   = config.getFloatProperty(MSPParams.T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
-		System.out.println("Fiducial size: "+fiducial_size+"m");
+		System.out.println("T265 fiducial size: "+fiducial_size+"m");
 
 		fiducial_offset.x = -config.getFloatProperty(MSPParams.T265_FIDUCIAL_OFFSET_X, String.valueOf(FIDUCIAL_OFFSET_X));
 		fiducial_offset.y = -config.getFloatProperty(MSPParams.T265_FIDUCIAL_OFFSET_Y, String.valueOf(FIDUCIAL_OFFSET_Y));
 		fiducial_offset.z = -config.getFloatProperty(MSPParams.T265_FIDUCIAL_OFFSET_Z, String.valueOf(FIDUCIAL_OFFSET_Z));
-		System.out.println("T265 Fiducial offset: "+fiducial_offset);
+		System.out.println("T265 fiducial offset: "+fiducial_offset);
 
 		ConvertRotation3D_F64.rotZ(Math.PI/2,to_rotz90.R);
 
@@ -403,7 +410,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				return;
 			}
 
-
 			//No flight controller connected => publish raw pose and speed for debugging purpose
 			if(!model.sys.isStatus(Status.MSP_CONNECTED)) {
 				if(stream!=null && enableStream) {
@@ -437,22 +443,19 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Drift estimation if enabled
 			if(drift_compensation_enabled) {
 
-				// TEST 1:
-				// Compensates T265 speed drift vs. T265 position based speed
-				// Idea: identify drift and correct T265 speed estimate
-				if(drift.estimate(body_s.T, vpos_body_s)) {
-					//              model.debug.set(drift.get());
-					//				body_s.T.x = body_s.T.x - drift.get().x;
-					//				body_s.T.y = body_s.T.y - drift.get().y;				
-				}
-
-				// TEST 2:
-				// Complementary filter
-				// Idea: Use filtered value as speed estimate for vpos based speeds < 3 m/s
-				if(vpos_body_s.normSq() < 9) {
-					vf.add(body_s.T, vpos_body_s);
-					model.debug.set(vf.get());
-				}
+				// Test 3:
+				// Idea Naive: Change to position based speed if slow
+				// TODO: - Separate vision state for position based speed
+				//       - display as annotation
+				//       - Speed limit as constant
+				// RESULT: Works basically, but PID oscillates with original settings,
+				//         but accuracy achievable not very good 
+//				
+//				if(vpos_body_s.normSq() < 0.04 && body_s.T.normSq() < 0.04 && confidence == CONFIDENCE_HIGH) {
+//					body_s.T.x = vpos_body_s.x;
+//					body_s.T.y = vpos_body_s.y;
+//				}
+				
 
 			}
 
@@ -553,12 +556,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			case LPOS_ODO_MODE_POSITION:
 
 				// Publish position data NED frame, speed body frame;  with ground truth
-				publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
-
-				//  TODO Test: Use position based speed
-				//       Check drift using this speed source. Should elimate T265 drift
-				//	publishPX4Odometry(ned.T,vpos_body_s,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,tms);
-
+				publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,confidence,tms);
+				
 				// Publish to GCL
 				publishMSPVision(gnd_ned,ned,ned_s,precision_lock,tms);
 
@@ -713,7 +712,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 
-	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, boolean pose_is_valid, long tms) {
+	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, boolean pose_is_valid, int confidence, long tms) {
 
 		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
 		odo.frame_id       = frame;
@@ -726,10 +725,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			odo.x = (float) pose.x;
 			odo.y = (float) pose.y;
 			odo.z = (float) pose.z;
+//			build_covariance(odo.pose_covariance, confidence);
 		} else {
 			odo.x = Float.NaN;
 			odo.y = Float.NaN;
 			odo.z = Float.NaN;
+			odo.pose_covariance[0] = Float.NaN;
 		}
 
 		odo.vx = (float) speed.x;
@@ -739,6 +740,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		// Use EKF params
 		odo.pose_covariance[0] = Float.NaN;
 		odo.velocity_covariance[0] = Float.NaN;
+		
+//		build_covariance(odo.velocity_covariance, confidence);
 
 		//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
 		//		odo.q[0] = (float)att_q.w;
@@ -837,6 +840,21 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		System.out.println("----------");
 
 	}
+
+	
+//    private void build_covariance(float[] cov, int confidence) {
+//    	
+//    	cov_vel  = (float)(linear_accel_cov * Math.pow(10, 3 - confidence));
+//    	cov_twist = (float)(angular_vel_cov * Math.pow(10, 1 - confidence));
+//    	
+//    	cov[0]  = cov_vel;   cov[1]  = 0; cov[2]  = 0; cov[3]  = 0; cov[4]  = 0; cov[5]  = 0;
+//        cov[6]  = cov_vel;   cov[7]  = 0; cov[8]  = 0; cov[9]  = 0; cov[10] = 0;
+//        cov[11] = cov_vel;   cov[12] = 0; cov[13] = 0; cov[14] = 0;
+//    	cov[15] = cov_twist; cov[16] = 0; cov[17] = 0;
+//        cov[18] = cov_twist; cov[19] = 0; 
+//        cov[20] = cov_twist;
+//		
+//	}
 
 	private class FiducialHandler implements Runnable {
 
@@ -938,6 +956,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		} 
 
 	}
+	
+	
 
 	//	private class DriftEstimator {
 	//
