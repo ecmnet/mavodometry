@@ -213,8 +213,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private int fiducial_worker;
 
 	private boolean drift_compensation_enabled = false;
-	private final MAVDriftSpeedEstimator drift = new MAVDriftSpeedEstimator(0.1,0.05,30);
-	private final MSP3DComplementaryFilter vf  = new MSP3DComplementaryFilter(0.15);
+	private final MSP3DComplementaryFilter drift_complementary_filter  = new MSP3DComplementaryFilter(0.28);
 
 
 	@SuppressWarnings("unused")
@@ -287,6 +286,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					break;
 				}
 			}
+		});
+		
+		
+		control.getStatusManager().addListener(StatusManager.TYPE_MSP_SERVICES,	Status.MSP_OPCV_AVAILABILITY, (n) -> {
+			if (n.isSensorAvailable(Status.MSP_OPCV_AVAILABILITY))
+				init("init");
 		});
 
 		control.getStatusManager().addListener(StatusManager.TYPE_MSP_AUTOPILOT,
@@ -381,7 +386,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				body_old.setTo(body);
 				tms_old  = tms; 
 
-				drift.reset(); vf.reset();
+			    drift_complementary_filter.reset();
 				return;
 			}
 
@@ -442,19 +447,26 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			// Drift estimation if enabled
 			if(drift_compensation_enabled) {
-
-				// Test 3:
+				
 				// Idea Naive: Change to position based speed if slow
-				// TODO: - Separate vision state for position based speed
-				//       - display as annotation
-				//       - Speed limit as constant
-				// RESULT: Works basically, but PID oscillates with original settings,
-				//         but accuracy achievable not very good 
-//				
-//				if(vpos_body_s.normSq() < 0.04 && body_s.T.normSq() < 0.04 && confidence == CONFIDENCE_HIGH) {
-//					body_s.T.x = vpos_body_s.x;
-//					body_s.T.y = vpos_body_s.y;
-//				}
+				// RESULT: - Works basically, but PID oscillates without filter and original settings,
+				//         - with filter at 0.35 quite good, but with 0.3 again drift
+				//         - Yaw to be checked as it is not rotation-invariant
+				//
+				// TODO: - Leave it with filter but tune PID
+				//       - compensate yaw or limit to a certain yawrate
+				//       - magic numbers
+				
+				// low_pass filter position based speed 
+				drift_complementary_filter.add(vpos_body_s);
+				// Use position based speeds if slow, no yaw rotation and vision confidence is high
+				if(vpos_body_s.norm() < 0.02 && body_s.T.norm() < 0.04 && 
+						Math.abs( model.attitude.yr) < 0.1 ) {
+					body_s.T.x = drift_complementary_filter.get().x;
+					body_s.T.y = drift_complementary_filter.get().y;
+					model.vision.setStatus(Vision.EXPERIMENTAL, true);
+				} else
+					model.vision.setStatus(Vision.EXPERIMENTAL, false);
 				
 
 			}
