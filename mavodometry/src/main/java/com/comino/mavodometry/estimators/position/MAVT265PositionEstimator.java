@@ -67,6 +67,7 @@ import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.estimators.drift.MAVDriftSpeedEstimator;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseCV;
+import com.comino.mavodometry.utils.TimeHysteris;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -120,13 +121,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final double      FIDUCIAL_OFFSET_X 			=  -0.08;
 	private static final double      FIDUCIAL_OFFSET_Y 			=   0.05;
 	private static final double      FIDUCIAL_OFFSET_Z 			=   0.00;
-	
-//	// Covariances
-//	private static final double      linear_accel_cov = 0.01;
-//	private static final double  	 angular_vel_cov  = 0.01;
-//	
-//	private float cov_vel;
-//	private float cov_twist;
+
+	//	// Covariances
+	//	private static final double      linear_accel_cov = 0.01;
+	//	private static final double  	 angular_vel_cov  = 0.01;
+	//	
+	//	private float cov_vel;
+	//	private float cov_twist;
 
 	private final WorkQueue wq = WorkQueue.getInstance();
 	private  boolean is_initialized      = false;
@@ -212,8 +213,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;
 
-	private boolean drift_compensation_enabled = false;
-	private final MSP3DComplementaryFilter drift_complementary_filter  = new MSP3DComplementaryFilter(0.28);
+//	// Drift compensation
+//	private boolean drift_compensation_enabled = false;
+//	private final MSP3DComplementaryFilter vpos_complementary_filter   = new MSP3DComplementaryFilter(1);
+	private final MSP3DComplementaryFilter vvel_complementary_filter   = new MSP3DComplementaryFilter(0.5);
+//	private final TimeHysteris             drift_hysteresis            = new TimeHysteris(0.5f,TimeHysteris.EDGE_RISING);
 
 
 	@SuppressWarnings("unused")
@@ -237,10 +241,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		offset.y = config.getFloatProperty(MSPParams.T265_OFFSET_Y, String.valueOf(OFFSET_Y));
 		offset.z = config.getFloatProperty(MSPParams.T265_OFFSET_Z, String.valueOf(OFFSET_Z));
 		System.out.println("T265 Mounting offset: "+offset);
-		
+
 		// drift compensation
-		drift_compensation_enabled = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "true");
-		System.out.println("T265 drift compensation enabled: "+drift_compensation_enabled);
+	//	drift_compensation_enabled = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "true");
+	//	System.out.println("T265 drift compensation enabled: "+drift_compensation_enabled);
 
 		// fiducial settings
 		fiducial_size   = config.getFloatProperty(MSPParams.T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
@@ -287,11 +291,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				}
 			}
 		});
-		
-		
+
+
 		control.getStatusManager().addListener(StatusManager.TYPE_MSP_SERVICES,	Status.MSP_OPCV_AVAILABILITY, (n) -> {
 			if (n.isSensorAvailable(Status.MSP_OPCV_AVAILABILITY))
-				init("init");
+				wq.addSingleTask("LP",500,() -> init("init"));
 		});
 
 		control.getStatusManager().addListener(StatusManager.TYPE_MSP_AUTOPILOT,
@@ -386,7 +390,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				body_old.setTo(body);
 				tms_old  = tms; 
 
-			    drift_complementary_filter.reset();
+//				vpos_complementary_filter.reset();
+//				vvel_complementary_filter.reset();
+//				drift_hysteresis.reset();
+
 				return;
 			}
 
@@ -401,12 +408,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			}
 
 			confidence_old = confidence;
-
-			// timea and fps
-			dt_sec   = (tms - tms_old) / 1000f;
-			dt_sec_1 = 1.0 / dt_sec;
-			model.vision.fps = (float)dt_sec_1;
-			tms_old = tms;
 
 			model.vision.setStatus(Vision.RESETTING, false);
 
@@ -425,7 +426,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				return;
 			}
 
-			// Transformation to NED
+			// Transformation to Body frame and then to NED
 
 			// Get current position and speeds
 			MSP3DUtils.convertModelToSe3_F64(model, lpos);
@@ -434,6 +435,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 
 			p.concat(to_body, body);
+
+			// timea and fps
+			dt_sec   = (tms - tms_old) / 1000f;
+			dt_sec_1 = 1.0 / dt_sec;
+			model.vision.fps = (float)dt_sec_1;
+			tms_old = tms;
 
 			// calculate body speed based on position
 			vpos_body_s.x = ( body.T.x - body_old.T.x ) * dt_sec_1;
@@ -445,31 +452,61 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// rotate sensor velocities to body frame
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
 
-			// Drift estimation if enabled
-			if(drift_compensation_enabled) {
-				
-				// Idea Naive: Change to position based speed if slow
-				// RESULT: - Works basically, but PID oscillates without filter and original settings,
-				//         - with filter at 0.35 quite good, but with 0.3 again drift
-				//         - Yaw to be checked as it is not rotation-invariant
-				//
-				// TODO: - Leave it with filter but tune PID
-				//       - compensate yaw or limit to a certain yawrate
-				//       - magic numbers
-				
-				// low_pass filter position based speed 
-				drift_complementary_filter.add(vpos_body_s);
-				// Use position based speeds if slow, no yaw rotation and vision confidence is high
-				if(vpos_body_s.norm() < 0.02 && body_s.T.norm() < 0.04 && 
-						Math.abs( model.attitude.yr) < 0.1 ) {
-					body_s.T.x = drift_complementary_filter.get().x;
-					body_s.T.y = drift_complementary_filter.get().y;
-					model.vision.setStatus(Vision.EXPERIMENTAL, true);
-				} else
-					model.vision.setStatus(Vision.EXPERIMENTAL, false);
-				
-
-			}
+//			// Drift estimation
+			// Issue: Does not work => Not stable enough
+			// TODO: Other means?
+			
+//			if(drift_compensation_enabled) {
+//
+//				// Idea:   Change to position based speed if slow
+//				// RESULT: - Works basically, but PID oscillates without filter and original settings,
+//				//         - with filter at 0.35 quite good, but with 0.3 again drift
+//				//         - Yaw to be checked as it is not rotation-invariant
+//				//
+//				// TODO: - Leave it with filter but tune PID ?
+//				//       - compensate yaw or limit to a certain yawrate
+//				//       - magic numbers
+//				//       - switch mode after a 0.5secs (hysteresis) => WORKS 
+//				//           - vel based speed filtering to align timing => PID needs to be tuned
+//
+//				// Add current values to filter (both low pass mode, => try complementary mode for vpos
+//				vpos_complementary_filter.add(vpos_body_s);
+//				vvel_complementary_filter.add(body_s.T);
+//
+//				// Use position based speeds if slow, no yaw rotation and vision confidence is high/medium; rising edge hysteresis
+//				if(drift_hysteresis.check(vpos_body_s.norm() < 0.15 && body_s.T.norm() < 0.15 && confidence >= CONFIDENCE_HIGH &&
+//						Math.abs( model.attitude.yr) < 0.1 )) {
+//					// use position based speeds
+//					body_s.T.x = vpos_complementary_filter.get().x;
+//					body_s.T.y = vpos_complementary_filter.get().y;
+//					model.vision.setStatus(Vision.EXPERIMENTAL, true);
+//				} else {
+//					// use filtered velocity based speeds to align timing
+//					body_s.T.x = vvel_complementary_filter.get().x;
+//					body_s.T.y = vvel_complementary_filter.get().y;
+//					model.vision.setStatus(Vision.EXPERIMENTAL, false);
+//				}
+//
+//			}
+			
+			// Issue: fuse velocity => pos unstable, fuse position => pos stable
+			// TODO: Tune EKF2 EVV_NOISE and test
+			// ===========================================
+			
+//			vvel_complementary_filter.add(body_s.T);
+//			body_s.T.x = vvel_complementary_filter.get().x;
+//			body_s.T.y = vvel_complementary_filter.get().y;
+			
+			// Issue: velocity deviation too high because vpos_body_s is too high
+			// TODO: Find out reason; eventually use filtered value for comparison
+			//       Simulate in SITLEstimator
+			model.debug.set(vpos_body_s.norm()-body_s.T.norm(),vpos_body_s.norm(),body_s.T.norm() );
+			
+			if(Math.abs(vpos_body_s.norm() - body_s.T.norm()) > 0.5f)
+				model.vision.setStatus(Vision.EXPERIMENTAL, true);
+			else
+				model.vision.setStatus(Vision.EXPERIMENTAL, false);
+			
 
 			// eventually calculate rr,pr,yr and do not use model rates
 			// should compesate rotations in speed
@@ -569,7 +606,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Publish position data NED frame, speed body frame;  with ground truth
 				publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,confidence,tms);
-				
+
 				// Publish to GCL
 				publishMSPVision(gnd_ned,ned,ned_s,precision_lock,tms);
 
@@ -737,7 +774,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			odo.x = (float) pose.x;
 			odo.y = (float) pose.y;
 			odo.z = (float) pose.z;
-//			build_covariance(odo.pose_covariance, confidence);
+			//			build_covariance(odo.pose_covariance, confidence);
 		} else {
 			odo.x = Float.NaN;
 			odo.y = Float.NaN;
@@ -752,8 +789,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		// Use EKF params
 		odo.pose_covariance[0] = Float.NaN;
 		odo.velocity_covariance[0] = Float.NaN;
-		
-//		build_covariance(odo.velocity_covariance, confidence);
+
+		//		build_covariance(odo.velocity_covariance, confidence);
 
 		//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
 		//		odo.q[0] = (float)att_q.w;
@@ -853,20 +890,20 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	}
 
-	
-//    private void build_covariance(float[] cov, int confidence) {
-//    	
-//    	cov_vel  = (float)(linear_accel_cov * Math.pow(10, 3 - confidence));
-//    	cov_twist = (float)(angular_vel_cov * Math.pow(10, 1 - confidence));
-//    	
-//    	cov[0]  = cov_vel;   cov[1]  = 0; cov[2]  = 0; cov[3]  = 0; cov[4]  = 0; cov[5]  = 0;
-//        cov[6]  = cov_vel;   cov[7]  = 0; cov[8]  = 0; cov[9]  = 0; cov[10] = 0;
-//        cov[11] = cov_vel;   cov[12] = 0; cov[13] = 0; cov[14] = 0;
-//    	cov[15] = cov_twist; cov[16] = 0; cov[17] = 0;
-//        cov[18] = cov_twist; cov[19] = 0; 
-//        cov[20] = cov_twist;
-//		
-//	}
+
+	//    private void build_covariance(float[] cov, int confidence) {
+	//    	
+	//    	cov_vel  = (float)(linear_accel_cov * Math.pow(10, 3 - confidence));
+	//    	cov_twist = (float)(angular_vel_cov * Math.pow(10, 1 - confidence));
+	//    	
+	//    	cov[0]  = cov_vel;   cov[1]  = 0; cov[2]  = 0; cov[3]  = 0; cov[4]  = 0; cov[5]  = 0;
+	//        cov[6]  = cov_vel;   cov[7]  = 0; cov[8]  = 0; cov[9]  = 0; cov[10] = 0;
+	//        cov[11] = cov_vel;   cov[12] = 0; cov[13] = 0; cov[14] = 0;
+	//    	cov[15] = cov_twist; cov[16] = 0; cov[17] = 0;
+	//        cov[18] = cov_twist; cov[19] = 0; 
+	//        cov[20] = cov_twist;
+	//		
+	//	}
 
 	private class FiducialHandler implements Runnable {
 
@@ -968,8 +1005,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		} 
 
 	}
-	
-	
+
+
 
 	//	private class DriftEstimator {
 	//
