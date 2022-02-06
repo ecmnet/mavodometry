@@ -141,10 +141,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Se3_F64          to_tmp          	= new Se3_F64();
 
 	private final Se3_F64          ned      		= new Se3_F64();
+	private final Se3_F64          ned_old          = new Se3_F64();
 	private final Se3_F64          gnd_ned  	 	= new Se3_F64();
 	private final Se3_F64          ned_s    		= new Se3_F64();
 	private final Se3_F64          body     		= new Se3_F64();
-	private final Se3_F64          body_old         = new Se3_F64();
 	private final Se3_F64          body_s   		= new Se3_F64();
 	private final Se3_F64          lpos     		= new Se3_F64();
 
@@ -158,7 +158,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Vector3D_F64  offset_vel_body = new Vector3D_F64();
 	private final Vector3D_F64  angular_rates   = new Vector3D_F64();
 	private final Vector3D_F64  lpos_current_s  = new Vector3D_F64();
-	private final Vector3D_F64  vpos_body_s     = new Vector3D_F64();
 	private final Vector3D_F64  vpos_ned_s      = new Vector3D_F64();
 	private final Vector3D_F64  vpos_ned_delta  = new Vector3D_F64();
 	private final Vector3D_F64  vpos_ned        = new Vector3D_F64();
@@ -359,8 +358,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				CommonOps_DDRM.transpose(p.R, tmp);
 				CommonOps_DDRM.mult( to_ned.R, tmp , initial_rot );
 
-				p.concat(to_body, body_old);
-
 				if(lensDistortion == null) {
 					CameraKannalaBrandt model = t265.getLeftModel();
 					// Adjust intrinsics as fiducial size is changed
@@ -387,7 +384,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					stream.addToStream(img, model, tms);
 				}
 
-				body_old.setTo(body);
+				ned_old.setTo(ned);
 				tms_old  = tms; 
 
 				error_pos_ned.setTo(0,0,0);
@@ -441,13 +438,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			model.vision.fps = (float)dt_sec_1;
 			tms_old = tms;
 
-			// calculate body speed based on position
-			vpos_body_s.x = ( body.T.x - body_old.T.x ) * dt_sec_1;
-			vpos_body_s.y = ( body.T.y - body_old.T.y ) * dt_sec_1;
-			vpos_body_s.z = ( body.T.z - body_old.T.z ) * dt_sec_1;
-
-			body_old.setTo(body);
-
 			// rotate sensor velocities to body frame
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
 
@@ -470,12 +460,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			GeometryMath_F64.mult(to_ned.R, body_s.T,ned_s.T);
 			GeometryMath_F64.mult(to_ned.R, offset, offset_pos_ned );
 
-			// rotate position based speed to ned 
-			GeometryMath_F64.mult(to_ned.R, vpos_body_s, vpos_ned_s );
-
 			// add rotated offset
 			offset_pos_ned.scale(-1);
 			ned.T.plusIP(offset_pos_ned);
+			
+			// calculate ned speed based on position
+			vpos_ned_s.x = ( ned.T.x - ned_old.T.x ) * dt_sec_1;
+			vpos_ned_s.y = ( ned.T.y - ned_old.T.y ) * dt_sec_1;
+			vpos_ned_s.z = ( ned.T.z - ned_old.T.z ) * dt_sec_1;
+			ned_old.setTo(ned);
 
 			// Set rotation to vision based rotation
 			CommonOps_DDRM.mult( initial_rot, p.R , ned.R );
@@ -510,6 +503,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			//                      2. Flight test ok, integration works
 			//         ==> seems to be the solution
 			//         ==> Observation: Z integration has drift
+			//         ==> Observation: VY variance much higher than VX
+			//             ==> solved by using ned position to calculate speed instead of body pos
+			//             TODO: Check VposZ
+			//
 			//         TODO: Use also integrated Z in velocity mode
 
 
@@ -532,7 +529,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				ned.T.plusIP(error_pos_ned);
 			}
 
-			model.debug.set(vpos_ned);
+			model.debug.set(vpos_ned_s);
 
 			// TODO: Z validation
 
