@@ -61,11 +61,8 @@ import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.struct.Attitude3D_F64;
-import com.comino.mavcom.utils.MSP3DComplementaryFilter;
 import com.comino.mavcom.utils.MSP3DUtils;
-import com.comino.mavcom.utils.SimpleLowPassFilter;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
-import com.comino.mavodometry.estimators.drift.MAVDriftSpeedEstimator;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseCV;
 import com.comino.mavodometry.utils.TimeHysteresis;
 import com.comino.mavodometry.video.IVisualStreamHandler;
@@ -106,6 +103,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final int         FIDUCIAL_WIDTH     		= 360;
 
 	private static final int     	 MAX_ERRORS          		= 200;
+	private static final float       MAX_SPEED_VARIANCE         = 0.5f;     
 
 	private static final long        LOCK_TIMEOUT_MS            = 1000;
 
@@ -210,11 +208,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;
 
-
 	private final TimeHysteresis           pose_hysteresis;
-	private boolean                        isPosEntered               = false;
-	private boolean                        isVelEntered               = false;
-
 
 	@SuppressWarnings("unused")
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) 
@@ -303,17 +297,17 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
 		pose_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_FALLING);
+		
+		// Switch to VEL integration
 		pose_hysteresis.registerAction(TimeHysteresis.EDGE_RISING, () -> {
 			// Store current position when velocity mode is entered
-			model.vision.setStatus(Vision.POS_VALID, false);
 			vpos_ned.setTo(lpos.T);  
 		});
 
+		// switch to POS
 		pose_hysteresis.registerAction(TimeHysteresis.EDGE_FALLING, () -> {
 			// Store current offset of vision position for correction when position mode is entered
 			error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y,0);
-			model.vision.setStatus(Vision.POS_VALID, true);
-			writeLogMessage(new LogMessage("[vio] T265 Pos. adjustment.", MAV_SEVERITY.MAV_SEVERITY_WARNING));
 		});
 
 		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
@@ -501,42 +495,39 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// WARNING: Publishing POS always for xy; z directly published (without integration)
 			// =======
 			//
-			// Idea: Use vision position as long as vpos speed and vision speed do not differ much
+			// Idea: Use vision position as long as vpos speed and vision speed do not differ much (XY only).
+			// otherwise use velocity integration to provide a position; EKF2 is kept in vision position mode
 			// if switched to position, consider current offset between ned and lpos, as EKF2 resets
-			// to vision position.
+			// to vision position. Do not consider Z here
 			//     ==> WORKS (note: do not maintain vision offsets in PX4 parameters)
 			//
 			// Questions: Does this detect vision position jumps?
-			//     ==> ?
-			// How does EKF2 behave in case of vision velocity only with vis pos switched on?
-			//     ==> Seems not to work; velocity is not respected even POS is set to NAN
-			//     ==> Seems to work as long lposx/x is published as pos in velocity mode
-			//
-			//     ==> Idea: Do not use velocity in EKF2 but pure position and integrate vis speeds into vis pos here
+			//     ==> TODO: Test in OH
 			//         TODO: Enable position sending and test done 4.2.22
 			//               ==> Manual test: ok
 			//               ==> Flight test:
 			//                      1. initialization fails (height, velpos)
 			//                      2. Flight test ok, integration works
 			//         ==> seems to be the solution
-			//
-			// Check between vis pos based speed and direct vis speed is not consistent in y axis vs x axis
-			//      ==> compare current lpos speed with vis pos based speed to detect pos jumps in vision
-			//      TODO: Check magnetic calibration and orientation
-			// Why does a fusion timeout occur?
+			//         ==> Observation: Z integration has drift
+			//         TODO: Use also integrated Z in velocity mode
 
-			if(pose_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, vpos_ned_s) > 0.4)) {
 
+			// Check variance between PX4 local XY speed (NED) and Vision position based XY speed (NED)
+			if(pose_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, vpos_ned_s) > MAX_SPEED_VARIANCE)) {
+
+				model.vision.setStatus(Vision.POS_VALID, false);
 				// Use vision velocity for fusing and calculate virtual vision position by integrating
 				vpos_ned_delta.setTo(ned_s.T); vpos_ned_delta.scale(dt_sec);
 				vpos_ned.plusIP(vpos_ned_delta);
 
-                // replace vision position with velocity integration
+                // replace vision XY position with velocity integration, but keep Z
 				ned.T.x = vpos_ned.x;
 				ned.T.y = vpos_ned.y;
 
 			} else {
 
+				model.vision.setStatus(Vision.POS_VALID, true);
 				// Use vision position for fusing and reset vision to lpos
 				ned.T.plusIP(error_pos_ned);
 			}
