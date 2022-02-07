@@ -208,6 +208,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private int fiducial_worker;
 
 	private final TimeHysteresis           pose_hysteresis;
+	private boolean                        drift_compensation = false;
 
 	@SuppressWarnings("unused")
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) 
@@ -232,8 +233,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		System.out.println("T265 Mounting offset: "+offset);
 
 		// drift compensation
-		//	drift_compensation_enabled = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "true");
-		//	System.out.println("T265 drift compensation enabled: "+drift_compensation_enabled);
+		drift_compensation = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "true");
+		System.out.println("T265 drift compensation enabled: "+drift_compensation);
 
 		// fiducial settings
 		fiducial_size   = config.getFloatProperty(MSPParams.T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
@@ -296,7 +297,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
 		pose_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_FALLING);
-		
+
 		// Switch to VEL integration
 		pose_hysteresis.registerAction(TimeHysteresis.EDGE_RISING, () -> {
 			// Store current position when velocity mode is entered
@@ -463,7 +464,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// add rotated offset
 			offset_pos_ned.scale(-1);
 			ned.T.plusIP(offset_pos_ned);
-			
+
+			// WARNING: Jump test DO NOT FLY
+			//			if(Math.random() > 0.8)
+			//				ned.T.x = ned.T.x + 1;
+
 			// calculate ned speed based on position
 			vpos_ned_s.x = ( ned.T.x - ned_old.T.x ) * dt_sec_1;
 			vpos_ned_s.y = ( ned.T.y - ned_old.T.y ) * dt_sec_1;
@@ -507,31 +512,31 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			//             ==> solved by using ned position to calculate speed instead of body pos
 			//             TODO: Check VposZ
 			//
-			//         TODO: Use also integrated Z in velocity mode
+			//         TODO: Use also integrated Z in velocity mode: Target: also Z should be stable
 
 
 			// Check variance between PX4 local XY speed (NED) and Vision position based XY speed (NED)
-			if(pose_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, vpos_ned_s) > MAX_SPEED_VARIANCE)) {
+			if(drift_compensation ) {
+				if(pose_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, vpos_ned_s) > MAX_SPEED_VARIANCE)) {
 
-				model.vision.setStatus(Vision.POS_VALID, false);
-				// Use vision velocity for fusing and calculate virtual vision position by integrating
-				vpos_ned_delta.setTo(ned_s.T); vpos_ned_delta.scale(dt_sec);
-				vpos_ned.plusIP(vpos_ned_delta);
+					model.vision.setStatus(Vision.POS_VALID, false);
+					// Use vision velocity for fusing and calculate virtual vision position by integrating
+					vpos_ned_delta.setTo(ned_s.T); vpos_ned_delta.scale(dt_sec);
+					vpos_ned.plusIP(vpos_ned_delta);
 
-                // replace vision XY position with velocity integration, but keep Z
-				ned.T.x = vpos_ned.x;
-				ned.T.y = vpos_ned.y;
+					// replace vision XY position with velocity integration, but keep Z
+					ned.T.x = vpos_ned.x;
+					ned.T.y = vpos_ned.y;
 
-			} else {
+				} else {
 
-				model.vision.setStatus(Vision.POS_VALID, true);
-				// Use vision position for fusing and reset vision to lpos
-				ned.T.plusIP(error_pos_ned);
+					model.vision.setStatus(Vision.POS_VALID, true);
+					// Use vision position for fusing and reset vision to lpos
+					ned.T.plusIP(error_pos_ned);
+				}
+
+				model.debug.set(vpos_ned_s);
 			}
-
-			model.debug.set(vpos_ned_s);
-
-			// TODO: Z validation
 
 			// Fiducial detection
 			model.vision.setStatus(Vision.FIDUCIAL_ENABLED, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
