@@ -76,7 +76,7 @@ public class MAVFlowPositionEstimator extends MAVAbstractEstimator  {
 		
 		GeometryMath_F64.mult(to_ned.R, vel_body,vel_ned);
 		
-		model.debug.set(vel_ned);
+	//	model.debug.set(vel_ned);
 		
 		vel_ned.scale(dt_sec);
 		pos_ned.plusIP(vel_ned);

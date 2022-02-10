@@ -465,10 +465,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			offset_pos_ned.scale(-1);
 			ned.T.plusIP(offset_pos_ned);
 
-			// WARNING: Jump test DO NOT FLY
-			//			if(Math.random() > 0.8)
-			//				ned.T.x = ned.T.x + 1;
-
 			// calculate ned speed based on position
 			vpos_ned_s.x = ( ned.T.x - ned_old.T.x ) * dt_sec_1;
 			vpos_ned_s.y = ( ned.T.y - ned_old.T.y ) * dt_sec_1;
@@ -507,6 +503,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			//                      1. initialization fails (height, velpos)
 			//                      2. Flight test ok, integration works
 			//         ==> seems to be the solution
+			//             ==> Simulated position jumps work well
 			//         ==> Observation: Z integration has drift
 			//         ==> Observation: VY variance much higher than VX
 			//             ==> solved by using ned position to calculate speed instead of body pos
@@ -535,7 +532,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					ned.T.plusIP(error_pos_ned);
 				}
 
-				model.debug.set(vpos_ned_s);
+				model.debug.set(vpos_ned);
 			}
 
 			// Fiducial detection

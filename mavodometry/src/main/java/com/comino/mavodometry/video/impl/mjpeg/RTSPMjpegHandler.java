@@ -155,7 +155,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	@Override
 	public void  addToStream(T in, DataModel model, long tms) {
-		receiver.add(in, tms);
+		if(state == PLAYING)
+		  receiver.add(in, tms);
 
 	}
 
@@ -170,6 +171,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 		private final long rate = 700 / FRAME_RATE_FPS ;
 
 		public void add(T in, long tms) {
+			
 
 			if((tms - last_image_in) < rate  )
 				return;

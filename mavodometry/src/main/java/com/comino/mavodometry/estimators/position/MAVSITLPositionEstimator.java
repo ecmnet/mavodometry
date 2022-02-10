@@ -1,26 +1,18 @@
 package com.comino.mavodometry.estimators.position;
 
 import org.ejml.dense.row.CommonOps_DDRM;
-import org.mavlink.messages.MAV_SEVERITY;
 import org.mavlink.messages.MSP_CMD;
-import org.mavlink.messages.MSP_COMPONENT_CTRL;
 import org.mavlink.messages.lquac.msg_msp_command;
 import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
-import org.mavlink.messages.lquac.msg_set_gps_global_origin;
 
-import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
-import com.comino.mavcom.log.MSPLogger;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
-import com.comino.mavcom.utils.MSP3DComplementaryFilter;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
-import com.comino.mavodometry.estimators.drift.MAVDriftSpeedEstimator;
-import com.comino.mavodometry.utils.TimeHysteris;
 import com.comino.mavutils.workqueue.WorkQueue;
 
 import georegression.geometry.GeometryMath_F64;
