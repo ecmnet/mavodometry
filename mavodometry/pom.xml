@@ -65,23 +65,24 @@
 			<artifactId>jcodec</artifactId>
 			<version>0.1.9</version>
 		</dependency>
+
 		<dependency>
 			<groupId>turbojpeg</groupId>
 			<artifactId>turbojpeg</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-        
+
+        <!--
 		<dependency>
 			<groupId>org.boofcv</groupId>
 			<artifactId>boofcv-javacv</artifactId>
-			<version>0.39</version>
+			<version>0.39.1</version>
 			<exclusions>
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>javacpp</artifactId>
 				</exclusion>
 				<exclusion>
-				
 					<groupId>org.bytedeco</groupId>
 					<artifactId>javacv</artifactId>
 				</exclusion>
@@ -91,6 +92,7 @@
 				</exclusion>
 			</exclusions>
 		</dependency>
+-->
 
 		<dependency>
 			<groupId>org.bytedeco</groupId>
@@ -148,6 +150,10 @@
 					<groupId>org.bytedeco</groupId>
 					<artifactId>artoolkitplus</artifactId>
 				</exclusion>
+                <exclusion>
+					<groupId>org.bytedeco</groupId>
+					<artifactId>ffmpeg</artifactId>
+				</exclusion>
 			</exclusions>
 		</dependency>
 		<dependency>
@@ -190,6 +196,10 @@
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>artoolkitplus</artifactId>
+				</exclusion>
+                <exclusion>
+					<groupId>org.bytedeco</groupId>
+					<artifactId>ffmpeg-platform</artifactId>
 				</exclusion>
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
