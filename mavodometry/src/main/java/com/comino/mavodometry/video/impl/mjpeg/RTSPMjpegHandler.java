@@ -20,7 +20,11 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.StringTokenizer;
 import java.util.UUID;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+import java.util.concurrent.TimeUnit;
 
+import org.bytedeco.depthai.ImgFrame;
 import org.libjpegturbo.turbojpeg.TJ;
 import org.libjpegturbo.turbojpeg.TJCompressor;
 import org.libjpegturbo.turbojpeg.TJException;
@@ -107,6 +111,11 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private INoVideoListener no_video_handler;
 
+	private final BlockingQueue<T> transfer = new ArrayBlockingQueue<T>(10);
+	
+	private int modulo;
+	private final static int RATE = 2;
+
 	public RTSPMjpegHandler(int width, int height, DataModel model) {
 
 		this.model = model;
@@ -152,12 +161,14 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 		return fps;
 	}
 
-
 	@Override
 	public void  addToStream(T in, DataModel model, long tms) {
-		if(state == PLAYING)
-		  receiver.add(in, tms);
-
+		try {
+			if(transfer.remainingCapacity()>0 && (modulo++ % RATE ) == 0 )
+				transfer.put(in);
+		} catch (InterruptedException e) {
+			e.printStackTrace();
+		}
 	}
 
 	@Override
@@ -168,45 +179,23 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private class Receiver implements Runnable {
 
-		private final long rate = 700 / FRAME_RATE_FPS ;
-
-		public void add(T in, long tms) {
-			
-
-			if((tms - last_image_in) < rate  )
-				return;
-
-			last_image_in = tms;
-
-			input = in;
-			synchronized(this) {
-				isReady = true;
-				notify();
-			}
-
-		}
-
 		@SuppressWarnings("unchecked")
 		public void run() {
 
-			long tms; no_video = false;
+			no_video = false;
 
 			System.out.println("Video streaming started ");
 			while(is_running) {
 
 				try {
 
-					synchronized(this) {
-						tms = System.currentTimeMillis();
-						if(!isReady) {
-							wait(1000);
-						}	  
-					}
-					isReady = false;
 					if(RTPsocket.isClosed())
 						return;
 
-					if((System.currentTimeMillis()-tms) > 450 ) {
+					input = transfer.poll(300, TimeUnit.MILLISECONDS);
+
+
+					if(input == null ) {
 						if(!no_video) {
 							if(no_video_handler!= null)
 								no_video_handler.trigger();
@@ -225,11 +214,12 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 							}
 						}
 						continue;
+					} else {
+						no_video = true;
 					}
 
 
 					imagenb++;
-					no_video = false;
 
 					fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) / 60f;
 					last_image_tms = System.currentTimeMillis();
