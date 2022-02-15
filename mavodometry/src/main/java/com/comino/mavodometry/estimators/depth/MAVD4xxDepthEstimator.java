@@ -51,7 +51,6 @@ import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepthCV;
-import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepthLegacy;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.workqueue.WorkQueue;

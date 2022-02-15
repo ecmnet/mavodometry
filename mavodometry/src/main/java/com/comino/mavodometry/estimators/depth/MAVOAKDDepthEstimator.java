@@ -19,11 +19,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private IVisualStreamHandler<Planar<GrayU8>> stream;
 	private StreamDepthAIOakD oakd = null;
-
-
+	
 	private boolean enableStream;
 
-	private long  tms = 0;
+	private long   tms = 0;
+	private long frame = 0;
 
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
@@ -38,8 +38,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		oakd.registerCallback(new IDepthCallback() {
 
 			@Override
-			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
-				
+			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, long timeRgb, long timeDepth) {
+//				frame++;
+//				System.out.println(frame+": "+timeRgb);
 				
 				model.slam.fps = 1000f / (timeRgb - tms);
 				model.slam.quality = 100;
@@ -48,7 +49,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				if(stream!=null && enableStream) {
 					stream.addToStream(rgb, model, timeRgb);
 				}
-				
 			}
 			
 		});
