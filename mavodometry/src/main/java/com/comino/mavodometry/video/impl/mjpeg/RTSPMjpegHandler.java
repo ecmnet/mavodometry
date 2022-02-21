@@ -114,7 +114,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private final BlockingQueue<T> transfer = new ArrayBlockingQueue<T>(10);
 	
 	private int modulo;
-	private final static int RATE = 2;
+	private final static int RATE = 1;
 
 	public RTSPMjpegHandler(int width, int height, DataModel model) {
 
