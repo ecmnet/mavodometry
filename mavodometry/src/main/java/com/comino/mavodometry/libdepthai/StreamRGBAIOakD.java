@@ -27,6 +27,7 @@ import org.bytedeco.javacpp.IntPointer;
 import org.bytedeco.javacpp.PointerScope;
 
 import com.comino.mavodometry.callback.IDepthCallback;
+import com.comino.mavodometry.concurrency.OdometryPool;
 
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
@@ -34,7 +35,7 @@ import boofcv.struct.image.Planar;
 
 public class StreamRGBAIOakD {
 
-	private final static boolean  USE_USB2 = false;
+	private final static boolean  USE_USB2 = true;
 
 
 	private static StreamRGBAIOakD instance;
@@ -77,7 +78,8 @@ public class StreamRGBAIOakD {
 
 		is_running = true;
 
-		Thread s = new Thread(()-> {
+		OdometryPool.submit(
+		new Thread(()-> {
 			while(is_running) {
 
 				try {
@@ -98,15 +100,14 @@ public class StreamRGBAIOakD {
 
 			}
 
-		});
-		s.start();
+		}));
 
 		callback = new CombineOAKDCallback();
 		if(!is_running)
 			throw new Exception("No OAKD camera found");
 		callback.deallocate(false);
 
-		System.out.println("OAK-D Lite pipeline started.");
+		System.out.println("OAK-D Lite RGB pipeline started.");
 	}
 
 	public void stop() {
@@ -165,7 +166,7 @@ public class StreamRGBAIOakD {
 					for (int i = 0; i < cameras.limit(); i++) {
 						System.out.print(cameras.get(i) + " ");
 					}
-					System.out.println();
+					System.out.println("- "+device.getUsbSpeed());
 				}
 
 				queue = device.getOutputQueue("preview", 4, true);

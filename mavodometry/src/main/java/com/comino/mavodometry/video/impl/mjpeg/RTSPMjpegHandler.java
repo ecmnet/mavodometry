@@ -24,7 +24,6 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
 
-import org.bytedeco.depthai.ImgFrame;
 import org.libjpegturbo.turbojpeg.TJ;
 import org.libjpegturbo.turbojpeg.TJCompressor;
 import org.libjpegturbo.turbojpeg.TJException;
@@ -42,8 +41,6 @@ import boofcv.struct.image.Planar;
 public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	// Note: Relies on https://libjpeg-turbo.org
-
-	private static final int 		FRAME_RATE_MAX        = Integer.MAX_VALUE;
 
 	private static final int 		FRAME_RATE_FPS        = 15;
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
@@ -65,9 +62,10 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private final List<IOverlayListener> listeners;
 	private final BufferedImage          image;
 	private final Graphics2D             ctx;
+	
+	private final int rate = 30 / FRAME_RATE_FPS;
 
 	private long       last_image_tms    = 0;
-	private long       last_image_in     = 0;
 	private float      fps = 0;
 	private boolean    is_running = false;
 
@@ -97,7 +95,6 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private int RTSPport = 1051;
 
 	private boolean done = false;
-	private boolean isReady = false;
 
 	private TJCompressor tj;
 	private final byte[] buffer;
@@ -114,7 +111,6 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private final BlockingQueue<T> transfer = new ArrayBlockingQueue<T>(10);
 	
 	private int modulo;
-	private final static int RATE = 1;
 
 	public RTSPMjpegHandler(int width, int height, DataModel model) {
 
@@ -164,7 +160,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	@Override
 	public void  addToStream(T in, DataModel model, long tms) {
 		try {
-			if(transfer.remainingCapacity()>0 && (modulo++ % RATE ) == 0 )
+			if(transfer.remainingCapacity()>0 && (modulo++ % rate) == 0 )
 				transfer.put(in);
 		} catch (InterruptedException e) {
 			e.printStackTrace();
