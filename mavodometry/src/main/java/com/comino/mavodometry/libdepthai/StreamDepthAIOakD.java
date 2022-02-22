@@ -27,6 +27,7 @@ import org.bytedeco.javacpp.IntPointer;
 import org.bytedeco.javacpp.PointerScope;
 
 import com.comino.mavodometry.callback.IDepthCallback;
+import com.comino.mavodometry.concurrency.OdometryPool;
 
 import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
@@ -62,6 +63,9 @@ public class StreamDepthAIOakD {
 	private final BlockingQueue<ImgFrame> transfer_rgb   = new ArrayBlockingQueue<ImgFrame>(4);
 	private final BlockingQueue<ImgFrame> transfer_depth = new ArrayBlockingQueue<ImgFrame>(4);
 
+	private int width;
+	private int height;
+
 	public static StreamDepthAIOakD getInstance(int width, int height) throws Exception {
 
 		if(instance==null) {
@@ -76,6 +80,8 @@ public class StreamDepthAIOakD {
 		this.rgb        = new Planar<GrayU8>(GrayU8.class,width,height,3);
 		this.depth      = new GrayU16(width,height);
 		this.intrinsics = new CameraPinholeBrown();
+		this.width      = width;
+		this.height     = height;
 
 	}
 
@@ -89,13 +95,15 @@ public class StreamDepthAIOakD {
 
 		is_running = true;
 
-		Thread s = new Thread(()-> {
+		OdometryPool.submit(
+		new Thread(()-> {
 			while(is_running) {
 
 				try {
 					try (PointerScope scope = new PointerScope()) {	
 						ImgFrame frame = transfer_rgb.take();
 						if(frame != null && !frame.isNull()) {
+							rgb_tms = System.currentTimeMillis();
 							bufferRgbToMsU8(frame.getData().asByteBuffer(),rgb);
 							frameCount = frame.getSequenceNum();
 						}
@@ -117,15 +125,15 @@ public class StreamDepthAIOakD {
 
 			}
 
-		});
-		s.start();
+		}));
+		
 
 		callback = new CombineOAKDCallback();
 		if(!is_running)
 			throw new Exception("No OAKD camera found");
 		callback.deallocate(false);
 
-		System.out.println("OAK-D Lite pipeline started.");
+		System.out.println("OAK-D Lite depth pipeline started.");
 	}
 
 	public void stop() {
@@ -175,15 +183,7 @@ public class StreamDepthAIOakD {
 			depth.setExtendedDisparity(false);
 			depth.setSubpixel(false);
 			depth.initialConfig().setConfidenceThreshold(150);
-
-			ColorCamera colorCam = p.createColorCamera();
-			colorCam.deallocate(false);
-			colorCam.setPreviewSize(rgb.width, rgb.height);
-			colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
-			colorCam.setColorOrder(ColorOrder.RGB);
-			colorCam.setInterleaved(true);
-			colorCam.preview().link(xlinkOut.input());
-
+			
 			MonoCamera monoLeft = p.createMonoCamera();
 			monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
 			monoLeft.setBoardSocket(CameraBoardSocket.LEFT);
@@ -194,6 +194,14 @@ public class StreamDepthAIOakD {
 
 			monoLeft.out().link(depth.left());
 			monoRight.out().link(depth.right());
+
+			ColorCamera colorCam = p.createColorCamera();
+			colorCam.deallocate(false);
+			colorCam.setPreviewSize(rgb.width, rgb.height);
+			colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
+			colorCam.setColorOrder(ColorOrder.RGB);
+			colorCam.setInterleaved(true);
+			colorCam.preview().link(xlinkOut.input());
 			
 			depth.depth().link(xlinkOut.input());
 
@@ -209,14 +217,24 @@ public class StreamDepthAIOakD {
 
 			try (@SuppressWarnings("unchecked")
 			PointerScope scope = new PointerScope()) {	
+				
+				float[][] in = device.readCalibration().getCameraIntrinsics(CameraBoardSocket.LEFT).get();
+				intrinsics.fx = in[0][0];
+				intrinsics.fy = in[1][1];
+				intrinsics.cx = in[0][2];
+				intrinsics.cy = in[1][2];
+				intrinsics.width  = width;
+				intrinsics.height = height;
+				
 				IntPointer cameras = device.getConnectedCameras();
 				for (int i = 0; i < cameras.limit(); i++) {
 					System.out.print(cameras.get(i) + " ");
 				}
-				System.out.println();
+				System.out.println("- "+device.getUsbSpeed());
+				System.out.println(intrinsics);
 			}
 
-			queue = device.getOutputQueue("preview", 4, true);
+			queue = device.getOutputQueue("preview", 8, true);
 			queue.deallocate(false);
 			queue.addCallback(this);
 
@@ -262,6 +280,14 @@ public class StreamDepthAIOakD {
 			}
 		}
 	}
+	
+//	private void bufferGrayToMsU8(ByteBuffer input,Planar<GrayU8> output) {
+//
+//		input.get(output.getBand(0).data);
+//		output.getBand(1).data = output.getBand(0).data;
+//		output.getBand(2).data = output.getBand(0).data;
+//	
+//	}
 	
 
 
