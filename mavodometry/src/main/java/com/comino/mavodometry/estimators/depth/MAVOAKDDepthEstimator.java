@@ -37,7 +37,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private static final int         DEPTH_HEIGHT   = 90;
 	private static final int         DEPTH_WIDTH    = 540;
 
-	private static final float       quality_factor = 100f / ( DEPTH_WIDTH * DEPTH_HEIGHT) ;
+	private static final float       quality_factor = 300f / ( DEPTH_WIDTH * DEPTH_HEIGHT) ;
 
 	private static final float  WARN_OBS_DISTANCE   = 1.5f;
 	private static final int             DEPTH_RATE = 135;
@@ -48,7 +48,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private final BufferedImage    img;
 
 	private boolean enableStream  = false;
-	private boolean depth_overlay = true;
+	private boolean depth_overlay = false;
 
 	private final GrayU16 sub ;
 	private GrayU16       proc;
@@ -103,7 +103,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				}
 			});
 		}
-
+		
 		oakd.registerCallback(new IDepthCallback() {
 
 			@Override
@@ -113,8 +113,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 				model.slam.fps = 1000f / (timeRgb - tms);
 				tms = timeRgb;
-				model.slam.quality = 100;
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
+
 
 				// make a copy of the depth area for asybchronous processing
 				depth.subimage(depth_x_offs, depth_y_offs, depth_x_offs+DEPTH_WIDTH, depth_y_offs+DEPTH_HEIGHT, sub);	
@@ -157,7 +157,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		drawDepthArea(ctx,depth_x_offs,depth_y_offs,depth_x_offs+DEPTH_WIDTH,depth_y_offs+DEPTH_HEIGHT);
 
-		if(model.sys.isStatus(Status.MSP_ARMED) && Float.isFinite(model.slam.dm) && model.slam.dm < warn_obs_distance) {
+		if((model.sys.isStatus(Status.MSP_ARMED) || control.isSimulation()) && Float.isFinite(model.slam.dm) && model.slam.dm < warn_obs_distance) {
 			tmp = fdistance.format(model.slam.dm);
 			ctx.drawString(tmp, width4*3 - ctx.getFontMetrics().stringWidth(tmp)/2, 20);
 			drawMinDist(ctx,depth_x_offs+mindist_pt.x,depth_y_offs+mindist_pt.y);
@@ -215,8 +215,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		double min_distance;
 		double distance;
 
-		int depth_z; int raw_z;
-		long tms = 0; int quality = 0;
+		int raw_z;
+		int quality = 0;
 
 		int y0=0; int x; int y;
 
@@ -228,7 +228,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
 			proc.setTo(sub);
-
 
 			min_distance = Double.MAX_VALUE;
 			// TODO: Eventually BOOF Concurrency here
@@ -246,9 +245,12 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					raw_pt.z =  raw_z*1e-3;
 					raw_pt.y = -raw_pt.z*norm.y;
 					raw_pt.x =  raw_pt.z*norm.x;
+					
 
 
 					body_pt.setTo(raw_pt.z, raw_pt.x, raw_pt.y);
+					
+					
 					//					body_pt.plusIP(offset);
 					//					GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
 					//					ned_pt.plusIP(to_ned.T);
@@ -272,10 +274,12 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				}
 			}
 			//					});
+			
 
 			model.slam.quality = model.slam.quality * 0.7f + (quality * quality_factor ) * 0.3f;
-
+		
 			if(model.slam.quality > 30) {
+				
 
 				GeometryMath_F64.mult(to_ned.R, body_pt_n, ned_pt_n );
 				ned_pt_n.plusIP(to_ned.T);
