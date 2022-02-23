@@ -200,13 +200,14 @@ public class StreamDepthAIOakD {
 			colorCam.setPreviewSize(rgb.width, rgb.height);
 			colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
 			colorCam.setColorOrder(ColorOrder.RGB);
-			colorCam.setInterleaved(true);
+			colorCam.setInterleaved(false);
 			colorCam.preview().link(xlinkOut.input());
 			
 			depth.depth().link(xlinkOut.input());
 
 
 			try {
+				
 				device = new Device(p,USE_USB2);
 				device.deallocate(false);
 				is_running = device.isPipelineRunning();
@@ -234,7 +235,7 @@ public class StreamDepthAIOakD {
 				System.out.println(intrinsics);
 			}
 
-			queue = device.getOutputQueue("preview", 8, true);
+			queue = device.getOutputQueue("preview", 4, true);
 			queue.deallocate(false);
 			queue.addCallback(this);
 
@@ -266,31 +267,13 @@ public class StreamDepthAIOakD {
 	}
 
 
-	private void bufferRgbToMsU8(ByteBuffer input,Planar<GrayU8> output) {
-
-		byte[] b0 = output.getBand(0).data;
-		byte[] b1 = output.getBand(1).data;
-		byte[] b2 = output.getBand(2).data;
-		for(int  y = 0; y < output.height; y++ ) {
-			int indexOut = output.startIndex + y*output.stride;
-			for( int x = 0; x < output.width; x++ , indexOut++ ) {
-				b0[indexOut] = input.get();
-				b1[indexOut] = input.get();
-				b2[indexOut] = input.get();
-			}
-		}
+	private void bufferRgbToMsU8(ByteBuffer input,Planar<GrayU8> output) {	
+		input.get(output.getBand(0).data);
+		input.get(output.getBand(1).data);
+		input.get(output.getBand(2).data);	
 	}
 	
-//	private void bufferGrayToMsU8(ByteBuffer input,Planar<GrayU8> output) {
-//
-//		input.get(output.getBand(0).data);
-//		output.getBand(1).data = output.getBand(0).data;
-//		output.getBand(2).data = output.getBand(0).data;
-//	
-//	}
 	
-
-
 	public static void main(String[] args) throws InterruptedException  {
 
 		System.out.println("OAKD-Test");	

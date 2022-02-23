@@ -236,7 +236,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				for(y = 0; y < DEPTH_HEIGHT;y++) {
 					raw_z = proc.unsafe_get(x, y);
 
-					if(raw_z < 20 || raw_z >= 5000)
+					if(raw_z < 20 || raw_z >= 8000)
 						continue;
 
 					quality++;

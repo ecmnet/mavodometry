@@ -147,7 +147,7 @@ public class StreamRGBAIOakD {
 				colorCam.setPreviewSize(rgb.width, rgb.height);
 				colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
 				colorCam.setColorOrder(ColorOrder.RGB);
-				colorCam.setInterleaved(true);
+				colorCam.setInterleaved(false);
 				colorCam.preview().link(xlinkOut.input());
 				
 
@@ -189,19 +189,10 @@ public class StreamRGBAIOakD {
 	}
 	
 	
-	private void bufferRgbToMsU8(ByteBuffer input,Planar<GrayU8> output) {
-
-		byte[] b0 = output.getBand(0).data;
-		byte[] b1 = output.getBand(1).data;
-		byte[] b2 = output.getBand(2).data;
-		for(int  y = 0; y < output.height; y++ ) {
-			int indexOut = output.startIndex + y*output.stride;
-			for( int x = 0; x < output.width; x++ , indexOut++ ) {
-				b0[indexOut] = input.get();
-				b1[indexOut] = input.get();
-				b2[indexOut] = input.get();
-			}
-		}
+	private void bufferRgbToMsU8(ByteBuffer input,Planar<GrayU8> output) {	
+		input.get(output.getBand(0).data);
+		input.get(output.getBand(1).data);
+		input.get(output.getBand(2).data);	
 	}
 
 
