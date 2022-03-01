@@ -119,7 +119,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 		this.listeners = new ArrayList<IOverlayListener>();
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 		this.ctx = image.createGraphics();
-		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 11));
+		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 9));
 
 		this.buffer      = new byte[width*height*6];
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
