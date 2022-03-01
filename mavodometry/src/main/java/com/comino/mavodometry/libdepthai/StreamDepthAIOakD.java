@@ -22,7 +22,6 @@ import org.bytedeco.depthai.StereoDepth.PresetMode;
 import org.bytedeco.depthai.XLinkOut;
 import org.bytedeco.depthai.global.depthai.CameraBoardSocket;
 import org.bytedeco.depthai.global.depthai.MedianFilter;
-import org.bytedeco.depthai.presets.depthai.Callback;
 import org.bytedeco.javacpp.IntPointer;
 import org.bytedeco.javacpp.PointerScope;
 
@@ -40,31 +39,35 @@ public class StreamDepthAIOakD {
 	private final static boolean  USE_USB2 = false;
 
 	private static final int RGB_FRAME   = 0;
-	private static final int DEPTH_FRAME = 1;
+	private static final int MONO_FRAME  = 1;
+	private static final int DEPTH_FRAME = 2;
 
 	private static StreamDepthAIOakD instance;
 
 	private final    List<IDepthCallback> listeners;
 	private final    Planar<GrayU8>       rgb;
 	private final    GrayU16              depth;
-	
+
 	private final CameraPinholeBrown  intrinsics;
 
 
 	private long             rgb_tms  = 0;
 	private long           depth_tms  = 0;
-	private int            frameCount = 0;
+	private long           frameCount = 0;
 
 	private boolean is_running = false;
 
 	private Device device;
 
 	private CombineOAKDCallback callback;
-	private final BlockingQueue<ImgFrame> transfer_rgb   = new ArrayBlockingQueue<ImgFrame>(4);
-	private final BlockingQueue<ImgFrame> transfer_depth = new ArrayBlockingQueue<ImgFrame>(4);
+	private final BlockingQueue<ImgFrame> transfer_rgb   = new ArrayBlockingQueue<ImgFrame>(20);
+	private final BlockingQueue<ImgFrame> transfer_mono  = new ArrayBlockingQueue<ImgFrame>(20);
+	private final BlockingQueue<ImgFrame> transfer_depth = new ArrayBlockingQueue<ImgFrame>(20);
 
 	private int width;
 	private int height;
+
+	private boolean rgb_mode = false;
 
 	public static StreamDepthAIOakD getInstance(int width, int height) throws Exception {
 
@@ -96,42 +99,58 @@ public class StreamDepthAIOakD {
 		is_running = true;
 
 		OdometryPool.submit(
-		new Thread(()-> {
-			while(is_running) {
+				new Thread(()-> {
+					while(is_running) {
 
-				try {
-					try (PointerScope scope = new PointerScope()) {	
-						ImgFrame frame = transfer_rgb.take();
-						if(frame != null && !frame.isNull()) {
-							rgb_tms = System.currentTimeMillis();
-							bufferRgbToMsU8(frame.getData().asByteBuffer(),rgb);
-							frameCount = frame.getSequenceNum();
-						}
+						try {
+							try (PointerScope scope = new PointerScope()) {	
+								if(!transfer_rgb.isEmpty())	{
+									ImgFrame frame = transfer_rgb.take();
+									if(frame != null && !frame.isNull()) {
+										rgb_tms = System.currentTimeMillis();
+										bufferRgbToMsU8(frame.getData().asByteBuffer(),rgb);
+										frameCount = frame.getSequenceNum();
+									}
+								} 
+								   
+							}
+							
+							try (PointerScope scope = new PointerScope()) {	
+								if(!transfer_mono.isEmpty())	{
+									ImgFrame frame = transfer_mono.take();
+									if(frame != null && !frame.isNull()) {
+										rgb_tms = System.currentTimeMillis();
+										bufferMonoToMsU8(frame.getData().asByteBuffer(),rgb);
+										frameCount = frame.getSequenceNum();
+									}
+								} 
+								   
+							}
+
+							try (PointerScope scope = new PointerScope()) {	
+								ImgFrame frame = transfer_depth.take();
+								if(frame != null && !frame.isNull()) {
+									bufferDepthToU16(frame.getData().asByteBuffer().asShortBuffer(),depth);
+								}
+							}
+
+							if(listeners.size()>0 ) {
+								for(IDepthCallback listener : listeners)
+									listener.process(rgb, depth, rgb_tms, depth_tms);
+							}
+							
+							Thread.sleep(20);
+
+						} catch (InterruptedException e) { }
+
 					}
-					
-					try (PointerScope scope = new PointerScope()) {	
-						ImgFrame frame = transfer_depth.take();
-						if(frame != null && !frame.isNull()) {
-							bufferDepthToU16(frame.getData().asByteBuffer().asShortBuffer(),depth);
-						}
-					}
 
-					if(listeners.size()>0 ) {
-						for(IDepthCallback listener : listeners)
-							listener.process(rgb, depth, rgb_tms, depth_tms);
-					}
+				}));
 
-				} catch (InterruptedException e) { }
-
-			}
-
-		}));
-		
 
 		callback = new CombineOAKDCallback();
 		if(!is_running)
 			throw new Exception("No OAKD camera found");
-		callback.deallocate(false);
 
 		System.out.println("OAK-D Lite depth pipeline started.");
 	}
@@ -141,15 +160,19 @@ public class StreamDepthAIOakD {
 		if(device != null)
 			device.close();
 	}
+	
+	public void setRGBMode(boolean rgb) {
+		this.rgb_mode  = rgb;
+	}
 
-	public int getFrameCount() {
+	public long getFrameCount() {
 		return frameCount;
 	}
 
 	public long getRGBTms() {
 		return rgb_tms;
 	}
-	
+
 	public long getDepthTms() {
 		return depth_tms;
 	}
@@ -157,14 +180,14 @@ public class StreamDepthAIOakD {
 	public boolean isRunning() {
 		return is_running;
 	}
-	
+
 	public CameraPinholeBrown getIntrinsics() {
 		return intrinsics;
 	}
 
-	private class CombineOAKDCallback extends Callback {
+	private class CombineOAKDCallback extends Thread { 
 
-		DataOutputQueue queue;
+		DataOutputQueue queue; 
 
 		public CombineOAKDCallback() {
 
@@ -175,14 +198,24 @@ public class StreamDepthAIOakD {
 			xlinkOut.deallocate(false);
 			xlinkOut.setStreamName("preview");
 
+			ColorCamera colorCam = p.createColorCamera();
+			colorCam.deallocate(false);
+			colorCam.setPreviewSize(width, height);
+			//			colorCam.setBoardSocket(CameraBoardSocket.RGB);
+			colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
+			colorCam.setColorOrder(ColorOrder.RGB);
+			colorCam.setInterleaved(false);
+
+
 			StereoDepth depth = p.createStereoDepth();
 			depth.setDefaultProfilePreset(PresetMode.HIGH_DENSITY);
 			depth.initialConfig().setMedianFilter(MedianFilter.KERNEL_7x7);
-			depth.setRectification(true);
-			depth.setLeftRightCheck(false);
+			depth.setLeftRightCheck(true);
 			depth.setExtendedDisparity(false);
-			depth.setSubpixel(false);
-			depth.initialConfig().setConfidenceThreshold(150);
+			depth.setSubpixel(true);
+			depth.initialConfig().setConfidenceThreshold(100);
+			depth.setRectification(true);
+			depth.setRectifyEdgeFillColor(0);
 			
 			MonoCamera monoLeft = p.createMonoCamera();
 			monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
@@ -195,19 +228,12 @@ public class StreamDepthAIOakD {
 			monoLeft.out().link(depth.left());
 			monoRight.out().link(depth.right());
 
-			ColorCamera colorCam = p.createColorCamera();
-			colorCam.deallocate(false);
-			colorCam.setPreviewSize(rgb.width, rgb.height);
-			colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
-			colorCam.setColorOrder(ColorOrder.RGB);
-			colorCam.setInterleaved(false);
 			colorCam.preview().link(xlinkOut.input());
-			
+			monoLeft.out().link(xlinkOut.input());
 			depth.depth().link(xlinkOut.input());
 
-
 			try {
-				
+
 				device = new Device(p,USE_USB2);
 				device.deallocate(false);
 				is_running = device.isPipelineRunning();
@@ -218,7 +244,7 @@ public class StreamDepthAIOakD {
 
 			try (@SuppressWarnings("unchecked")
 			PointerScope scope = new PointerScope()) {	
-				
+
 				float[][] in = device.readCalibration().getCameraIntrinsics(CameraBoardSocket.LEFT).get();
 				intrinsics.fx = in[0][0];
 				intrinsics.fy = in[1][1];
@@ -226,7 +252,7 @@ public class StreamDepthAIOakD {
 				intrinsics.cy = in[1][2];
 				intrinsics.width  = width;
 				intrinsics.height = height;
-				
+
 				IntPointer cameras = device.getConnectedCameras();
 				for (int i = 0; i < cameras.limit(); i++) {
 					System.out.print(cameras.get(i) + " ");
@@ -235,35 +261,60 @@ public class StreamDepthAIOakD {
 				System.out.println(intrinsics);
 			}
 
-			queue = device.getOutputQueue("preview", 4, true);
-			queue.deallocate(false);
-			queue.addCallback(this);
+			queue = device.getOutputQueue("preview", 8, true);
+			
+			this.setDaemon(true);
+			this.start();
+			
 
 
 		}
 
-		public void call() {
+		public void run() {
+			
+			while(is_running) {
 
 			ImgFrame imgFrame = queue.getImgFrame();
 			if(imgFrame!=null && !imgFrame.isNull() ) {
 				try {
+					//System.out.println(imgFrame.getInstanceNum());
 					switch(imgFrame.getInstanceNum()) {
 					case RGB_FRAME:
 						rgb_tms = System.currentTimeMillis();
-						transfer_rgb.put(imgFrame);
+						if(transfer_rgb.isEmpty() && rgb_mode)
+							transfer_rgb.put(imgFrame);
+						else
+							imgFrame.close();
+						break;
+					case MONO_FRAME:
+						rgb_tms = System.currentTimeMillis();
+						if(transfer_mono.isEmpty() && !rgb_mode)
+							transfer_mono.put(imgFrame);
+						else
+							imgFrame.close();
 						break;
 					case DEPTH_FRAME:
 						depth_tms = System.currentTimeMillis();
-						transfer_depth.put(imgFrame);
+						if(transfer_depth.isEmpty())
+							transfer_depth.put(imgFrame);
+						else
+							imgFrame.close();
 						break;
 					}
 				} catch (InterruptedException e) {	}
 			} 
+			}
 		}	
 	}
-	
+
 	private void bufferDepthToU16(ShortBuffer input , GrayU16 output ) {
 		input.get(output.data);
+	}
+
+	private void bufferMonoToMsU8(ByteBuffer input,Planar<GrayU8> output) {	
+		input.get(output.getBand(0).data);
+		output.getBand(1).data = output.getBand(0).data;
+		output.getBand(2).data = output.getBand(0).data;
 	}
 
 
@@ -272,8 +323,8 @@ public class StreamDepthAIOakD {
 		input.get(output.getBand(1).data);
 		input.get(output.getBand(2).data);	
 	}
-	
-	
+
+
 	public static void main(String[] args) throws InterruptedException  {
 
 		System.out.println("OAKD-Test");	

@@ -50,7 +50,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private boolean enableStream  = false;
 	private boolean depth_overlay = false;
 
-	private final GrayU16 sub ;
+	private final GrayU16 sub;
 	private GrayU16       proc;
 
 	private Se3_F64       to_ned          = new Se3_F64();

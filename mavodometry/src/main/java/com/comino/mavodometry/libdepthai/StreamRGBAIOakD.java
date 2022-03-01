@@ -44,7 +44,7 @@ public class StreamRGBAIOakD {
 	private final    Planar<GrayU8>       rgb;
 
 	private long             rgb_tms  = 0;
-	private int            frameCount = 0;
+	private long           frameCount = 0;
 
 	private boolean is_running = false;
 
@@ -116,7 +116,7 @@ public class StreamRGBAIOakD {
 			device.close();
 	}
 	
-	public int getFrameCount() {
+	public long getFrameCount() {
 		return frameCount;
 	}
 	
