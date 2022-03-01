@@ -43,7 +43,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	// Note: Relies on https://libjpeg-turbo.org
 
 	private static final int 		FRAME_RATE_FPS        = 15;
-	private static final int		DEFAULT_VIDEO_QUALITY = 70;
+	private static final int		DEFAULT_VIDEO_QUALITY = 60;
+	private static final int		MAX_VIDEO_QUALITY     = 70;
 	private static final int		LOW_VIDEO_QUALITY     = 10;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
@@ -236,9 +237,13 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					//		}
 
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
+					quality = quality > MAX_VIDEO_QUALITY ? MAX_VIDEO_QUALITY : quality;
 
 					tj.setJPEGQuality(quality);
 					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS);
+					
+					if(tj.getCompressedSize()>RTPpacket.MAX_PAYLOAD)
+						continue;
 
 					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 					int packet_length = rtp_packet.getpacket(packet_bits);
