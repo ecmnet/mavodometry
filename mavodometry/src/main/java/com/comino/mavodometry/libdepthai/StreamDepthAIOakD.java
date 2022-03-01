@@ -114,7 +114,6 @@ public class StreamDepthAIOakD {
 										frameCount = frame.getSequenceNum();
 									}
 								} 
-
 							}
 
 							try (PointerScope scope = new PointerScope()) {	
@@ -126,7 +125,6 @@ public class StreamDepthAIOakD {
 										frameCount = frame.getSequenceNum();
 									}
 								} 
-
 							}
 
 							try (PointerScope scope = new PointerScope()) {	
@@ -140,8 +138,8 @@ public class StreamDepthAIOakD {
 								for(IDepthCallback listener : listeners)
 									listener.process(rgb, depth, rgb_tms, depth_tms);
 							}
-
-							Thread.sleep(20);
+							
+							Thread.sleep(15);
 
 						} catch (InterruptedException e) { }
 
@@ -229,8 +227,10 @@ public class StreamDepthAIOakD {
 			monoLeft.out().link(depth.left());
 			monoRight.out().link(depth.right());
 
-			colorCam.preview().link(xlinkOut.input());
-			monoLeft.out().link(xlinkOut.input());
+			if(rgb_mode)
+			 colorCam.preview().link(xlinkOut.input());
+			else
+			  monoLeft.out().link(xlinkOut.input());
 			depth.depth().link(xlinkOut.input());
 
 			try {
@@ -263,7 +263,7 @@ public class StreamDepthAIOakD {
 				System.out.println(intrinsics);
 			}
 
-			queue = device.getOutputQueue("preview", 8, true);
+			queue = device.getOutputQueue("preview", 3, true);
 			queue.addCallback(this);
 
 	//		OdometryPool.submit(this);	

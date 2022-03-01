@@ -47,9 +47,7 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 	
 	private final Point2D3D             nearest         = new Point2D3D();
 
-
 	private long   						tms 			= 0;
-
 
 
 	public <T> MAVOAKDDepthSegmentEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
