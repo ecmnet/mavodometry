@@ -4,6 +4,9 @@ package com.comino.mavodometry.estimators.depth;
 import static boofcv.factory.distort.LensDistortionFactory.narrow;
 
 import java.awt.Graphics;
+import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.BlockingQueue;
+
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
@@ -13,6 +16,7 @@ import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.libdepthai.StreamDepthAIOakD;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.comino.mavutils.workqueue.WorkQueue;
 
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.geo.Point2D3D;
@@ -26,6 +30,8 @@ import georegression.struct.point.Point3D_F64;
 import georegression.struct.se.Se3_F64;
 
 public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
+
+	private static final int             DEPTH_RATE     = 100;
 
 	private final static int            DEPTH_SEG_W 	= 32;
 	private final static int            DEPTH_SEG_H 	= 32;
@@ -43,12 +49,13 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 	private Point2Transform2_F64 		p2n      		= null;
 
 	private final Se3_F64       		to_ned          = new Se3_F64();
-	private final Point3D_F64 			ned_pt_n    	= new Point3D_F64();
-	
 	private final Point2D3D             nearest         = new Point2D3D();
 
 	private long   						tms 			= 0;
 
+	private final WorkQueue wq = WorkQueue.getInstance();
+	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(1);
+	private int depth_worker;
 
 	public <T> MAVOAKDDepthSegmentEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
@@ -78,25 +85,15 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 			@Override
 			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, long timeRgb, long timeDepth) {
 
-				model.slam.fps = 1000f / (timeRgb - tms);
-				tms = timeRgb;
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
 
-				MSP3DUtils.convertModelToSe3_F64(model, to_ned);
-
-				model.slam.quality = buildMeanDepthSegments(depth,seg_distance);
-
-			    getNearestSegment(seg_distance, nearest);
-				model.slam.dm = (float)nearest.location.x; 
-
-				GeometryMath_F64.mult(to_ned.R, nearest.location, ned_pt_n );
-				ned_pt_n.plusIP(to_ned.T);
-
-				model.slam.ox = (float)ned_pt_n.x;
-				model.slam.oy = (float)ned_pt_n.y;
-				model.slam.oz = (float)ned_pt_n.z;
-
-
+				// transfer depth data to depth handler 
+				if(transfer_depth.isEmpty()) {
+					try {
+						MSP3DUtils.convertModelToSe3_F64(model, to_ned);
+						transfer_depth.put(depth);
+					} catch (InterruptedException e) {	}
+				}
 				// Add image to stream
 				if(stream!=null && enableStream) {
 					stream.addToStream(rgb, model, timeRgb);
@@ -110,12 +107,14 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 		if(oakd!=null) {
 			oakd.start();
 			p2n = (narrow(oakd.getIntrinsics())).undistort_F64(true,false);
+			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
 		}
 	}
 
 	public void stop() {
 		if(oakd!=null) {
 			oakd.stop();
+			wq.removeTask("LP", depth_worker);
 		}
 	}
 
@@ -127,12 +126,11 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 		if(!enableStream)
 			return;
-		
+
 		drawMinDist(ctx,(int)nearest.observation.x, (int)nearest.observation.y);
-		
 
 	}
-	
+
 	private void drawMinDist(Graphics ctx, int x0, int y0) {
 
 		final int ln = 10;
@@ -143,20 +141,6 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 	}
 
-	private Point2D3D getNearestSegment(GrayF32 seg, Point2D3D nearest ) {
-		float distance = Float.MAX_VALUE; p.setTo(0,0,0,0,0);
-		for(int x = 0; x < seg.width;x++) {
-			for(int y = 0; y < seg.height;y++) {
-				if(seg_distance.get(x, y)> 0 && seg_distance.get(x, y) < distance) {
-					getSegmentPositionBody(x, y,seg, p);
-					distance = seg_distance.get(x, y);
-				}
-			}
-		}	
-		nearest.setTo(p);
-		return p;
-	}
-
 	final Point2D3D p = new Point2D3D();
 	private void overlayDepthSegments(Graphics ctx, GrayF32 seg) {
 		for(int x = 0; x < seg.width;x++) {
@@ -164,63 +148,114 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 			for(int y = 1; y < seg.height;y++) {
 				ctx.drawRect(x*DEPTH_SEG_W, y*DEPTH_SEG_H, DEPTH_SEG_W, DEPTH_SEG_H);
 				if(seg_distance.get(x, y)> 0) {
-					getSegmentPositionBody(x, y,seg, p);
-					ctx.drawString(String.format("%+#.1f",p.location.x),x*DEPTH_SEG_W+5, y*DEPTH_SEG_H+10);
-					//				  ctx.drawString(String.format("%+#.1f",p.y),x*DEPTH_SEG_W+5, y*DEPTH_SEG_H+20);
-					//				  ctx.drawString(String.format("%+#.1f",p.z),x*DEPTH_SEG_W+5, y*DEPTH_SEG_H+30);
+					ctx.drawString(String.format("%+#.1f",seg.get(x, y)),x*DEPTH_SEG_W+5, y*DEPTH_SEG_H+10);
 				}
 
 			}
 		}
 	}
 
-	// Return 3D point of depth segment in body frame
-	final Point2D_F64 norm = new Point2D_F64();
-	private void getSegmentPositionBody(int x, int y, GrayF32 seg, Point2D3D p) {
-		
-		p.observation.x = x*DEPTH_SEG_W+DEPTH_SEG_W/2;
-		p.observation.y = y*DEPTH_SEG_H+DEPTH_SEG_H/2;
-		
-		p2n.compute(p.observation.x,p.observation.y,norm);
-		
-		p.location.x = seg.get(x, y);
-		p.location.y =   p.location.x * norm.x;
-		p.location.z = - p.location.x * norm.y;
-		
-	}
 
-	// Build depth segments by calculating the mean distance
-	private int buildMeanDepthSegments(GrayU16 in, GrayF32 out) {
+	/*
+	 * Processing depth data at 10 Hz.
+	 */
+	private class DepthHandler implements Runnable {
 
-		int mean_dist_mm = 0; int valid_count=0; float quality = 0; int d = 0;
+		private final Point3D_F64 ned_pt_n = new Point3D_F64();
 
-		final int xr = in.width  / out.width; 
-		final int yr = in.height / out.height;
+		@Override
+		public void run() {
 
-		for(int x = 0; x < out.width;x++) {
-			for(int y = 0; y < out.height;y++) {
+			if(transfer_depth.isEmpty())
+				return;
 
-				mean_dist_mm = 0; valid_count = 0;
+			try {
 
-				for(int ix=0;ix<xr;ix++) {
-					for(int iy=0;iy<yr;iy++) {
-						d = in.get(x*xr+ix, y*yr+iy);
-						if(d < MIN_DEPTH_MM || d > MAX_DEPTH_MM)
-							continue;
-						mean_dist_mm = mean_dist_mm + d; valid_count += 1000;
-					}	
-				}
+				GrayU16 depth = transfer_depth.take();
 
-				if(valid_count > 0) {
-					quality += 1;//(float)valid_count / tc;
-					out.set(x, y, (float)mean_dist_mm / valid_count);
-				}
-				else
-					out.set(x, y, -1);
+				model.slam.quality = buildMeanDepthSegments(depth,seg_distance);
 
+				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
+				tms = System.currentTimeMillis();
+
+				getNearestSegment(seg_distance, nearest);
+				model.slam.dm = (float)nearest.location.x; 
+
+				GeometryMath_F64.mult(to_ned.R, nearest.location, ned_pt_n );
+				ned_pt_n.plusIP(to_ned.T);
+
+				model.slam.ox = (float)ned_pt_n.x;
+				model.slam.oy = (float)ned_pt_n.y;
+				model.slam.oz = (float)ned_pt_n.z;
+
+
+			} catch (InterruptedException e) {
+				e.printStackTrace();
 			}
+		}	
+
+		// Build depth segments by calculating the mean distance
+		private int buildMeanDepthSegments(GrayU16 in, GrayF32 out) {
+
+			int mean_dist_mm = 0; int valid_count=0; float quality = 0; int d = 0;
+
+			final int xr = in.width  / out.width; 
+			final int yr = in.height / out.height;
+
+			for(int x = 0; x < out.width;x++) {
+				for(int y = 0; y < out.height;y++) {
+
+					mean_dist_mm = 0; valid_count = 0;
+
+					for(int ix=0;ix<xr;ix++) {
+						for(int iy=0;iy<yr;iy++) {
+							d = in.get(x*xr+ix, y*yr+iy);
+							if(d < MIN_DEPTH_MM || d > MAX_DEPTH_MM)
+								continue;
+							mean_dist_mm = mean_dist_mm + d; valid_count += 1000;
+						}	
+					}
+
+					if(valid_count > 0) {
+						quality += 1;//(float)valid_count / tc;
+						out.set(x, y, (float)mean_dist_mm / valid_count);
+					}
+					else
+						out.set(x, y, -1);
+				}
+			}
+			return (int)(quality * 100f / out.data.length);
 		}
-		return (int)(quality * 100f / out.data.length);
+
+		private Point2D3D getNearestSegment(GrayF32 seg, Point2D3D nearest ) {
+			float distance = Float.MAX_VALUE; p.setTo(0,0,0,0,0);
+			for(int x = 0; x < seg.width;x++) {
+				for(int y = 0; y < seg.height;y++) {
+					if(seg_distance.get(x, y)> 0 && seg_distance.get(x, y) < distance) {
+						getSegmentPositionBody(x, y,seg, p);
+						distance = seg_distance.get(x, y);
+					}
+				}
+			}	
+			nearest.setTo(p);
+			return p;
+		}
+
+		// Return 3D point of depth segment in body frame
+		final Point2D_F64 norm = new Point2D_F64();
+		private void getSegmentPositionBody(int x, int y, GrayF32 seg, Point2D3D p) {
+
+			p.observation.x = x*DEPTH_SEG_W+DEPTH_SEG_W/2;
+			p.observation.y = y*DEPTH_SEG_H+DEPTH_SEG_H/2;
+
+			p2n.compute(p.observation.x,p.observation.y,norm);
+
+			p.location.x = seg.get(x, y);
+			p.location.y =   p.location.x * norm.x;
+			p.location.z = - p.location.x * norm.y;
+
+		}
+
 	}
 
 }
