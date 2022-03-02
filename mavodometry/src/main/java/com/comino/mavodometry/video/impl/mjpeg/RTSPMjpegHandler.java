@@ -29,6 +29,7 @@ import org.libjpegturbo.turbojpeg.TJCompressor;
 import org.libjpegturbo.turbojpeg.TJException;
 
 import com.comino.mavcom.model.DataModel;
+import com.comino.mavcom.model.segment.Status;
 import com.comino.mavodometry.video.INoVideoListener;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
@@ -215,13 +216,10 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 						no_video = true;
 					}
 
-
 					imagenb++;
 
 					fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) / 60f;
 					last_image_tms = System.currentTimeMillis();
-
-					//	synchronized(this) {
 
 					if(input instanceof Planar) {
 						ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
@@ -234,7 +232,6 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 						for(IOverlayListener listener : listeners)
 							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 					}
-					//		}
 
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 					quality = quality > MAX_VIDEO_QUALITY ? MAX_VIDEO_QUALITY : quality;
