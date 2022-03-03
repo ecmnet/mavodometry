@@ -239,8 +239,11 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					tj.setJPEGQuality(quality);
 					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS);
 					
-					if(tj.getCompressedSize()>RTPpacket.MAX_PAYLOAD)
-						continue;
+					if(tj.getCompressedSize()>RTPpacket.MAX_PAYLOAD) {
+						// reduce tmporarily quality if compressed size is too high
+						tj.setJPEGQuality(quality/2);
+						tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS);
+					}
 
 					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 					int packet_length = rtp_packet.getpacket(packet_bits);
