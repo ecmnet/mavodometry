@@ -77,7 +77,7 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 	private StreamDepthAIOakD			oakd 			= null;
 
 	private boolean 					enableStream  	= false;
-	private boolean 					depth_overlay 	= false;
+	private boolean 					depth_overlay 	= true;
 	private Point2Transform2_F64 		p2n      		= null;
 
 	private final Se3_F64       		to_ned          = new Se3_F64();
@@ -233,7 +233,7 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 		// Build depth segments by calculating the mean distance
 		private int buildMeanDepthSegments(GrayU16 in, GrayF32 out) {
 
-			int mean_dist_mm = 0; int valid_count=0; float quality = 0; int d = 0;
+			int dist_mm = 0; int valid_count=0; float quality = 0; int d = 0;
 
 			final int xr = in.width  / out.width; 
 			final int yr = in.height / out.height;
@@ -241,20 +241,22 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 			for(int x = 0; x < out.width;x++) {
 				for(int y = 0; y < out.height;y++) {
 
-					mean_dist_mm = 0; valid_count = 0;
+					dist_mm = 99999; valid_count = 0;
 
 					for(int ix=0;ix<xr;ix++) {
 						for(int iy=0;iy<yr;iy++) {
 							d = in.get(x*xr+ix, y*yr+iy);
 							if(d < MIN_DEPTH_MM || d > MAX_DEPTH_MM)
 								continue;
-							mean_dist_mm = mean_dist_mm + d; valid_count += 1000;
+							valid_count++;
+							if(d < dist_mm)
+								dist_mm = d;
 						}	
 					}
 
 					if(valid_count > 0) {
-						quality += 1;//(float)valid_count / tc;
-						out.set(x, y, (float)mean_dist_mm / valid_count);
+						quality += 1;
+						out.set(x, y, (float)dist_mm/1000);
 					}
 					else
 						out.set(x, y, -1);
@@ -278,7 +280,6 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 		}
 
 		// Return 3D point of depth segment in body frame
-	
 		private void getSegmentPositionBody(int x, int y, GrayF32 seg, Point2D3D p) {
 
 			p.observation.x = x*DEPTH_SEG_W+DEPTH_SEG_W_2;
