@@ -9,10 +9,12 @@ import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
+import com.comino.mavmap.struct.Point2D3DW;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.workqueue.WorkQueue;
 
+import boofcv.alg.sfm.robust.GenerateSe2_PlanePtPixel;
 import boofcv.struct.geo.Point2D3D;
 import boofcv.struct.image.GrayF32;
 import boofcv.struct.image.GrayU16;
@@ -32,8 +34,8 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 	private final static int            MIN_DEPTH_MM 	 = 350;
 	private final static int            MAX_DEPTH_MM 	 = 8000;
-	
-	private static final float          MAP_MAX_DISTANCE = 3.0f;
+
+	private static final float          MAP_MAX_DISTANCE = 8.0f;
 	private static final float          MAP_DELTADOWN    = 0.4f;
 
 	private final GrayF32        		seg_distance;
@@ -42,21 +44,21 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 	private boolean 					depth_overlay 	= false;
 
 	private final Se3_F64       		to_ned          = new Se3_F64();
-	private final Point2D3D             nearest_body    = new Point2D3D();
-	private final List<Point2D3D>       segments_ned    = new ArrayList<Point2D3D>();
+	private final Point2D3DW            nearest_body    = new Point2D3DW();
+	private final List<Point2D3DW>      segments_ned    = new ArrayList<Point2D3DW>();
 
 	private long   						tms 			= 0;
 	private int                         width34         = 0;
-	
+
 	private int 						depth_worker;
 
 	private final DecimalFormat fdistance  = new DecimalFormat("Obst: #0.0m");
 
 	private final WorkQueue wq = WorkQueue.getInstance();
-	
+
 
 	private final LocalMap3D map;
-	
+
 	/* Idea: 
 	 * 1. Generate a sequence of body frame depth-segment-frames either by program of from file
 	 * 2. Rotate it to NED 
@@ -76,7 +78,7 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 		this.seg_distance 	= new GrayF32(width/DEPTH_SEG_W,height/DEPTH_SEG_H);
 
 		for(int i=0; i < seg_distance.data.length;i++)
-			this.segments_ned.add(new Point2D3D());
+			this.segments_ned.add(new Point2D3DW());
 
 		if(stream!=null) {
 			stream.registerOverlayListener((ctx,tms) -> {
@@ -92,12 +94,12 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 	}
 
 	public void start() throws Exception {
-		    System.out.println("Depth simulation started");
-			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
+		System.out.println("Depth simulation started");
+		depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
 	}
 
 	public void stop() {
-			wq.removeTask("LP", depth_worker);
+		wq.removeTask("LP", depth_worker);
 	}
 
 	public void enableStream(boolean enable) {
@@ -129,7 +131,7 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 	}
 
-	final Point2D3D p = new Point2D3D();
+	final Point2D3DW p = new Point2D3DW();
 	private void overlayDepthSegments(Graphics ctx, GrayF32 seg) {
 		for(int x = 0; x < seg.width;x++) {
 			// Skip first line
@@ -153,80 +155,132 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 		private final Point3D_F64 ned_pt_n = new Point3D_F64();
 		private final Point2D_F64 norm     = new Point2D_F64();
-		
+
 		private Point3D_F64 tmp_p;
-		private double      distance;
+		private Point3D_F64 tmp_r           = new Point3D_F64();
+		private double   distance;
+
+		private long start_tms  = System.currentTimeMillis();
+//		private long start_tms2 = System.currentTimeMillis();
 		
-		private long start_tms = System.currentTimeMillis();
+		private int state = 0;
 
 		@Override
 		public void run() {
 
-			    long since_tms = System.currentTimeMillis() - start_tms;
-			   
-			    for(int i=0; i < seg_distance.data.length;i++) 
-			    	segments_ned.get(i).setTo(0, 0, Double.NaN, Double.NaN, Double.NaN);
+			long since_tms = System.currentTimeMillis() - start_tms;
+			
+			MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 
-				// TODO: Build segments from file or sim
-			    
-			    if(since_tms > 6000 && since_tms < 6500) {
-			    	segments_ned.get(10).setTo(1, 1, 0, 2, -1);
-			    	segments_ned.get(11).setTo(1, 1, 0, 2, -1.1);
-			    	segments_ned.get(12).setTo(1, 1, 0, 2, -1.2);
-			    	
-                    transferToMap();
-					
-			    }
-			    
-			    if(since_tms > 7000 && since_tms < 7500) {
-			    	segments_ned.get(13).setTo(1, 1, 0, 2.5, -1);
-			    	segments_ned.get(14).setTo(1, 1, 0, 2.5, -1.1);
-			    	segments_ned.get(15).setTo(1, 1, 0, 2.5, -1.2);
-			    	
-                    transferToMap();
-                    
-                    start_tms = System.currentTimeMillis();
-					
-			    }
-				
-				
-				model.slam.quality = 100;
+			for(int i=0; i < seg_distance.data.length;i++) 
+				segments_ned.get(i).setTo(0, 0, Double.NaN, Double.NaN, Double.NaN);
 
-				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
-				tms = System.currentTimeMillis();
+			// TODO: Build segments from file or sim
 
-				// Build segmentlist
+			if(since_tms > 1000 && state == 0) {
+				System.out.println("State:"+state);
+				segments_ned.get(10).setTo(1, 1, 0, 1, 0,0.1);
+				//			    	segments_ned.get(11).setTo(1, 1, 1, 0, -1.1,0.1);
+				//			    	segments_ned.get(12).setTo(1, 1, 1, 0, -1.2,0.1);
 				
 				
-				
-				
-				map.forget(System.currentTimeMillis() - 5000);
-				
-				// TODO: Get and publish nearest segment
-				
-				model.slam.dm = (float)nearest_body.location.x; 
+				for(int k=0; k <250;k++) {
+					segments_ned.get(k+20).setTo(1, 1, Math.random()*2-1, 1+Math.random()/5-0.1, -Math.random()*2, 0.1);
+				}
 
-				GeometryMath_F64.mult(to_ned.R, nearest_body.location, ned_pt_n );
-				ned_pt_n.plusIP(to_ned.T);
+				state = 1;
+				}
 
-				model.slam.ox = (float)ned_pt_n.x;
-				model.slam.oy = (float)ned_pt_n.y;
-				model.slam.oz = (float)ned_pt_n.z;
+
+			if(since_tms > 4000 && state == 1) {
+				System.out.println("State:"+state);
+				segments_ned.get(13).setTo(1, 1, 0, 2, 0,  0.1);
+				//			    	segments_ned.get(14).setTo(1, 1, 2.7, 0, -1.1,0.2);
+				//			    	segments_ned.get(15).setTo(1, 1, 2.7, 0, -1.2,0.2);
+				
+				for(int k=0; k <250;k++) {
+					segments_ned.get(k+20).setTo(1, 1, Math.random()*3-1.5, 2+Math.random()/5-0.1, -Math.random()*3, 0.1);
+				}
+
+				state = 2;
+
+			}
+			
+			if(since_tms > 6000 && state == 2) {
+				System.out.println("State:"+state);
+				segments_ned.get(14).setTo(1, 1, 0, 3 ,0,  0.1);
+				//			    	segments_ned.get(14).setTo(1, 1, 2.7, 0, -1.1,0.2);
+				//			    	segments_ned.get(15).setTo(1, 1, 2.7, 0, -1.2,0.2);
+				
+				for(int k=0; k <250;k++) {
+					segments_ned.get(k+20).setTo(1, 1, Math.random()*4-2, 3+Math.random()/5-0.1, -Math.random()*4, 0.1);
+				}
+
+				start_tms = System.currentTimeMillis();
+				state = 0;
+
+			}
+			
+			transferToMap();
+
+
+			model.slam.quality = 100;
+
+			model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
+			tms = System.currentTimeMillis();
+
+			// Build segmentlist
+
+			// TODO: Get and publish nearest segment
+
+			model.slam.dm = (float)nearest_body.location.x; 
+
+			GeometryMath_F64.mult(to_ned.R, nearest_body.location, ned_pt_n );
+			ned_pt_n.plusIP(to_ned.T);
+
+			model.slam.ox = (float)ned_pt_n.x;
+			model.slam.oy = (float)ned_pt_n.y;
+			model.slam.oz = (float)ned_pt_n.z;
 		}	
-		
+
 		private void transferToMap() {
+			int ext_ratio = 1; double offset=0; double v=0;
 			for(int i=0; i < seg_distance.data.length;i++) {
 				tmp_p = segments_ned.get(i).location;
 				if(Double.isFinite(tmp_p.x) && tmp_p.z < ( to_ned.T.z + MAP_DELTADOWN)) {
-				distance = MSP3DUtils.distance3D(tmp_p, to_ned.T);
-				if( distance< MAP_MAX_DISTANCE && distance > 0)
-				   // TODO: Scale segment size according to distance;
-				   // Question: Really needed as free space grows with occupied along the distance
-				   // For now => do nothing here
-				   // - Build up a list for projected segment size
-				   // - if projected segment size > map block size, ensure that all map blocks are set in the perpendicular plane
-				   // - maybe a simplified approach: consider 3, 5 or 7 distances
-			       map.update(to_ned.T,segments_ned.get(i).location);
+					distance = MSP3DUtils.distance3D(tmp_p, to_ned.T);
+					if( distance< MAP_MAX_DISTANCE && distance > 0)
+						// TODO: Scale segment size according to distance;
+						// Question: Really needed as free space grows with occupied along the distance
+						// For now => do nothing here
+						// - Build up a list for projected segment size
+						// - if projected segment size > map block size, ensure that all map blocks are set in the perpendicular plane
+						// - maybe a simplified approach: consider 3, 5 or 7 distances
+					//	ext_ratio  = (int)(segments_ned.get(i).extension / map.getMapInfo().getCellSize()+0.5);
+
+				//	if(ext_ratio <= 1)
+						map.update(to_ned.T,tmp_p);
+//					else {
+//						offset = ext_ratio * map.getMapInfo().getCellSize() / 2d;
+//						// Works basically - TODO: Cover roundings (include edges) and rotate  tmp_r ned to NED draw into plane
+//						tmp_r.x = tmp_p.x;
+//						for(int y = 0; y < ext_ratio; y++) {
+//							v = y  * map.getMapInfo().getCellSize();
+//							if(v < offset)
+//								tmp_r.y = tmp_p.y + v - offset - 0.01;
+//							else
+//								tmp_r.y = tmp_p.y + v - offset + 0.01;
+//							for(int z = 0; z < ext_ratio; z++) {
+//								v = z * map.getMapInfo().getCellSize();
+//								if(v < offset)
+//									tmp_r.z = tmp_p.z + z * map.getMapInfo().getCellSize() - offset + 0.01; 
+//								else
+//									tmp_r.z = tmp_p.z + z * map.getMapInfo().getCellSize() - offset -0.01; 
+//								map.update(to_ned.T,tmp_r);
+//							}
+//						}
+//
+//					}
 				}
 			}
 		}

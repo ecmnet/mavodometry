@@ -49,6 +49,7 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavodometry.libdepthai.StreamDepthAIOakD;
 import com.comino.mavodometry.libdepthai.StreamNNDepthAIOakD;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -68,19 +69,23 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 	private static final int             DEPTH_RATE      = 100;
 
-	private final static int            DEPTH_SEG_W 	 = 32;
-	private final static int            DEPTH_SEG_H 	 = 32;
+//	private final static int            DEPTH_SEG_W 	 = 32;
+//	private final static int            DEPTH_SEG_H 	 = 32;
+	
+	private final static int            DEPTH_SEG_W 	 = 16;
+	private final static int            DEPTH_SEG_H 	 = 16;
 
 	private final static int            MIN_DEPTH_MM 	 = 350;
 	private final static int            MAX_DEPTH_MM 	 = 8000;
 	
-	private static final float          MAP_MAX_DISTANCE = 3.0f;
+	private static final float          MAP_MAX_DISTANCE = 5.0f;
+	private static final float          MAP_MIN_DISTANCE = 0.3f;
 	private static final float          MAP_DELTADOWN    = 0.4f;
 
 	private final GrayF32        		seg_distance;
 
 
-	private StreamNNDepthAIOakD			oakd 			= null;
+	private StreamDepthAIOakD			oakd 			= null;
 
 	private boolean 					enableStream  	= false;
 	private boolean 					depth_overlay 	= false;
@@ -105,7 +110,7 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 		super(control);
 
 		try {
-			this.oakd   = StreamNNDepthAIOakD.getInstance(width, height);
+			this.oakd   = StreamDepthAIOakD.getInstance(width, height);
 			//		this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
 			this.oakd.setRGBMode(!depth_overlay);
 		} catch (Exception e) {
@@ -137,7 +142,7 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, long timeRgb, long timeDepth) {
 
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
-
+			
 				// transfer depth data to depth handler 
 				if(transfer_depth.isEmpty()) {
 					try {
@@ -156,9 +161,12 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 	public void start() throws Exception {
 		if(oakd!=null) {
+			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
+			Thread.sleep(200);
 			oakd.start();
 			p2n = (narrow(oakd.getIntrinsics())).undistort_F64(true,false);
-			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
+			System.out.println("Depth worker started");
+			
 		}
 	}
 
@@ -308,7 +316,7 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 				tmp_p = segments_ned.get(i).location;
 				if(Double.isFinite(tmp_p.x) && tmp_p.z < ( to_ned.T.z + MAP_DELTADOWN)) {
 				distance = MSP3DUtils.distance3D(tmp_p, to_ned.T);
-				if( distance< MAP_MAX_DISTANCE && distance > 0)
+				if( distance< MAP_MAX_DISTANCE && distance > MAP_MIN_DISTANCE)
 				   // TODO: Scale segment size according to distance;
 				   // Question: Really needed as free space grows with occupied along the distance
 				   // For now => do nothing here
