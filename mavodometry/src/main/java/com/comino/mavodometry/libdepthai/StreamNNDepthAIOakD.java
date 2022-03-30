@@ -46,29 +46,41 @@ import org.bytedeco.depthai.ColorCameraProperties;
 import org.bytedeco.depthai.ColorCameraProperties.ColorOrder;
 import org.bytedeco.depthai.DataOutputQueue;
 import org.bytedeco.depthai.Device;
+import org.bytedeco.depthai.ImageManip;
+import org.bytedeco.depthai.ImgDetection;
+import org.bytedeco.depthai.ImgDetections;
 import org.bytedeco.depthai.ImgFrame;
 import org.bytedeco.depthai.MonoCamera;
 import org.bytedeco.depthai.MonoCameraProperties;
+import org.bytedeco.depthai.NNData;
+import org.bytedeco.depthai.NeuralNetwork;
 import org.bytedeco.depthai.Pipeline;
 import org.bytedeco.depthai.StereoDepth;
+import org.bytedeco.depthai.TensorInfo;
 import org.bytedeco.depthai.StereoDepth.PresetMode;
+import org.bytedeco.depthai.StringIntVectorMap;
+import org.bytedeco.depthai.StringVector;
 import org.bytedeco.depthai.XLinkOut;
+import org.bytedeco.depthai.YoloDetectionNetwork;
 import org.bytedeco.depthai.global.depthai.CameraBoardSocket;
 import org.bytedeco.depthai.global.depthai.MedianFilter;
 import org.bytedeco.depthai.presets.depthai.Callback;
+import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.javacpp.IntPointer;
 import org.bytedeco.javacpp.PointerScope;
 
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
 
+import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.calib.CameraPinholeBrown;
+import boofcv.struct.image.GrayF32;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
 
-public class StreamDepthAIOakD {
+public class StreamNNDepthAIOakD {
 
 	private final static boolean  USE_USB2         = false;
 	private final static int      DEPTH_CONFIDENCE = 100;
@@ -77,7 +89,11 @@ public class StreamDepthAIOakD {
 	private static final int      MONO_FRAME  = 1;
 	private static final int      DEPTH_FRAME = 2;
 
-	private static StreamDepthAIOakD instance;
+	private static final int NN_OUTPUT_CLASSES = 1;
+	private static final int NN_OUTPUT_HEIGHT  = 2;
+	private static final int NN_OUTPUT_WIDTH   = 3;
+
+	private static StreamNNDepthAIOakD instance;
 
 	private final    List<IDepthCallback> listeners;
 	private final    Planar<GrayU8>       rgb;
@@ -94,25 +110,45 @@ public class StreamDepthAIOakD {
 
 	private Device device;
 
-	private CombineOAKDCallback callback;
-	private final BlockingQueue<ImgFrame> transfer_rgb   = new ArrayBlockingQueue<ImgFrame>(20);
-	private final BlockingQueue<ImgFrame> transfer_mono  = new ArrayBlockingQueue<ImgFrame>(20);
-	private final BlockingQueue<ImgFrame> transfer_depth = new ArrayBlockingQueue<ImgFrame>(20);
+	private final BlockingQueue<ImgFrame> transfer_rgb      = new ArrayBlockingQueue<ImgFrame>(3);
+	private final BlockingQueue<ImgFrame> transfer_mono     = new ArrayBlockingQueue<ImgFrame>(3);
+	private final BlockingQueue<ImgFrame> transfer_depth    = new ArrayBlockingQueue<ImgFrame>(3);
+
 
 	private int width;
 	private int height;
 
+	private int width_nn;
+	private int height_nn;
+
+	private boolean use_nn = false;
+	private String nn_name;
+
+	private DataOutputQueue queue; 
+	private DataOutputQueue nn; 
+
 	private boolean rgb_mode = false;
 
-	public static StreamDepthAIOakD getInstance(int width, int height) throws Exception {
+	private OAKDImageCallback imageCallback;
+	private OAKDNNCallback    nnCallback;
+
+	public static StreamNNDepthAIOakD getInstance(int width, int height) throws Exception {
 
 		if(instance==null) {
-			instance = new StreamDepthAIOakD(width,height);
+			instance = new StreamNNDepthAIOakD(width,height, null, 0, 0);
 		}
 		return instance;
 	}
 
-	public StreamDepthAIOakD(int width, int height) {
+	public static StreamNNDepthAIOakD getInstance(int width, int height, String nn_name, int width_nn, int height_nn) throws Exception {
+
+		if(instance==null) {
+			instance = new StreamNNDepthAIOakD(width,height, nn_name, width_nn, height_nn);
+		}
+		return instance;
+	}
+
+	public StreamNNDepthAIOakD(int width, int height, String nn_name, int width_nn, int height_nn) {
 
 		this.listeners  = new ArrayList<IDepthCallback>();
 		this.rgb        = new Planar<GrayU8>(GrayU8.class,width,height,3);
@@ -120,10 +156,18 @@ public class StreamDepthAIOakD {
 		this.intrinsics = new CameraPinholeBrown();
 		this.width      = width;
 		this.height     = height;
+		if(nn_name!=null) {
+			this.use_nn = true;
+			this.nn_name    = nn_name;
+			this.width_nn   = width_nn;
+			this.height_nn  = height_nn;
+			System.out.println("NN enabled using network model:"+nn_name);
+
+		}
 
 	}
 
-	public StreamDepthAIOakD registerCallback(IDepthCallback listener) {
+	public StreamNNDepthAIOakD registerCallback(IDepthCallback listener) {
 		listeners.add(listener);
 		return this;
 	}
@@ -167,6 +211,7 @@ public class StreamDepthAIOakD {
 								}
 							}
 
+
 							if(listeners.size()>0 ) {
 								for(IDepthCallback listener : listeners)
 									listener.process(rgb, depth, rgb_tms, depth_tms);
@@ -179,14 +224,23 @@ public class StreamDepthAIOakD {
 					}
 
 				}));
-		
-		Thread.sleep(50);
-		
-		callback = new CombineOAKDCallback();
+
+		buildPipeline();
+
+		queue = device.getOutputQueue("preview", 3, true);
+		queue.deallocate(false);
+		imageCallback = new OAKDImageCallback();
+		queue.addCallback(imageCallback);
+
+		if(use_nn) {
+			nn = device.getOutputQueue("nn", 3, false);
+			nn.deallocate(false);
+			nnCallback = new OAKDNNCallback();
+			nn.addCallback(nnCallback);
+		}
+
 		if(!is_running)
 			throw new Exception("No OAKD camera found");
-
-
 
 	}
 
@@ -220,101 +274,109 @@ public class StreamDepthAIOakD {
 		return intrinsics;
 	}
 
-	private class CombineOAKDCallback extends Callback { 
-
-		DataOutputQueue queue; 
-
-		public CombineOAKDCallback() {
-
-			final Pipeline p = new Pipeline();
-			p.deallocate(false);
+	private void buildPipeline() {
+		final Pipeline p = new Pipeline();
+		p.deallocate(false);
 
 
-			XLinkOut xlinkOut = p.createXLinkOut();
-			xlinkOut.deallocate(false);
-			xlinkOut.setStreamName("preview");
+		XLinkOut xlinkOut = p.createXLinkOut();
+		xlinkOut.deallocate(false);
+		xlinkOut.setStreamName("preview");
 
-			ColorCamera colorCam = p.createColorCamera();
-			colorCam.deallocate(false);
-			colorCam.setPreviewSize(width, height);
-			//			colorCam.setBoardSocket(CameraBoardSocket.RGB);
-			colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
-			colorCam.setColorOrder(ColorOrder.RGB);
-			colorCam.setInterleaved(false);
+		ColorCamera colorCam = p.createColorCamera();
+		colorCam.deallocate(false);
+		colorCam.setPreviewSize(width, height);
+		//			colorCam.setBoardSocket(CameraBoardSocket.RGB);
+		colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
+		colorCam.setColorOrder(ColorOrder.RGB);
+		colorCam.setInterleaved(false);
 
-			StereoDepth depth = p.createStereoDepth();
-			depth.setDefaultProfilePreset(PresetMode.HIGH_DENSITY);
-			depth.initialConfig().setMedianFilter(MedianFilter.KERNEL_7x7);
-			depth.setLeftRightCheck(true);
-			depth.setExtendedDisparity(false);
-			depth.setSubpixel(true);
-			depth.initialConfig().setConfidenceThreshold(DEPTH_CONFIDENCE);
-			depth.setRectification(true);
-			depth.setRectifyEdgeFillColor(0);
+		StereoDepth depth = p.createStereoDepth();
+		depth.setDefaultProfilePreset(PresetMode.HIGH_DENSITY);
+		depth.initialConfig().setMedianFilter(MedianFilter.KERNEL_7x7);
+		depth.setLeftRightCheck(true);
+		depth.setExtendedDisparity(false);
+		depth.setSubpixel(true);
+		depth.initialConfig().setConfidenceThreshold(DEPTH_CONFIDENCE);
+		depth.setRectification(true);
+		depth.setRectifyEdgeFillColor(0);
 
-			MonoCamera monoLeft = p.createMonoCamera();
-			monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
-			monoLeft.setBoardSocket(CameraBoardSocket.LEFT);
+		MonoCamera monoLeft = p.createMonoCamera();
+		monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
+		monoLeft.setBoardSocket(CameraBoardSocket.LEFT);
 
-			MonoCamera monoRight = p.createMonoCamera();
-			monoRight.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
-			monoRight.setBoardSocket(CameraBoardSocket.RIGHT);
+		MonoCamera monoRight = p.createMonoCamera();
+		monoRight.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
+		monoRight.setBoardSocket(CameraBoardSocket.RIGHT);
 
-			monoLeft.out().link(depth.left());
-			monoRight.out().link(depth.right());
+		monoLeft.out().link(depth.left());
+		monoRight.out().link(depth.right());
 
-			if(rgb_mode)
-				colorCam.preview().link(xlinkOut.input());
-			else
-				monoLeft.out().link(xlinkOut.input());
-			
-			depth.depth().link(xlinkOut.input());
+		if(use_nn) {
+			XLinkOut nnOut = p.createXLinkOut();
+			nnOut.setStreamName("nn");
+			ImageManip manip = p.createImageManip();
+			manip.initialConfig().setResize(width_nn, height_nn);
+			NeuralNetwork detectionNetwork = p.createNeuralNetwork();
 
-			try {
-
-				device = new Device(p,USE_USB2);
-				device.deallocate(false);
-				
-				is_running = device.isPipelineRunning();
-			} catch(RuntimeException e) {
-				is_running = false;
-				return;
-			}
-			
-			queue = device.getOutputQueue("preview", 8, true);
-			queue.deallocate(false);
-			int id = queue.addCallback(this);
-
-			try (@SuppressWarnings("unchecked")
-			PointerScope scope = new PointerScope()) {	
-
-				float[][] in = device.readCalibration().getCameraIntrinsics(CameraBoardSocket.LEFT).get();
-				intrinsics.fx = in[0][0];
-				intrinsics.fy = in[1][1];
-				intrinsics.cx = in[0][2];
-				intrinsics.cy = in[1][2];
-				intrinsics.width  = width;
-				intrinsics.height = height;
-
-
-				IntPointer cameras = device.getConnectedCameras();
-				for (int i = 0; i < cameras.limit(); i++) {
-					System.out.print(cameras.get(i) + " ");
-				}
-				System.out.println("- "+device.getUsbSpeed());
-				System.out.println(intrinsics);
-			}
-
-			System.out.println("OAK-D Lite depth pipeline "+id+" started: "+device.isPipelineRunning());
-
+			String path = StreamNNDepthAIOakD.class.getResource("models/"+nn_name).getPath();
+			detectionNetwork.setBlobPath(new BytePointer(path));
+			detectionNetwork.setNumInferenceThreads(2);
+			detectionNetwork.input().setBlocking(false);
+			detectionNetwork.out().link(nnOut.input());
+			manip.out().link(detectionNetwork.input());
+			colorCam.preview().link(manip.inputImage());	
 		}
+
+
+		if(rgb_mode)
+			colorCam.preview().link(xlinkOut.input());
+		else
+			monoLeft.out().link(xlinkOut.input());
+		depth.depth().link(xlinkOut.input());
+
+		try {
+
+			device = new Device(p,USE_USB2);
+			device.deallocate(false);
+			is_running = device.isPipelineRunning();
+		} catch(RuntimeException e) {
+			is_running = false;
+			return;
+		}
+
+		try (@SuppressWarnings("unchecked")
+		PointerScope scope = new PointerScope()) {	
+
+
+			float[][] in = device.readCalibration().getCameraIntrinsics(CameraBoardSocket.LEFT).get();
+			intrinsics.fx = in[0][0];
+			intrinsics.fy = in[1][1];
+			intrinsics.cx = in[0][2];
+			intrinsics.cy = in[1][2];
+			intrinsics.width  = width;
+			intrinsics.height = height;
+
+
+			IntPointer cameras = device.getConnectedCameras();
+			for (int i = 0; i < cameras.limit(); i++) {
+				System.out.print(cameras.get(i) + " ");
+			}
+			System.out.println("- "+device.getUsbSpeed());
+			System.out.println(intrinsics);
+		}
+
+		System.out.println("OAK-D Lite depth pipeline started: "+device.isPipelineRunning());
+	}
+
+	private class OAKDImageCallback extends Callback { 
 
 		public void call() {
 
 			try {
-			
 				ImgFrame imgFrame = queue.tryGetImgFrame();
 				if(imgFrame!=null && !imgFrame.isNull() ) {
+
 					switch(imgFrame.getInstanceNum()) {
 					case RGB_FRAME:
 						rgb_tms = System.currentTimeMillis();
@@ -331,7 +393,6 @@ public class StreamDepthAIOakD {
 							imgFrame.close();
 						break;
 					case DEPTH_FRAME:
-						
 						depth_tms = System.currentTimeMillis();
 						if(transfer_depth.isEmpty())
 							transfer_depth.put(imgFrame);
@@ -341,7 +402,19 @@ public class StreamDepthAIOakD {
 					}
 
 				} 
+
 			} catch (InterruptedException e) {	}
+		}
+	}
+
+	private class OAKDNNCallback extends Callback { 
+
+		public void call() {
+			
+				NNData nnData = nn.tryGetNNData();
+				if(nnData!=null && !nnData.isNull()) {
+					System.out.println(nnData);
+				}
 		}
 	}
 
@@ -369,9 +442,9 @@ public class StreamDepthAIOakD {
 
 		BufferedImage im = new BufferedImage(640, 480, BufferedImage.TYPE_3BYTE_BGR);
 
-		StreamDepthAIOakD oakd;
+		StreamNNDepthAIOakD oakd;
 		try {
-			oakd = StreamDepthAIOakD.getInstance(im.getWidth(), im.getHeight());
+			oakd = StreamNNDepthAIOakD.getInstance(im.getWidth(), im.getHeight());
 			oakd.registerCallback((image,np,t1,t2) -> {
 				System.out.println(oakd.getFrameCount()+" "+oakd.getRGBTms()+" "+oakd.getDepthTms());
 				//	ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)image), im, true);

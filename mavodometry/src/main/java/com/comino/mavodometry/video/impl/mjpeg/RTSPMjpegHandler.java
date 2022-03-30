@@ -43,7 +43,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-	private static final int 		FRAME_RATE_FPS        = 30;
+	private static final int 		FRAME_RATE_FPS        = 15;
 	private static final int		DEFAULT_VIDEO_QUALITY = 60;
 	private static final int		MAX_VIDEO_QUALITY     = 70;
 	private static final int		LOW_VIDEO_QUALITY     = 10;
