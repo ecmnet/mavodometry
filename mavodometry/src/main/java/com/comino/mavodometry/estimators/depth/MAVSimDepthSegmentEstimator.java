@@ -29,8 +29,8 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 	private static final int             DEPTH_RATE      = 100;
 
-	private final static int            DEPTH_SEG_W 	 = 32;
-	private final static int            DEPTH_SEG_H 	 = 32;
+	private final static int            DEPTH_SEG_W 	 = 16;
+	private final static int            DEPTH_SEG_H 	 = 16;
 
 	private final static int            MIN_DEPTH_MM 	 = 350;
 	private final static int            MAX_DEPTH_MM 	 = 8000;
@@ -183,16 +183,18 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 				//			    	segments_ned.get(11).setTo(1, 1, 1, 0, -1.1,0.1);
 				//			    	segments_ned.get(12).setTo(1, 1, 1, 0, -1.2,0.1);
 				
-				
-				for(int k=0; k <250;k++) {
-					segments_ned.get(k+20).setTo(1, 1, Math.random()*2-1, 1+Math.random()/5-0.1, -Math.random()*2, 0.1);
+				for(int k=0; k <550;k++) {
+					segments_ned.get(k+20).setTo(1, 1, Math.random()*2-1+to_ned.T.x, 
+							1+Math.random()/5-0.1 +to_ned.T.y,
+							-Math.random()*2+to_ned.T.z
+							, 0.1);
 				}
 
 				state = 1;
 				}
 
 
-			if(since_tms > 4000 && state == 1) {
+			if(since_tms > 2000 && state == 1) {
 				System.out.println("State:"+state);
 				segments_ned.get(13).setTo(1, 1, 0, 2, 0,  0.1);
 				//			    	segments_ned.get(14).setTo(1, 1, 2.7, 0, -1.1,0.2);
@@ -206,7 +208,7 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 			}
 			
-			if(since_tms > 6000 && state == 2) {
+			if(since_tms > 3000 && state == 2) {
 				System.out.println("State:"+state);
 				segments_ned.get(14).setTo(1, 1, 0, 3 ,0,  0.1);
 				//			    	segments_ned.get(14).setTo(1, 1, 2.7, 0, -1.1,0.2);

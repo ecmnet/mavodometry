@@ -48,7 +48,6 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.libdepthai.StreamDepthAIOakD;
-import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepthCV;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.workqueue.WorkQueue;
 
@@ -61,7 +60,6 @@ import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Point2D_I32;
 import georegression.struct.point.Point3D_F64;
-import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {

@@ -67,20 +67,21 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 
-	private static final int             DEPTH_RATE      = 100;
+	private static final int            DEPTH_RATE      = 100;
 
-//	private final static int            DEPTH_SEG_W 	 = 32;
-//	private final static int            DEPTH_SEG_H 	 = 32;
+	private final static int            DEPTH_SEG_W 	 = 32;
+	private final static int            DEPTH_SEG_H 	 = 32;
 	
-	private final static int            DEPTH_SEG_W 	 = 16;
-	private final static int            DEPTH_SEG_H 	 = 16;
+//	private final static int            DEPTH_SEG_W 	 = 16;
+//	private final static int            DEPTH_SEG_H 	 = 16;
 
-	private final static int            MIN_DEPTH_MM 	 = 350;
-	private final static int            MAX_DEPTH_MM 	 = 8000;
+	private final static int            MIN_DEPTH_MM 	 = 300;
+	private final static int            MAX_DEPTH_MM 	 = 5000;
 	
-	private static final float          MAP_MAX_DISTANCE = 5.0f;
+	private static final float          MAP_MAX_DISTANCE = 3.0f;
 	private static final float          MAP_MIN_DISTANCE = 0.3f;
-	private static final float          MAP_DELTADOWN    = 0.4f;
+	private static final float          MAP_DELTADOWN    = 0.7f;
+	private static final float          MAP_DELTAUP      = 0.7f;
 
 	private final GrayF32        		seg_distance;
 
@@ -249,15 +250,15 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
 				tms = System.currentTimeMillis();
-
+				
 				// Build segmentlist
 				buildSegmentList(seg_distance,segments_ned);
 				
 				// Update map based on segments
 				transferToMap();
 				
-				// forget old map
-				map.forget(System.currentTimeMillis() - 3000);
+//				map.forget(System.currentTimeMillis() - 5000  );
+				
 				
 				// Get and publish nearest segment
 				getNearestSegment(seg_distance, nearest_body);
@@ -314,9 +315,12 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 		private void transferToMap() {
 			for(int i=0; i < seg_distance.data.length;i++) {
 				tmp_p = segments_ned.get(i).location;
-				if(Double.isFinite(tmp_p.x) && tmp_p.z < ( to_ned.T.z + MAP_DELTADOWN)) {
+				if(Double.isFinite(tmp_p.x) && 
+				    tmp_p.z < ( to_ned.T.z + MAP_DELTADOWN) && tmp_p.z > (to_ned.T.z - MAP_DELTAUP) &&  
+				    tmp_p.z < -0.2) {
+					
 				distance = MSP3DUtils.distance3D(tmp_p, to_ned.T);
-				if( distance< MAP_MAX_DISTANCE && distance > MAP_MIN_DISTANCE)
+				if( distance < MAP_MAX_DISTANCE && distance > MAP_MIN_DISTANCE)
 				   // TODO: Scale segment size according to distance;
 				   // Question: Really needed as free space grows with occupied along the distance
 				   // For now => do nothing here
