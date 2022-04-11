@@ -164,6 +164,8 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 //		private long start_tms2 = System.currentTimeMillis();
 		
 		private int state = 0;
+		
+		private int cycle = 0;
 
 		@Override
 		public void run() {
@@ -171,19 +173,23 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 			long since_tms = System.currentTimeMillis() - start_tms;
 			
 			MSP3DUtils.convertModelToSe3_F64(model, to_ned);
-
+			
+			if(map.size() == 0) {
+				state = 0; cycle = 0;
+			}
+			
 			for(int i=0; i < seg_distance.data.length;i++) 
 				segments_ned.get(i).setTo(0, 0, Double.NaN, Double.NaN, Double.NaN);
 
 			// TODO: Build segments from file or sim
 
-			if(since_tms > 1000 && state == 0) {
+			if(since_tms > 200 && state == 0) {
 				System.out.println("State:"+state);
 				segments_ned.get(10).setTo(1, 1, 0, 1, 0,0.1);
 				//			    	segments_ned.get(11).setTo(1, 1, 1, 0, -1.1,0.1);
 				//			    	segments_ned.get(12).setTo(1, 1, 1, 0, -1.2,0.1);
 				
-				for(int k=0; k <550;k++) {
+				for(int k=0; k <850;k++) {
 					segments_ned.get(k+20).setTo(1, 1, Math.random()*2-1+to_ned.T.x, 
 							1+Math.random()/5-0.1 +to_ned.T.y,
 							-Math.random()*2+to_ned.T.z
@@ -194,7 +200,7 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 				}
 
 
-			if(since_tms > 2000 && state == 1) {
+			if(since_tms > 600 && state == 1) {
 				System.out.println("State:"+state);
 				segments_ned.get(13).setTo(1, 1, 0, 2, 0,  0.1);
 				//			    	segments_ned.get(14).setTo(1, 1, 2.7, 0, -1.1,0.2);
@@ -208,7 +214,7 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 			}
 			
-			if(since_tms > 3000 && state == 2) {
+			if(since_tms > 1000 && state == 2) {
 				System.out.println("State:"+state);
 				segments_ned.get(14).setTo(1, 1, 0, 3 ,0,  0.1);
 				//			    	segments_ned.get(14).setTo(1, 1, 2.7, 0, -1.1,0.2);
@@ -219,6 +225,9 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 				}
 
 				start_tms = System.currentTimeMillis();
+				if(++cycle > 20)
+					state = -1;
+				else
 				state = 0;
 
 			}
@@ -285,6 +294,8 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 //					}
 				}
 			}
+			
+			 
 		}
 
 		// Build depth segments by calculating the min distance

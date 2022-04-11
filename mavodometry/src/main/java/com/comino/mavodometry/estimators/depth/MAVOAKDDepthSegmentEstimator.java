@@ -76,12 +76,13 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 //	private final static int            DEPTH_SEG_H 	 = 16;
 
 	private final static int            MIN_DEPTH_MM 	 = 300;
-	private final static int            MAX_DEPTH_MM 	 = 5000;
+	private final static int            MAX_DEPTH_MM 	 = 6000;
 	
 	private static final float          MAP_MAX_DISTANCE = 3.0f;
-	private static final float          MAP_MIN_DISTANCE = 0.3f;
+	private static final float          MAP_MIN_DISTANCE = 0.5f;
+	
 	private static final float          MAP_DELTADOWN    = 0.7f;
-	private static final float          MAP_DELTAUP      = 0.7f;
+	private static final float          MAP_DELTAUP      = 1.5f;
 
 	private final GrayF32        		seg_distance;
 
@@ -316,8 +317,8 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 			for(int i=0; i < seg_distance.data.length;i++) {
 				tmp_p = segments_ned.get(i).location;
 				if(Double.isFinite(tmp_p.x) && 
-				    tmp_p.z < ( to_ned.T.z + MAP_DELTADOWN) && tmp_p.z > (to_ned.T.z - MAP_DELTAUP) &&  
-				    tmp_p.z < -0.2) {
+				 //   tmp_p.z < ( to_ned.T.z + MAP_DELTADOWN) && tmp_p.z > (to_ned.T.z - MAP_DELTAUP) &&  
+				    tmp_p.z < -0.05) {
 					
 				distance = MSP3DUtils.distance3D(tmp_p, to_ned.T);
 				if( distance < MAP_MAX_DISTANCE && distance > MAP_MIN_DISTANCE)
@@ -327,8 +328,13 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 				   // - Build up a list for projected segment size
 				   // - if projected segment size > map block size, ensure that all map blocks are set in the perpendicular plane
 				   // - maybe a simplified approach: consider 3, 5 or 7 distances
-			       map.update(to_ned.T,segments_ned.get(i).location);
-				}
+			       map.update(to_ned.T,segments_ned.get(i).location,1);
+				} 
+				
+				// TODO: To be tested
+//				if( distance >= MAP_MAX_DISTANCE)
+//					 map.update(to_ned.T,segments_ned.get(i).location,0);
+				
 			}
 		}
 
