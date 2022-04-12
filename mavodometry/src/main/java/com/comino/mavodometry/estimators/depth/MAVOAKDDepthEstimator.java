@@ -43,6 +43,7 @@ import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
 import com.comino.mavcom.config.MSPConfig;
+import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.utils.MSP3DUtils;
@@ -63,11 +64,17 @@ import boofcv.struct.image.Planar;
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Point3D_F64;
+import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
-	private static final int            DEPTH_RATE      = 200;
+	private static final int              DEPTH_RATE      = 200;
+
+	// mounting offset in m
+	private static final double   	      OFFSET_X 		 =  -0.06;
+	private static final double      	  OFFSET_Y 		 =   0.00;
+	private static final double      	  OFFSET_Z 		 =   0.00;
 
 	private final static float            MIN_DEPTH_M  	 = 0.3f;
 	private final static float            MAX_DEPTH_M 	 = 3.0f;
@@ -80,6 +87,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private final Se3_F64       		to_ned          = new Se3_F64();
 	private final Point2D3D             nearest_body    = new Point2D3D();
+	private final Vector3D_F64          offset_body		= new Vector3D_F64();
 
 	private long   						tms 			= 0;
 	private int                         width34         = 0;
@@ -94,6 +102,12 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, LocalMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
+
+		// read offsets from config
+		offset_body.x = config.getFloatProperty(MSPParams.OAKD_OFFSET_X, String.valueOf(OFFSET_X));
+		offset_body.y = config.getFloatProperty(MSPParams.OAKD_OFFSET_Y, String.valueOf(OFFSET_Y));
+		offset_body.z = config.getFloatProperty(MSPParams.OAKD_OFFSET_Z, String.valueOf(OFFSET_Z));
+		System.out.println("OAK-D Mounting offset: "+offset_body);
 
 		try {
 			this.oakd   = StreamDepthAIOakD.getInstance(width, height);
@@ -209,9 +223,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				GrayU16 depth = transfer_depth.take();
 
 				model.slam.quality = depthMapping(depth);
-				
+
 				model.slam.dm = (float)nearest_body.location.x; 
-				
+
 				GeometryMath_F64.mult(to_ned.R, nearest_body.location, ned_pt_n );
 				ned_pt_n.plusIP(to_ned.T);
 
@@ -226,7 +240,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-			
+
 		}	
 
 		// map depth on a 320 x 240 basis
@@ -265,6 +279,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			p.location.y =   p.location.x * norm.x;
 			p.location.z = - p.location.x * norm.y;
+
+			p.location.plusIP(offset_body);
 
 			return true;
 
