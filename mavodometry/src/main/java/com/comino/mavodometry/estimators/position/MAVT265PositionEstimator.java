@@ -268,10 +268,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 						config.updateProperty(MSPParams.PUBLISH_ODOMETRY, "false");
 						break;
 					case MSP_COMPONENT_CTRL.RESET:
-						if(!t265.isRunning())
-							start();
-						else
-							init("reset");
+						if(t265!=null) {
+							if(!t265.isRunning())
+								start();
+							else
+								init("reset");
+						}
 						break;
 					}
 					break;
