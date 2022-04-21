@@ -65,7 +65,7 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
-	private static final int              DEPTH_RATE    = 200;
+	private static final int              DEPTH_RATE    = 100;
 
 	// mounting offset in m
 	private static final double   	      OFFSET_X 		=  -0.06;
@@ -73,7 +73,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private static final double      	  OFFSET_Z 		=   0.00;
 
 	private final static float            MIN_DEPTH_M  	= 0.4f;
-	private final static float            MAX_DEPTH_M 	= 3.5f;
+	private final static float            MAX_DEPTH_M 	= 4.0f;
 	
 	private final static int              DEPTH_SCALE   = 4; 
 
@@ -254,7 +254,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 							nearest_body.setTo(tmp_p);
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
-						map.update(to_ned.T,ned_p.location,1);
+						if(Math.abs(ned_p.location.z - to_ned.T.z) <0.5f)
+						  map.update(to_ned.T,ned_p.location);   // Incremental probability
+					//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
 						quality++;
 					}
 

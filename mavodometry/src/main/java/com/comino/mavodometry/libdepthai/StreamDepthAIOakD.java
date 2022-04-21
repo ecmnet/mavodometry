@@ -71,7 +71,8 @@ import boofcv.struct.image.Planar;
 public class StreamDepthAIOakD {
 
 	private final static boolean  USE_USB2         = false;
-	private final static int      DEPTH_CONFIDENCE = 100;
+	private final static int      DEPTH_CONFIDENCE = 50;
+	private final static int      DEPTH_SIGMA      = 150;
 
 	private static final int      RGB_FRAME   = 0;
 	private static final int      MONO_FRAME  = 1;
@@ -243,14 +244,18 @@ public class StreamDepthAIOakD {
 			colorCam.setInterleaved(false);
 
 			StereoDepth depth = p.createStereoDepth();
-			depth.setDefaultProfilePreset(PresetMode.HIGH_DENSITY);
+			
+			depth.setDefaultProfilePreset(PresetMode.HIGH_ACCURACY);
 			depth.initialConfig().setMedianFilter(MedianFilter.KERNEL_7x7);
+			depth.initialConfig().setBilateralFilterSigma((short)DEPTH_SIGMA);
+			depth.initialConfig().setConfidenceThreshold(DEPTH_CONFIDENCE);
+			
 			depth.setLeftRightCheck(true);
 			depth.setExtendedDisparity(false);
 			depth.setSubpixel(true);
-			depth.initialConfig().setConfidenceThreshold(DEPTH_CONFIDENCE);
 			depth.setRectification(true);
 			depth.setRectifyEdgeFillColor(0);
+			
 
 			MonoCamera monoLeft = p.createMonoCamera();
 			monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
