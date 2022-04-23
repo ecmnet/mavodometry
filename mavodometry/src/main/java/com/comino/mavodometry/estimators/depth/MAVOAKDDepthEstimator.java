@@ -44,6 +44,7 @@ import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
+import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
@@ -135,6 +136,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, long timeRgb, long timeDepth) {
 
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
+				model.sys.setSensor(Status.MSP_SLAM_AVAILABILITY, true);
 
 				// transfer depth data to depth handler 
 				if(transfer_depth.isEmpty()) {
