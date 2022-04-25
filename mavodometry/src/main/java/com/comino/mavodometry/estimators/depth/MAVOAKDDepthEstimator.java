@@ -66,7 +66,7 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
-	private static final int              DEPTH_RATE    = 100;
+	private static final int              DEPTH_RATE    = 200;
 
 	// mounting offset in m
 	private static final double   	      OFFSET_X 		=  -0.06;

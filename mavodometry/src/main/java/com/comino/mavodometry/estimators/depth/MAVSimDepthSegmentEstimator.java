@@ -183,7 +183,7 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 			// TODO: Build segments from file or sim
 
-			if(since_tms > 200 && state == 0) {
+			if(since_tms > 2000 && state == 0) {
 				System.out.println("State:"+state);
 				segments_ned.get(10).setTo(1, 1, 0, 1, 0,0.1);
 				//			    	segments_ned.get(11).setTo(1, 1, 1, 0, -1.1,0.1);
@@ -200,7 +200,7 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 				}
 
 
-			if(since_tms > 600 && state == 1) {
+			if(since_tms > 6000 && state == 1) {
 				System.out.println("State:"+state);
 				segments_ned.get(13).setTo(1, 1, 0, 2, 0,  0.1);
 				//			    	segments_ned.get(14).setTo(1, 1, 2.7, 0, -1.1,0.2);
@@ -214,7 +214,7 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 
 			}
 			
-			if(since_tms > 1000 && state == 2) {
+			if(since_tms > 9000 && state == 2) {
 				System.out.println("State:"+state);
 				segments_ned.get(14).setTo(1, 1, 0, 3 ,0,  0.1);
 				//			    	segments_ned.get(14).setTo(1, 1, 2.7, 0, -1.1,0.2);
