@@ -71,12 +71,16 @@ import boofcv.struct.image.Planar;
 public class StreamDepthAIOakD {
 
 	private final static boolean  USE_USB2         = false;
-	private final static int      DEPTH_CONFIDENCE = 50;
+	
+	private final static int      DEPTH_CONFIDENCE = 170;
 	private final static int      DEPTH_SIGMA      = 150;
+	
+	private final static float    FPS_COLOR        = 30;
+	private final static float    FPS_MONO         = 30;
 
-	private static final int      RGB_FRAME   = 0;
-	private static final int      MONO_FRAME  = 1;
-	private static final int      DEPTH_FRAME = 2;
+	private static final int      RGB_FRAME   	   = 0;
+	private static final int      MONO_FRAME       = 1;
+	private static final int      DEPTH_FRAME      = 2;
 
 	private static StreamDepthAIOakD instance;
 
@@ -238,6 +242,7 @@ public class StreamDepthAIOakD {
 			ColorCamera colorCam = p.createColorCamera();
 			colorCam.deallocate(false);
 			colorCam.setPreviewSize(width, height);
+			colorCam.setFps(FPS_COLOR);
 			//			colorCam.setBoardSocket(CameraBoardSocket.RGB);
 			colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
 			colorCam.setColorOrder(ColorOrder.RGB);
@@ -260,10 +265,12 @@ public class StreamDepthAIOakD {
 			MonoCamera monoLeft = p.createMonoCamera();
 			monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
 			monoLeft.setBoardSocket(CameraBoardSocket.LEFT);
+			monoLeft.setFps(FPS_MONO);
 
 			MonoCamera monoRight = p.createMonoCamera();
 			monoRight.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
 			monoRight.setBoardSocket(CameraBoardSocket.RIGHT);
+			monoRight.setFps(FPS_MONO);
 
 			monoLeft.out().link(depth.left());
 			monoRight.out().link(depth.right());
