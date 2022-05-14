@@ -37,6 +37,8 @@ import static boofcv.factory.distort.LensDistortionFactory.narrow;
 
 import java.awt.Graphics;
 import java.text.DecimalFormat;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -64,6 +66,7 @@ import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
+
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private static final int              DEPTH_RATE    = 200;
@@ -76,7 +79,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private final static float            MIN_DEPTH_M  	= 0.4f;
 	private final static float            MAX_DEPTH_M 	= 4.0f;
 	
-	private final static int              DEPTH_SCALE   = 4; 
+	private final static int              DEPTH_SCALE   = 2; 
 
 	private StreamDepthAIOakD			oakd 			= null;
 
@@ -156,10 +159,12 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	public void start() throws Exception {
 		if(oakd!=null) {
-			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
-			Thread.sleep(200);
+			
 			oakd.start();
 			p2n = (narrow(oakd.getIntrinsics())).undistort_F64(true,false);
+			
+			Thread.sleep(200);
+			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
 			System.out.println("Depth worker started");
 
 		}
@@ -244,7 +249,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		}	
 
-		// map depth on a 320 x 240 basis
+		// map depth on a 640/DEPTH_SCALE x 480/DEPTH_SCALE basis
 		private int depthMapping(GrayU16 in) {
 
 			int quality = 0; nearest_body.location.x = Double.MAX_VALUE;
@@ -256,7 +261,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 							nearest_body.setTo(tmp_p);
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
-						if(Math.abs(ned_p.location.z - to_ned.T.z) <0.5f)
+						if(Math.abs(ned_p.location.z - to_ned.T.z) < 0.5f)
 						  map.update(to_ned.T,ned_p.location);   // Incremental probability
 					//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
 						quality++;
@@ -266,6 +271,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			}
 			return (int)(quality * 1600f / in.data.length);
 		}
+		
+
 
 
 		// Return 3D point of depth segment in body frame
