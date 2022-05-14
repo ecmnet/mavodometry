@@ -55,6 +55,7 @@ import org.bytedeco.depthai.StereoDepth.PresetMode;
 import org.bytedeco.depthai.XLinkOut;
 import org.bytedeco.depthai.global.depthai.CameraBoardSocket;
 import org.bytedeco.depthai.global.depthai.MedianFilter;
+import org.bytedeco.depthai.global.depthai.UsbSpeed;
 import org.bytedeco.depthai.presets.depthai.Callback;
 import org.bytedeco.javacpp.IntPointer;
 import org.bytedeco.javacpp.PointerScope;
@@ -70,7 +71,11 @@ import boofcv.struct.image.Planar;
 
 public class StreamDepthAIOakD {
 
-	private final static boolean  USE_USB2         = false;
+	private final static UsbSpeed  USE_USB2         = UsbSpeed.HIGH;
+//	private final static UsbSpeed  USE_USB2         = UsbSpeed.SUPER_PLUS;
+	
+	// TODO: Only USB2 possible due to interference with GPS. RGB stream rate therefore very low
+	// Try to encode RGB on device and decode it on HOST
 	
 	private final static int      DEPTH_CONFIDENCE = 170;
 	private final static int      DEPTH_SIGMA      = 150;
@@ -190,6 +195,7 @@ public class StreamDepthAIOakD {
 		callback = new CombineOAKDCallback();
 		if(!is_running)
 			throw new Exception("No OAKD camera found");
+		
 
 
 
@@ -259,6 +265,7 @@ public class StreamDepthAIOakD {
 			depth.setExtendedDisparity(false);
 			depth.setSubpixel(true);
 			depth.setRectification(true);
+			depth.useHomographyRectification(false);
 			depth.setRectifyEdgeFillColor(0);
 			
 
@@ -293,7 +300,7 @@ public class StreamDepthAIOakD {
 				return;
 			}
 			
-			queue = device.getOutputQueue("preview", 8, true);
+			queue = device.getOutputQueue("preview", 15, true);
 			queue.deallocate(false);
 			int id = queue.addCallback(this);
 
