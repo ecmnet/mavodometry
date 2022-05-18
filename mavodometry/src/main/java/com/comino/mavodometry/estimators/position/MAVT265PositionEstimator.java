@@ -662,6 +662,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		gor.target_system = 1;
 		gor.latitude = (long)(lat * 1e7);
 		gor.longitude = (long)(lon * 1e7);
+		if(altitude < 0)
+			gor.altitude = (int)(model.hud.ap * 1000f);
+		else
 		gor.altitude = (int)(altitude * 1000);
 		gor.time_usec = DataModel.getSynchronizedPX4Time_us();
 
