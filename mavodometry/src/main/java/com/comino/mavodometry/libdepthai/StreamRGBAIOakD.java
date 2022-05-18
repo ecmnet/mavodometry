@@ -55,6 +55,7 @@ import org.bytedeco.depthai.StereoDepth.PresetMode;
 import org.bytedeco.depthai.XLinkOut;
 import org.bytedeco.depthai.global.depthai.CameraBoardSocket;
 import org.bytedeco.depthai.global.depthai.MedianFilter;
+import org.bytedeco.depthai.global.depthai.UsbSpeed;
 import org.bytedeco.depthai.presets.depthai.Callback;
 import org.bytedeco.javacpp.IntPointer;
 import org.bytedeco.javacpp.PointerScope;
@@ -68,7 +69,7 @@ import boofcv.struct.image.Planar;
 
 public class StreamRGBAIOakD {
 
-	private final static boolean  USE_USB2 = true;
+	private final static UsbSpeed  USE_USB2         = UsbSpeed.SUPER;
 
 
 	private static StreamRGBAIOakD instance;

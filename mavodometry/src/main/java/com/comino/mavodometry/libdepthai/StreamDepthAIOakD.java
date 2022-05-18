@@ -71,8 +71,8 @@ import boofcv.struct.image.Planar;
 
 public class StreamDepthAIOakD {
 
-	private final static UsbSpeed  USE_USB2         = UsbSpeed.HIGH;
-//	private final static UsbSpeed  USE_USB2         = UsbSpeed.SUPER_PLUS;
+//	private final static UsbSpeed  USE_USB2         = UsbSpeed.HIGH;
+	private final static UsbSpeed  USE_USB2         = UsbSpeed.SUPER_PLUS;
 	
 	// TODO: Only USB2 possible due to interference with GPS. RGB stream rate therefore very low
 	// Try to encode RGB on device and decode it on HOST

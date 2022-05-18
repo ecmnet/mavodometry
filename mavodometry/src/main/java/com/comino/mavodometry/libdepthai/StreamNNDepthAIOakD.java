@@ -54,6 +54,7 @@ import org.bytedeco.depthai.MonoCamera;
 import org.bytedeco.depthai.MonoCameraProperties;
 import org.bytedeco.depthai.NNData;
 import org.bytedeco.depthai.NeuralNetwork;
+import org.bytedeco.depthai.Path;
 import org.bytedeco.depthai.Pipeline;
 import org.bytedeco.depthai.StereoDepth;
 import org.bytedeco.depthai.TensorInfo;
@@ -64,6 +65,7 @@ import org.bytedeco.depthai.XLinkOut;
 import org.bytedeco.depthai.YoloDetectionNetwork;
 import org.bytedeco.depthai.global.depthai.CameraBoardSocket;
 import org.bytedeco.depthai.global.depthai.MedianFilter;
+import org.bytedeco.depthai.global.depthai.UsbSpeed;
 import org.bytedeco.depthai.presets.depthai.Callback;
 import org.bytedeco.javacpp.BytePointer;
 import org.bytedeco.javacpp.IntPointer;
@@ -82,7 +84,7 @@ import boofcv.struct.image.Planar;
 
 public class StreamNNDepthAIOakD {
 
-	private final static boolean  USE_USB2         = false;
+	private final static UsbSpeed  USE_USB2        = UsbSpeed.SUPER;
 	private final static int      DEPTH_CONFIDENCE = 100;
 
 	private static final int      RGB_FRAME   = 0;
@@ -320,7 +322,7 @@ public class StreamNNDepthAIOakD {
 			NeuralNetwork detectionNetwork = p.createNeuralNetwork();
 
 			String path = StreamNNDepthAIOakD.class.getResource("models/"+nn_name).getPath();
-			detectionNetwork.setBlobPath(new BytePointer(path));
+			detectionNetwork.setBlobPath(new Path(path)); 
 			detectionNetwork.setNumInferenceThreads(2);
 			detectionNetwork.input().setBlocking(false);
 			detectionNetwork.out().link(nnOut.input());
