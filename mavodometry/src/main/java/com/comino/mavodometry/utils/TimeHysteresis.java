@@ -14,6 +14,9 @@ public class TimeHysteresis {
 	private boolean   pre_state   = false;
 	private int       edge        = 0;
 
+	private long      tms_rising  = 0;
+	private long      tms_falling = 0;
+
 	private Runnable  rising_action  = null;
 	private Runnable  falling_action = null;
 
@@ -23,9 +26,10 @@ public class TimeHysteresis {
 	}
 
 	public TimeHysteresis(float gate_sec,int edge) {
-		this.gate_ms = (int)(gate_sec * 1000.0f);
-		this.state   = false;
-		this.edge    = edge;
+		this.gate_ms     = (int)(gate_sec * 1000.0f);
+		this.state       = false;
+		this.edge        = edge;
+		this.tms_falling = System.currentTimeMillis();
 	}
 
 	public void registerAction(int edge,Runnable r) {
@@ -47,10 +51,18 @@ public class TimeHysteresis {
 	public boolean check(boolean condition) {
 		if(pre_state != condition) {
 			if((!condition && edge == EDGE_RISING) || (condition && edge == EDGE_FALLING)) {
-				if(condition & !state && rising_action != null)
-					rising_action.run();
-				if(!condition & state && falling_action != null)
-					falling_action.run();
+				if(condition & !state) { 
+					tms_rising  = System.currentTimeMillis();
+					tms_falling = 0;
+					if(rising_action != null)
+						rising_action.run();
+				}
+				if(!condition & state) {
+					tms_rising  = 0;
+					tms_falling = System.currentTimeMillis();
+					if(falling_action != null)
+						falling_action.run();
+				} 
 				state = pre_state = condition;
 				trigger = 0;
 				return state;
@@ -61,14 +73,36 @@ public class TimeHysteresis {
 		}
 
 		if(trigger > 0 && (System.currentTimeMillis() > trigger)) {
-			if(pre_state & !state && rising_action != null)
-				rising_action.run();
-			if(!pre_state & state && falling_action != null)
-				falling_action.run();
+			if(pre_state & !state) {
+				tms_rising  = System.currentTimeMillis();
+				tms_falling = 0;
+				if(rising_action != null)
+					rising_action.run();
+			}
+			if(!pre_state & state) {
+				tms_rising  = 0;
+				tms_falling = System.currentTimeMillis();
+				if(falling_action != null)
+					falling_action.run();
+			}
 			state      = pre_state;
 			trigger    = 0;
 		}
 		return state;
+	}
+
+	public long getDurationOfState_ms() {
+		if(state) { 
+			if(tms_rising > 0) 
+				return System.currentTimeMillis()- tms_rising;
+			else
+				return 0;
+		} else {
+			if(tms_falling > 0) 
+				return System.currentTimeMillis()- tms_falling;
+			else
+				return 0;
+		}
 	}
 
 	public boolean get() {
@@ -76,7 +110,9 @@ public class TimeHysteresis {
 	}
 
 	public void reset() {
-		trigger   = 0;
+		trigger     = 0;
+		tms_rising  = 0;
+		tms_falling = 0;
 		pre_state = false;
 		state     = false;
 	}
@@ -92,7 +128,8 @@ public class TimeHysteresis {
 		while(!h.get()) {
 			try {
 				h.check(true);
-				Thread.sleep(10);
+				Thread.sleep(100);
+				System.out.println(h.getDurationOfState_ms());
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -100,12 +137,13 @@ public class TimeHysteresis {
 		}
 
 		System.out.println();
-		System.out.println(System.currentTimeMillis()-tms);
+		System.out.println("->"+(System.currentTimeMillis()-tms));
 
 		while(h.get()) {
 			try {
 				h.check(false);
-				Thread.sleep(10);
+				Thread.sleep(100);
+				System.out.println(h.getDurationOfState_ms());
 			} catch (InterruptedException e) {
 				// TODO Auto-generated catch block
 				e.printStackTrace();
@@ -113,7 +151,7 @@ public class TimeHysteresis {
 		}
 
 		System.out.println();
-		System.out.println(System.currentTimeMillis()-tms);
+		System.out.println("->"+(System.currentTimeMillis()-tms));
 
 	}
 
