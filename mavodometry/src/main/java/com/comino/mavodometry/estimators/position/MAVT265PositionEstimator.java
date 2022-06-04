@@ -103,7 +103,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final int         FIDUCIAL_WIDTH     		= 360;
 
 	private static final int     	 MAX_ERRORS          		= 200;
-	private static final float       MAX_SPEED_VARIANCE         = 0.5f;     
+	
+	private static final float       MAX_VEL_VARIANCE           = 0.5f;     
 	private static final float       MAX_YAW_VARIANCE           = 1.0f;
 
 	private static final long        LOCK_TIMEOUT_MS            = 1000;
@@ -208,8 +209,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;
 
-	private final TimeHysteresis           pose_hysteresis;
-	private final TimeHysteresis           error_hysteresis;
+	private final TimeHysteresis           pos_hysteresis;
+	private final TimeHysteresis           vel_hysteresis;
+	private final TimeHysteresis           att_hysteresis;
 	private boolean                        drift_compensation = false;
 
 	@SuppressWarnings("unused")
@@ -300,17 +302,18 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
-		pose_hysteresis  = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_FALLING);
-		error_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_RISING);
+		pos_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_FALLING);
+		vel_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_RISING);
+		att_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_RISING);
 
 		// Switch to VEL integration
-		pose_hysteresis.registerAction(TimeHysteresis.EDGE_RISING, () -> {
+		pos_hysteresis.registerAction(TimeHysteresis.EDGE_RISING, () -> {
 			// Store current position when velocity mode is entered
 			vpos_ned.setTo(lpos.T);  
 		});
 
 		// switch to POS
-		pose_hysteresis.registerAction(TimeHysteresis.EDGE_FALLING, () -> {
+		pos_hysteresis.registerAction(TimeHysteresis.EDGE_FALLING, () -> {
 			// Store current offset of vision position for correction when position mode is entered
 		//	error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, lpos.T.z - ned.T.z);
 			error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, 0); // Do not use Z
@@ -397,7 +400,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				tms_old  = tms; 
 
 				error_pos_ned.setTo(0,0,0);
-				pose_hysteresis.reset();
+				pos_hysteresis.reset();
+				att_hysteresis.reset();
 
 				return;
 			}
@@ -488,17 +492,24 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// get euler angles
 			att.setFromMatrix(ned.R);
 			
-			if(error_hysteresis.check(Math.abs(att.getYaw() - model.attitude.y) > MAX_YAW_VARIANCE)) {
+			if(att_hysteresis.check(Math.abs(att.getYaw() - model.attitude.y) > MAX_YAW_VARIANCE)) {
 				model.vision.setStatus(Vision.ATT_VALID, false);
 			//	model.vision.setStatus(Vision.ERROR, true);
 			} else {
 				model.vision.setStatus(Vision.ATT_VALID, true);
 			}
 
-			// Consistency checks
+			// Assume vision position and velocity valid
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.SPEED_VALID, true);
-
+				
+			// Sensor speed test
+			if(vel_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, ned_s.T) > MAX_VEL_VARIANCE)) {
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.ERROR, true);
+				// TODO: Some Action (e.g. stop vision)
+				//model.vision.setStatus(Vision.ENABLED, false);
+			}  
 
 			// Drift in hold mode:	
 			// Assumption: Speed of T265 is always valid
@@ -529,14 +540,18 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			//         TODO: Use also integrated Z in velocity mode: Target: also Z should be stable
 
 
-			// Check variance between PX4 local XYZ speed (NED) and Vision position based XYZ speed (NED)
+			// Check variance between Vision speed (NED) and Vision position based XYZ speed (NED)
+		
 			if(drift_compensation ) {
-				if(pose_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, vpos_ned_s) > MAX_SPEED_VARIANCE)) {
+				if(pos_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, vpos_ned_s) > MAX_VEL_VARIANCE 
+						// NOTE: Does not work while turning
+						// TODO: Why are speeds different while turning?
+						&& Math.abs(model.attitude.yr) < 0.3f)) {
 					
-					if(pose_hysteresis.getDurationOfState_ms() > 2000) {
-						model.vision.setStatus(Vision.ERROR, true);
-						//init("vpos");
-						//return;
+					if(pos_hysteresis.getDurationOfState_ms() > 2000) {
+					//	model.vision.setStatus(Vision.ERROR, true);
+						init("vpos");
+						return;
 					}
 
 					model.vision.setStatus(Vision.POS_VALID, false);
@@ -559,6 +574,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				
 				model.debug.set(vpos_ned);
 			}
+			
 
 			// Fiducial detection
 			model.vision.setStatus(Vision.FIDUCIAL_ENABLED, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
