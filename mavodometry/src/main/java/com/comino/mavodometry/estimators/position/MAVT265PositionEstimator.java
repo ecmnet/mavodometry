@@ -287,11 +287,17 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				}
 			}
 		});
+		
+		control.getStatusManager().addListener(Status.MSP_GPOS_VALID, (n) -> {
+			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY))
+				init("gpos");
+			
+		});
 
 
 		control.getStatusManager().addListener(StatusManager.TYPE_MSP_SERVICES,	Status.MSP_OPCV_AVAILABILITY, (n) -> {
 			if (n.isSensorAvailable(Status.MSP_OPCV_AVAILABILITY))
-				wq.addSingleTask("LP",500,() -> init("init"));
+				wq.addSingleTask("LP",1000,() -> init("init"));
 		});
 
 		control.getStatusManager().addListener(StatusManager.TYPE_MSP_AUTOPILOT,
@@ -711,7 +717,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		MSPLogger.getInstance().writeLocalMsg("[msp] Setting reference position",
 				MAV_SEVERITY.MAV_SEVERITY_INFO);
-		init("init");
 
 	}
 
