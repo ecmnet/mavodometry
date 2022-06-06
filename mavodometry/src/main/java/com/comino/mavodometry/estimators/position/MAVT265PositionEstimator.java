@@ -358,7 +358,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Reset procedure ------------------------------------------------------------------------------------------------
 			// Note: This takes 1.5sec for T265;
 
-			if((System.currentTimeMillis() - tms_reset) < 2500 || !is_initialized) {
+			if((System.currentTimeMillis() - tms_reset) < 1500 || !is_initialized) {
 				tms_reset = 0; confidence_old = 0; is_initialized = true; error_count = 0;
 
 				// set initial T265 pose as origin
@@ -402,6 +402,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					stream.addToStream(img, model, tms);
 				}
 
+				vpos_ned_s.setTo(0, 0, 0);
 				ned_old.setTo(ned);
 				tms_old  = tms; 
 
@@ -459,8 +460,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			// rotate sensor velocities to body frame
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
-
-
+			
 			// eventually calculate rr,pr,yr and do not use model rates
 			// should compesate rotations in speed
 			// TODO: To be tested in real flight
@@ -578,7 +578,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					ned.T.plusIP(error_pos_ned);
 				}
 				
-				model.debug.set(vpos_ned);
 			}
 			
 

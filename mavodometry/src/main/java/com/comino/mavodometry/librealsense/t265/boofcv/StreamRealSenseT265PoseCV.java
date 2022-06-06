@@ -475,7 +475,12 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 							CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
 
-							current_speed.getTranslation().setTo( rawpose.velocity().z(), -rawpose.velocity().x(), - rawpose.velocity().y());
+							// Do not publish z speeds < 0.02m/s 
+							if(Math.abs(rawpose.velocity().y()) > 0.02f)
+							  current_speed.getTranslation().setTo( rawpose.velocity().z(), -rawpose.velocity().x(), - rawpose.velocity().y());
+							else
+						      current_speed.getTranslation().setTo( rawpose.velocity().z(), -rawpose.velocity().x(), 0);
+							
 							current_speed.getRotation().setTo(current_pose.getRotation());
 
 							current_acceleration.getTranslation().setTo(rawpose.acceleration().z(), -rawpose.acceleration().x(), - rawpose.acceleration().y());
