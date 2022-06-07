@@ -289,7 +289,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		});
 		
 		control.getStatusManager().addListener(Status.MSP_GPOS_VALID, (n) -> {
-			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY))
+			if(model.gps.numsat > 8 && n.isStatus(Status.MSP_GPOS_VALID))
 				init("gpos");
 			
 		});
