@@ -43,7 +43,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-	private static final int 		FRAME_RATE_FPS        = 15;
+//	private static final int 		FRAME_RATE_FPS        = 15;
 	private static final int		DEFAULT_VIDEO_QUALITY = 60;
 	private static final int		MAX_VIDEO_QUALITY     = 70;
 	private static final int		LOW_VIDEO_QUALITY     = 10;
@@ -65,7 +65,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private final BufferedImage          image;
 	private final Graphics2D             ctx;
 	
-	private final int rate = 30 / FRAME_RATE_FPS;
+//	private final int rate = 30 / FRAME_RATE_FPS;
 
 	private long       last_image_tms    = 0;
 	private float      fps = 0;
@@ -162,7 +162,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	@Override
 	public void  addToStream(T in, DataModel model, long tms) {
 		try {
-			if(transfer.remainingCapacity()>0 && (modulo++ % rate) == 0 )
+			if(transfer.remainingCapacity()>0 ) //&& (modulo++ % rate) == 0 )
+
 				transfer.put(in);
 		} catch (InterruptedException e) {
 			e.printStackTrace();

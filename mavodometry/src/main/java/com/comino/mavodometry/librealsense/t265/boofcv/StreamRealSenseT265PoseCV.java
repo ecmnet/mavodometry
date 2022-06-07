@@ -338,8 +338,10 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 					checkError(error);
 					video_enabled = true;
 
-				} else
+				} else {
+					System.out.println("T265 video streams not enabled (USB 2 mode)");
 					video_enabled = false;
+				}
 
 
 				if(rs2_config_can_resolve(config, pipeline, error) == 0) {
