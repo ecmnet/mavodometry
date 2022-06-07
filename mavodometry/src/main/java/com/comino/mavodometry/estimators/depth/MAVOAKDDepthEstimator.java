@@ -116,6 +116,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			this.oakd   = StreamDepthAIOakD.getInstance(width, height);
 			//		this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
 			this.oakd.setRGBMode(!depth_overlay);
+		//	this.oakd.setRGBMode(false);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -152,6 +153,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				if(stream!=null && enableStream) {
 					stream.addToStream(rgb, model, timeRgb);
 				}
+				
+				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
+				tms = System.currentTimeMillis();			
 			}
 		});
 
@@ -237,10 +241,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 				model.slam.ox = (float)ned_pt_n.x;
 				model.slam.oy = (float)ned_pt_n.y;
-				model.slam.oz = (float)ned_pt_n.z;
-
-				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
-				tms = System.currentTimeMillis();			
+				model.slam.oz = (float)ned_pt_n.z;		
 
 
 			} catch (InterruptedException e) {
