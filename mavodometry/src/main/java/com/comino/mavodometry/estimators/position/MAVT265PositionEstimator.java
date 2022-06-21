@@ -237,8 +237,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		System.out.println("T265 Mounting offset: "+offset);
 
 		// drift compensation
-		drift_compensation = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "true");
-		System.out.println("T265 drift compensation enabled: "+drift_compensation);
+		drift_compensation = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "false");
+		
+		// Do not allow drift compensation with GPS
+		// TOOD: Better check PX4 fusion parameter
+		if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && drift_compensation) {
+			drift_compensation = false;
+			writeLogMessage(new LogMessage("[vio] T265 drift compensation disabled as GPS is available", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+		} else
+			System.out.println("T265 drift compensation enabled: "+drift_compensation);
 
 		// fiducial settings
 		fiducial_size   = config.getFloatProperty(MSPParams.T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
@@ -289,7 +296,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		});
 		
 		control.getStatusManager().addListener(Status.MSP_GPOS_VALID, (n) -> {
-			if(model.gps.numsat > 8 && n.isStatus(Status.MSP_GPOS_VALID))
+			if(model.gps.numsat > 8 && n.isStatus(Status.MSP_GPOS_VALID) && n.isStatus(Status.MSP_LANDED))
 				init("gpos");
 			
 		});
