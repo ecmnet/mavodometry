@@ -199,11 +199,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		if(x0==0 && y0 == 0)
 			return;
 
-		final int ln = 10;
-
-		ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
-		ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
-		ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
+//		final int ln = 10;
+//
+//		ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
+//		ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
+//		ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
 
 		String tmp = fdistance.format(model.slam.dm);
 		ctx.drawString(fdistance.format(model.slam.dm), width34 - ctx.getFontMetrics().stringWidth(tmp)/2, 20);
@@ -252,8 +252,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		// map depth on a 640/DEPTH_SCALE x 480/DEPTH_SCALE basis
 		private int depthMapping(GrayU16 in) {
-
+			
 			int quality = 0; nearest_body.location.x = Double.MAX_VALUE;
+			
+			if(!control.isSimulation() && model.sys.isStatus(Status.MSP_LANDED))
+				return 0;
 
 			for(int x = 0; x < in.width;x = x + DEPTH_SCALE) {
 				for(int y = 0; y < in.height;y = y + DEPTH_SCALE) {
@@ -262,12 +265,10 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 							nearest_body.setTo(tmp_p);
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
-						if(Math.abs(ned_p.location.z - to_ned.T.z) < 0.5f)
 						  map.update(to_ned.T,ned_p.location);   // Incremental probability
 					//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
 						quality++;
 					}
-
 				}
 			}
 			return (int)(quality * 1600f / in.data.length);
