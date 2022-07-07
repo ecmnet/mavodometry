@@ -300,6 +300,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				init("gpos");
 			
 		});
+		
+		control.getStatusManager().addListener(Status.MSP_ARMED, (n) -> {
+			if(n.isStatus(Status.MSP_ARMED) && n.isStatus(Status.MSP_LANDED))
+				init("armed");
+			
+		});
 
 
 		control.getStatusManager().addListener(StatusManager.TYPE_MSP_SERVICES,	Status.MSP_OPCV_AVAILABILITY, (n) -> {
@@ -332,7 +338,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, 0); // Do not use Z
 		});
 
-		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
+		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180_PREDICT,width,height);
 		t265.registerCallback((tms, confidence, p, s, a, img) ->  {
 
 			// Bug in CB; sometimes called twice
@@ -475,7 +481,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			angular_rates.setTo(model.attitude.rr, model.attitude.pr, model.attitude.yr);
 			offset_vel_body.crossSetTo(angular_rates, offset);
 			offset_vel_body.scale(-1);
-			//body_s.T.plusIP(offset_vel_body);
+			body_s.T.plusIP(offset_vel_body);
 
 			// Get model attitude rotation
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
