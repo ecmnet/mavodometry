@@ -335,7 +335,7 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 					rs2_config_enable_stream(config, realsense2.RS2_STREAM_FISHEYE, 1, WIDTH, HEIGHT, realsense2.RS2_FORMAT_Y8, 30, error);
 					checkError(error);
 					rs2_config_enable_stream(config, realsense2.RS2_STREAM_FISHEYE, 2, WIDTH, HEIGHT, realsense2.RS2_FORMAT_Y8, 30, error);
-					checkError(error);
+    				checkError(error);
 					video_enabled = true;
 
 				} else {
@@ -399,7 +399,9 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 								rs2_pose_frame_get_pose_data(frame, rawpose, error);
 							}
 
-							if(0 != rs2_is_frame_extendable_to(frame, realsense2.RS2_EXTENSION_VIDEO_FRAME, error)) {
+							// get left camera at 15Hz
+							if(0 != rs2_is_frame_extendable_to(frame, realsense2.RS2_EXTENSION_VIDEO_FRAME, error) && (count_framesets % 2 == 0)) {
+								
 								if(!left) {
 									left = true;
 									if(mode_left==null) {
@@ -527,6 +529,11 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 							current_speed.getTranslation().setTo( prepose.velocity().z(), -prepose.velocity().x(), - prepose.velocity().y());
 							current_speed.getRotation().setTo(current_pose.getRotation());
+							
+							// avoid drift around 0
+							current_speed.T.z = Math.abs(current_speed.T.z) > 0.02f ? current_speed.T.z : 0;
+							current_speed.T.x = Math.abs(current_speed.T.x) > 0.01f ? current_speed.T.x : 0;
+							current_speed.T.y = Math.abs(current_speed.T.y) > 0.01f ? current_speed.T.y : 0;
 
 							current_acceleration.getTranslation().setTo(rawpose.acceleration().z(), -rawpose.acceleration().x(), - rawpose.acceleration().y());
 
