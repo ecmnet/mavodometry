@@ -148,6 +148,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Se3_F64          ned_s    		= new Se3_F64();
 	private final Se3_F64          body     		= new Se3_F64();
 	private final Se3_F64          body_s   		= new Se3_F64();
+	private final Se3_F64          body_a   		= new Se3_F64();
 	private final Se3_F64          lpos     		= new Se3_F64();
 
 	private final DMatrixRMaj   tmp         	= CommonOps_DDRM.identity( 3 );
@@ -338,7 +339,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, 0); // Do not use Z
 		});
 
-		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180_PREDICT,width,height);
+		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
 		t265.registerCallback((tms, confidence, p, s, a, img) ->  {
 
 			// Bug in CB; sometimes called twice
@@ -451,7 +452,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					stream.addToStream(img, model, tms);
 				}
 				model.vision.setStatus(Vision.PUBLISHED, false);
-				publishMSPVision(gnd_ned,p,s,precision_lock,tms);
+				publishMSPVision(gnd_ned,p,s,a,precision_lock,tms);
 				return;
 			}
 
@@ -471,8 +472,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			model.vision.fps = (float)dt_sec_1;
 			tms_old = tms;
 
-			// rotate sensor velocities to body frame
+			// rotate sensor velocities and acceleration to body frame
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
+			GeometryMath_F64.mult(to_body.R, a.T, body_a.T);
 			
 			// eventually calculate rr,pr,yr and do not use model rates
 			// should compesate rotations in speed
@@ -527,6 +529,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.ERROR, true);
 				// TODO: Some Action (e.g. stop vision)
+				// - Stop publishing
+				// - reset vision
+				// - check data before publishing
+				
 				//model.vision.setStatus(Vision.ENABLED, false);
 			}  
 
@@ -627,10 +633,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Publish position data NED frame, speed body frame;  with ground truth
 				//		publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,model.vision.isStatus(Vision.POS_VALID),confidence,tms);
-				publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,confidence,tms);
+				
+				// Do not publish data if error detected
+				if(!model.vision.isStatus(Vision.ERROR))
+				  publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,confidence,tms);
 
 				// Publish to GCL
-				publishMSPVision(gnd_ned,ned,ned_s,precision_lock,tms);
+				publishMSPVision(gnd_ned,ned,ned_s,body_a,precision_lock,tms);
 
 				break;
 
@@ -848,7 +857,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	}
 
-	private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed,Vector4D_F64 offset,long tms) {
+	private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed, Se3_F64 acc_body, Vector4D_F64 offset,long tms) {
 
 
 		msg.x =  (float) pose.T.x;
@@ -858,6 +867,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		msg.vx =  (float) speed.T.x;
 		msg.vy =  (float) speed.T.y;
 		msg.vz =  (float) speed.T.z;
+		
+		msg.ax =  (float) acc_body.T.x;
+		msg.ay =  (float) acc_body.T.y;
+		msg.az =  (float) acc_body.T.z;
 
 		msg.gx =  (float) orig.T.x;
 		msg.gy =  (float) orig.T.y;
