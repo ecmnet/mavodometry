@@ -39,6 +39,7 @@ import java.text.DecimalFormat;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
+import org.mavlink.messages.ESTIMATOR_STATUS_FLAGS;
 import org.mavlink.messages.MAV_ESTIMATOR_TYPE;
 import org.mavlink.messages.MAV_FRAME;
 import org.mavlink.messages.MAV_SEVERITY;
@@ -102,7 +103,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final int         FIDUCIAL_HEIGHT     		= 360;
 	private static final int         FIDUCIAL_WIDTH     		= 360;
 
-	private static final int     	 MAX_ERRORS          		= 200;
+	private static final int     	 MAX_ERRORS          		= 60;
 	
 	private static final float       MAX_VEL_VARIANCE           = 0.5f;     
 	private static final float       MAX_YAW_VARIANCE           = 1.0f;
@@ -433,8 +434,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			}
 
 			if(confidence <= CONFIDENCE_LOW && confidence_old != confidence) {
-				control.writeLogMessage(new LogMessage("[vio] T265 Tracker confidence low", MAV_SEVERITY.MAV_SEVERITY_WARNING));
-				// TODO: Action here
+				init("Low confidence");
+				return;
 			}
 
 			confidence_old = confidence;
@@ -528,13 +529,21 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			if(vel_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, ned_s.T) > MAX_VEL_VARIANCE)) {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.ERROR, true);
-				// TODO: Some Action (e.g. stop vision)
-				// - Stop publishing
-				// - reset vision
-				// - check data before publishing
-				
-				//model.vision.setStatus(Vision.ENABLED, false);
+				if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) || model.sys.isSensorAvailable(Status.MSP_PIX4FLOW_AVAILABILITY)) {
+					error_count++;
+					return;
+				}
 			}  
+			
+			// Solution status check if GPS is available => do not publish
+			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) &&
+					model.est.isFlagSet(ESTIMATOR_STATUS_FLAGS.ESTIMATOR_GPS_GLITCH)) {
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				model.vision.setStatus(Vision.ERROR, true);
+				error_count++;
+				return;
+			}
 
 			// Drift in hold mode:	
 			// Assumption: Speed of T265 is always valid
@@ -682,6 +691,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			tms_reset = System.currentTimeMillis();
 			reset_count++; 
 			quality = 0; error_count=0; 
+			ned_s.reset(); body_s.reset(); body_a.reset();
 			t265.reset();
 			if(s!=null)
 				writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
