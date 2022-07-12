@@ -57,6 +57,7 @@ import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.log.MSPLogger;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
+import com.comino.mavcom.model.segment.EstStatus;
 import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
@@ -434,7 +435,20 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			}
 
 			if(confidence <= CONFIDENCE_LOW && confidence_old != confidence) {
-				init("Low confidence");
+				
+				if(++error_count > MAX_ERRORS)
+				  init("Low confidence");
+				
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				model.vision.setStatus(Vision.ERROR, true);
+				
+				publishMSPFlags(tms);
+				// Add left camera to stream
+				if(stream!=null && enableStream) {
+					stream.addToStream(img, model, tms);
+				}
+				
 				return;
 			}
 
@@ -442,10 +456,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			model.vision.setStatus(Vision.RESETTING, false);
 
-			if(error_count > MAX_ERRORS) {
-				init("maxErrors");
-				return;
-			}
 
 			//No flight controller connected => publish raw pose and speed for debugging purpose
 			if(!model.sys.isStatus(Status.MSP_CONNECTED)) {
@@ -527,21 +537,42 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				
 			// Sensor speed test
 			if(vel_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, ned_s.T) > MAX_VEL_VARIANCE)) {
+				
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.ERROR, true);
+				
 				if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) || model.sys.isSensorAvailable(Status.MSP_PIX4FLOW_AVAILABILITY)) {
-					error_count++;
+					
+					if(++error_count > MAX_ERRORS)
+						init("Velocity");
+					
+					publishMSPFlags(tms);
+					// Add left camera to stream
+					if(stream!=null && enableStream) {
+						stream.addToStream(img, model, tms);
+					}
+					
 					return;
 				}
 			}  
 			
 			// Solution status check if GPS is available => do not publish
-			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) &&
-					model.est.isFlagSet(ESTIMATOR_STATUS_FLAGS.ESTIMATOR_GPS_GLITCH)) {
+			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.isFlagSet(EstStatus.EKF_GPS_GLITCH)) {
+				
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				model.vision.setStatus(Vision.ERROR, true);
-				error_count++;
+				
+				if(++error_count > MAX_ERRORS)
+					init("EKF2 Glitch");
+				
+				publishMSPFlags(tms);
+				
+				// Add left camera to stream
+				if(stream!=null && enableStream) {
+					stream.addToStream(img, model, tms);
+				}
+				
 				return;
 			}
 
