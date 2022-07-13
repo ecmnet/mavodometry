@@ -131,7 +131,6 @@ public class TimeHysteresis {
 				Thread.sleep(100);
 				System.out.println(h.getDurationOfState_ms());
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}
@@ -145,7 +144,6 @@ public class TimeHysteresis {
 				Thread.sleep(100);
 				System.out.println(h.getDurationOfState_ms());
 			} catch (InterruptedException e) {
-				// TODO Auto-generated catch block
 				e.printStackTrace();
 			}
 		}

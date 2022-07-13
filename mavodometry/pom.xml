@@ -51,6 +51,11 @@
 			<artifactId>mavmap</artifactId>
 			<version>0.0.1</version>
 		</dependency>
+		<dependency>
+			<groupId>com.comino</groupId>
+			<artifactId>mavgazebo</artifactId>
+			<version>0.0.1</version>
+		</dependency>
 <!--
         <dependency>
 			<groupId>com.comino</groupId>
@@ -97,7 +102,16 @@
 			<artifactId>javacpp</artifactId>
 			<version>1.5.8-SNAPSHOT</version>
 		</dependency>
-
+		<dependency>
+			<groupId>org.bytedeco</groupId>
+			<artifactId>cuda</artifactId>
+			<version>11.6-8.3-1.5.8-SNAPSHOT</version>
+		</dependency>
+		<dependency>
+			<groupId>org.bytedeco</groupId>
+			<artifactId>cuda-platform</artifactId>
+			<version>11.6-8.3-1.5.8-SNAPSHOT</version>
+		</dependency>
 		<dependency>
 			<groupId>org.bytedeco</groupId>
 			<artifactId>depthai</artifactId>
