@@ -1,16 +1,25 @@
 package com.comino.mavodometry.estimators.position;
 
 import org.ejml.dense.row.CommonOps_DDRM;
+import org.mavlink.messages.MAV_ESTIMATOR_TYPE;
+import org.mavlink.messages.MAV_FRAME;
+import org.mavlink.messages.MAV_SEVERITY;
 import org.mavlink.messages.MSP_CMD;
+import org.mavlink.messages.MSP_COMPONENT_CTRL;
 import org.mavlink.messages.lquac.msg_msp_command;
 import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
 
+import com.comino.gazebo.libvision.boofcv.StreamGazeboVision;
+import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
+import com.comino.mavcom.model.segment.EstStatus;
+import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
+import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -21,24 +30,24 @@ import georegression.struct.se.Se3_F64;
 
 // Note: Requires odomtery enabled in SDF <send_odometry>1</send_odometry>
 
-public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IMAVLinkListener  {
+public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
+
+	// MAVLink messages
+	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
+	private final msg_odometry                 odo = new msg_odometry(1,1);
+
 
 	private final WorkQueue wq = WorkQueue.getInstance();
 
 	private final DataModel 	     model;
-	private final Vector3D_F64       pos_ned    = new Vector3D_F64();
-	private final Vector3D_F64       pos_body   = new Vector3D_F64();
-	private final Vector3D_F64       pos_old    = new Vector3D_F64();
-
-	private final Vector3D_F64       vel_ned    = new Vector3D_F64();
-	private final Vector3D_F64       vel_body   = new Vector3D_F64();
-
-	private final Vector3D_F64       vpo_body   = new Vector3D_F64();
-	private final Vector3D_F64       vpo_ned    = new Vector3D_F64();
 	private final Se3_F64            to_ned     = new Se3_F64();
 	private final Se3_F64            to_body    = new Se3_F64();
 
-	private final msg_msp_vision     msg        = new msg_msp_vision(2,1);
+	private final Se3_F64          ned      		= new Se3_F64();
+	private final Se3_F64          ned_s    		= new Se3_F64();
+	private final Se3_F64          body_s    		= new Se3_F64();
+	private final Vector3D_F64     offset_pos_ned   = new Vector3D_F64();
+
 	private boolean                  is_running = false;
 
 	private long                     tms   = 0;
@@ -46,13 +55,22 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 	private float 			    	 dt_sec  = 0;
 	private float 			    	 dt_sec_1 = 0;
 
+	private long                     tms_reset = 0;
+	private long                     tms_start = 0;
 
-	public MAVSITLPositionEstimator(IMAVMSPController control) {
+	private int                      reset_count = 0;
+	private int                      ekf_reset_counter = 0;
+
+	private float velocity_error    = 0;
+
+	private final StreamGazeboVision vis;
+	private final Attitude3D_F64     att = new Attitude3D_F64();
+
+	public MAVGazeboVisPositionEstimator(IMAVMSPController control) {
 		super(control);
 		this.model = control.getCurrentModel();
-		control.addMAVLinkListener(this);
-
-		control.sendMAVLinkMessage(msg);
+		this.vis   = StreamGazeboVision.getInstance(640,480);
+		
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
 			@Override
@@ -62,102 +80,123 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 				case MSP_CMD.MSP_CMD_SET_HOMEPOS:
 					setGlobalOrigin(cmd.param1 / 1e7f, cmd.param2 / 1e7f, cmd.param3 / 1e3f );
 					break;
+				case MSP_CMD.MSP_CMD_VISION:
+
+					switch((int)cmd.param1) {
+					case MSP_COMPONENT_CTRL.ENABLE:
+						if(!model.vision.isStatus(Vision.ENABLED)) {
+							init("enable");
+							model.vision.setStatus(Vision.ENABLED, true);
+						}
+						break;
+					case MSP_COMPONENT_CTRL.DISABLE:
+						model.vision.setStatus(Vision.ENABLED, false);
+						break;
+					case MSP_COMPONENT_CTRL.RESET:
+						init("Reset");
+						break;
+					}
 				}
 			}
 		});
 
-
-		wq.addCyclicTask("LP", 30, () -> {
-
-			if(is_running) {
-				msg.fps     = 1000f / (System.currentTimeMillis() - tms);
-				tms = System.currentTimeMillis();
-
-
-				// Convert body velocities to NED
-
-				GeometryMath_F64.mult(to_ned.R, vel_body,vel_ned);
-
-				msg.x =  (float)pos_ned.x;
-				msg.y =  (float)pos_ned.y;
-				msg.z =  (float)pos_ned.z;
-
-				msg.vx = (float)vel_ned.x;
-				msg.vy = (float)vel_ned.y;
-				msg.vz = (float)vel_ned.z;
-
-				msg.p  = model.attitude.p;
-				msg.r  = model.attitude.r;
-				msg.h  = model.attitude.y;
-
-				msg.quality = 100;
-				msg.errors  = 0;
-				msg.tms     = DataModel.getSynchronizedPX4Time_us();
-				msg.flags   = model.vision.flags;
-
-				control.sendMAVLinkMessage(msg);
-
-				GeometryMath_F64.mult(to_ned.R, vpo_body,vpo_ned);
-				model.debug.set(vpo_ned);
-
-
+		control.getStatusManager().addListener(Status.MSP_ARMED, (n) -> {
+			if(n.isStatus(Status.MSP_ARMED) && n.isStatus(Status.MSP_LANDED)) {
+				init("armed");
 			}
+
+
 		});
 
-	}
+		offset_pos_ned.setTo(0,0,0);
 
-	@Override
-	public void received(Object o) {
+		vis.registerCallback((tms, confidence, p, s, a) ->  {
+			
 
-		if( !(o instanceof msg_odometry))
-			return;
+			if(tms_reset > 0 && ((System.currentTimeMillis() - tms_reset) < 2000)) {
+				model.vision.setStatus(Vision.RESETTING, true);
+				MSP3DUtils.convertCurrentPosition(model, offset_pos_ned);
+				offset_pos_ned.scale(-1);
+				offset_pos_ned.plusIP(p.T);
+				offset_pos_ned.scale(-1);
+				tms_start = System.currentTimeMillis();
+				body_s.reset();
+				publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,confidence,tms);
+				return;
+			}
 
-		if(!is_running) {
-			model.vision.setStatus(Vision.ENABLED, true);
-			model.vision.setStatus(Vision.AVAILABLE, true);
-			model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
-			model.vision.setStatus(Vision.POS_VALID, true);
-			model.vision.setStatus(Vision.SPEED_VALID, true);
-			model.vision.setStatus(Vision.PUBLISHED, true);
+			model.vision.setStatus(Vision.RESETTING, false);
+			model.vision.setStatus(Vision.ERROR, false);
 
-			System.out.println("SITL Vision PositionEstimator enabled");
-			is_running = true;
-		}
+			tms_reset = 0;
 
-		if(tms_r == 0) {
-			tms_r = System.currentTimeMillis();
-			return;
-		}
+			if(!model.vision.isStatus(Vision.ENABLED)) {
+				publishMSPFlags(DataModel.getSynchronizedPX4Time_us());
+				return;
+			}
 
-		synchronized(this) {
 
-			dt_sec   = (System.currentTimeMillis() - tms_r) / 1000f;
-			dt_sec_1 = 1f / dt_sec;
-			tms_r    = System.currentTimeMillis();
+			if(ekf_reset_counter != model.est.reset_counter) {
+				ekf_reset_counter =  model.est.reset_counter;
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				model.vision.setStatus(Vision.ERROR, true);
+				init("EKF2 reset");
+				return;
+			}
+
+
+			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.isFlagSet(EstStatus.EKF_GPS_GLITCH)) {
+
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				model.vision.setStatus(Vision.ERROR, true);		
+				init("EKF2 Glitch");
+				return;
+			}
 
 			MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 			CommonOps_DDRM.transpose(to_ned.R, to_body.R);
 
+			ned.setTo(p);
+			ned_s.setTo(s);
 
-			// Just send msg_odometry as msp_vision message
-			msg_odometry odometry = (msg_odometry)o;
+			// get euler angles
+			att.setFromMatrix(ned.R);
+			
+			ned.T.plusIP(offset_pos_ned);
 
-			pos_ned.setTo(odometry.x,odometry.y,odometry.z);
-			vel_body.setTo(odometry.vx,odometry.vy,odometry.vz);
+//			if((System.currentTimeMillis() -tms_start) > 30000 && tms_start > 0)
+//				velocity_error += .005;
+//
+//			ned_s.T.x += velocity_error;
+//			ned_s.T.y += velocity_error;
 
-			// Rotate pos into body for pos based velocities
-			GeometryMath_F64.mult(to_body.R,pos_ned,pos_body);
 
-			vpo_body.x = ( pos_body.x - pos_old.x ) * dt_sec_1;
-			vpo_body.y = ( pos_body.y - pos_old.y ) * dt_sec_1;
-			vpo_body.z = ( pos_body.z - pos_old.z ) * dt_sec_1;
+			GeometryMath_F64.mult( to_body.R, ned_s.T ,body_s.T );
 
-			pos_old.setTo(pos_body);
-		}
+
+
+			model.vision.setStatus(Vision.POS_VALID, true);
+			model.vision.setStatus(Vision.SPEED_VALID, true);
+			model.vision.setStatus(Vision.AVAILABLE, true);
+
+
+			publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,confidence,tms);
+			// Publish to GCL
+			publishMSPVision(ned,ned_s,tms);
+
+			model.vision.setAttitude(att);
+			model.vision.setPosition(ned.T);
+			model.vision.setSpeed(ned_s.T);
+			model.vision.tms = tms * 1000;
+
+			model.vision.fps = vis.getFrameRate();
+
+		});
+
 
 	}
-
-
 
 
 	public void reset() {
@@ -173,12 +212,116 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 
 	@Override
 	public void start() throws Exception {
-
+		System.out.println("Gazebo vision plugin started for SITL");
+		vis.start();
 
 	}
 
 	@Override
 	public void stop() {
+
+	}
+
+	public void init(String s) {
+		tms_reset = System.currentTimeMillis();
+		reset_count++; 
+		if(s!=null)
+			writeLogMessage(new LogMessage("[vio] Gazebo vision reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+		model.vision.setStatus(Vision.RESETTING, true);
+		model.vision.setStatus(Vision.POS_VALID, false);
+		model.vision.setStatus(Vision.SPEED_VALID, false);
+		publishMSPFlags(DataModel.getSynchronizedPX4Time_us());
+
+		velocity_error = 0;
+	}
+
+	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, boolean pose_is_valid, int confidence, long tms) {
+
+		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
+		odo.frame_id       = frame;
+		odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
+
+		odo.time_usec =  tms * 1000;
+
+		if(pose_is_valid) {
+			odo.x = (float) pose.x;
+			odo.y = (float) pose.y;
+			odo.z = (float) pose.z;
+			//			build_covariance(odo.pose_covariance, confidence);
+		} else {
+			//			odo.x = Float.NaN;
+			//			odo.y = Float.NaN;
+			//	odo.z = Float.NaN;
+			//			odo.x = (float)lpos.T.x;
+			//			odo.y = (float)lpos.T.y;
+			//			odo.z = (float) pose.z;
+			//			odo.pose_covariance[0] = Float.NaN;
+		}
+
+		odo.vx = (float) speed.x;
+		odo.vy = (float) speed.y;
+		odo.vz = (float) speed.z;
+
+		// Use EKF params
+		odo.pose_covariance[0] = Float.NaN;
+		odo.velocity_covariance[0] = Float.NaN;
+
+		//		build_covariance(odo.velocity_covariance, confidence);
+
+		//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
+		//		odo.q[0] = (float)att_q.w;
+		//		odo.q[1] = (float)att_q.x;
+		//		odo.q[2] = (float)att_q.y;
+		//		odo.q[3] = (float)att_q.z;
+
+		// do not use twist
+		odo.q[0] = Float.NaN;
+
+
+		odo.reset_counter = reset_count;
+
+		control.sendMAVLinkMessage(odo);
+
+		model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
+		model.vision.setStatus(Vision.PUBLISHED, true);
+
+	}
+
+	private void publishMSPVision(Se3_F64 pose, Se3_F64 speed, long tms) {
+
+
+		msg.x =  (float) pose.T.x;
+		msg.y =  (float) pose.T.y;
+		msg.z =  (float) pose.T.z;
+
+		msg.vx =  (float) speed.T.x;
+		msg.vy =  (float) speed.T.y;
+		msg.vz =  (float) speed.T.z;
+
+		msg.h   = (float)att.getYaw();
+		msg.r   = (float)att.getRoll();
+		msg.p   = (float)att.getPitch();
+
+		msg.quality = 100;
+		msg.errors  = 0;
+		msg.tms     = tms * 1000;
+		msg.flags   = model.vision.flags;
+		msg.fps     = model.vision.fps;
+
+		control.sendMAVLinkMessage(msg);
+
+
+	}
+
+	private void publishMSPFlags(long tms) {
+
+		msg.quality = (int)(100);
+		msg.errors  = 0;
+		msg.tms     = tms * 1000;
+		msg.flags   = model.vision.flags;
+		msg.fps     = model.vision.fps;
+
+		control.sendMAVLinkMessage(msg);
 
 	}
 
@@ -205,6 +348,9 @@ public class MAVSITLPositionEstimator extends MAVAbstractEstimator implements IM
 		//					MAV_SEVERITY.MAV_SEVERITY_INFO);
 
 	}
+
+
+
 
 
 }
