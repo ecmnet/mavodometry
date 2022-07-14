@@ -11,7 +11,6 @@ import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
 
 import com.comino.gazebo.libvision.boofcv.StreamGazeboVision;
-import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
@@ -28,7 +27,7 @@ import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
 
-// Note: Requires odomtery enabled in SDF <send_odometry>1</send_odometry>
+// Note: Requires odomtery disabled in SDF <send_odometry>0</send_odometry>
 
 public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 
@@ -40,37 +39,28 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 	private final WorkQueue wq = WorkQueue.getInstance();
 
 	private final DataModel 	     model;
-	private final Se3_F64            to_ned     = new Se3_F64();
-	private final Se3_F64            to_body    = new Se3_F64();
+	private final Se3_F64            to_ned         = new Se3_F64();
+	private final Se3_F64            to_body        = new Se3_F64();
 
 	private final Se3_F64          ned      		= new Se3_F64();
 	private final Se3_F64          ned_s    		= new Se3_F64();
 	private final Se3_F64          body_s    		= new Se3_F64();
 	private final Vector3D_F64     offset_pos_ned   = new Vector3D_F64();
-
-	private boolean                  is_running = false;
-
-	private long                     tms   = 0;
-	private long                     tms_r = 0;
-	private float 			    	 dt_sec  = 0;
-	private float 			    	 dt_sec_1 = 0;
+	private final Vector3D_F64     lpos_current_s   = new Vector3D_F64();
+	private final Attitude3D_F64   att_euler        = new Attitude3D_F64();
 
 	private long                     tms_reset = 0;
-	private long                     tms_start = 0;
 
 	private int                      reset_count = 0;
-	private int                      ekf_reset_counter = 0;
-
-	private float velocity_error    = 0;
 
 	private final StreamGazeboVision vis;
-	private final Attitude3D_F64     att = new Attitude3D_F64();
+	
 
 	public MAVGazeboVisPositionEstimator(IMAVMSPController control) {
 		super(control);
 		this.model = control.getCurrentModel();
 		this.vis   = StreamGazeboVision.getInstance(640,480);
-		
+
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
 			@Override
@@ -80,14 +70,14 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				case MSP_CMD.MSP_CMD_SET_HOMEPOS:
 					setGlobalOrigin(cmd.param1 / 1e7f, cmd.param2 / 1e7f, cmd.param3 / 1e3f );
 					break;
+
 				case MSP_CMD.MSP_CMD_VISION:
 
 					switch((int)cmd.param1) {
+
 					case MSP_COMPONENT_CTRL.ENABLE:
-						if(!model.vision.isStatus(Vision.ENABLED)) {
-							init("enable");
-							model.vision.setStatus(Vision.ENABLED, true);
-						}
+						init("enable");
+						model.vision.setStatus(Vision.ENABLED, true);
 						break;
 					case MSP_COMPONENT_CTRL.DISABLE:
 						model.vision.setStatus(Vision.ENABLED, false);
@@ -96,6 +86,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 						init("Reset");
 						break;
 					}
+					break;
 				}
 			}
 		});
@@ -109,39 +100,36 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		});
 
 		offset_pos_ned.setTo(0,0,0);
+		model.vision.setStatus(Vision.ENABLED, true);
+		publishMSPFlags(DataModel.getSynchronizedPX4Time_us());
 
 		vis.registerCallback((tms, confidence, p, s, a) ->  {
-			
 
+			MSP3DUtils.convertModelToSe3_F64(model, to_ned);
+			CommonOps_DDRM.transpose(to_ned.R, to_body.R);
+
+			// Simulate T265 reset cycle
 			if(tms_reset > 0 && ((System.currentTimeMillis() - tms_reset) < 2000)) {
+
 				model.vision.setStatus(Vision.RESETTING, true);
+				model.vision.setStatus(Vision.ERROR, false);
+
 				MSP3DUtils.convertCurrentPosition(model, offset_pos_ned);
 				offset_pos_ned.scale(-1);
 				offset_pos_ned.plusIP(p.T);
 				offset_pos_ned.scale(-1);
-				tms_start = System.currentTimeMillis();
-				body_s.reset();
-				publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,confidence,tms);
+				
 				return;
 			}
 
+
+			model.vision.setStatus(Vision.AVAILABLE, true);
 			model.vision.setStatus(Vision.RESETTING, false);
-			model.vision.setStatus(Vision.ERROR, false);
 
 			tms_reset = 0;
 
 			if(!model.vision.isStatus(Vision.ENABLED)) {
 				publishMSPFlags(DataModel.getSynchronizedPX4Time_us());
-				return;
-			}
-
-
-			if(ekf_reset_counter != model.est.reset_counter) {
-				ekf_reset_counter =  model.est.reset_counter;
-				model.vision.setStatus(Vision.SPEED_VALID, false);
-				model.vision.setStatus(Vision.POS_VALID, false);
-				model.vision.setStatus(Vision.ERROR, true);
-				init("EKF2 reset");
 				return;
 			}
 
@@ -155,38 +143,28 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				return;
 			}
 
-			MSP3DUtils.convertModelToSe3_F64(model, to_ned);
-			CommonOps_DDRM.transpose(to_ned.R, to_body.R);
-
 			ned.setTo(p);
 			ned_s.setTo(s);
 
-			// get euler angles
-			att.setFromMatrix(ned.R);
-			
+			att_euler.setFromMatrix(ned.R);
+
 			ned.T.plusIP(offset_pos_ned);
-
-//			if((System.currentTimeMillis() -tms_start) > 30000 && tms_start > 0)
-//				velocity_error += .005;
-//
-//			ned_s.T.x += velocity_error;
-//			ned_s.T.y += velocity_error;
-
 
 			GeometryMath_F64.mult( to_body.R, ned_s.T ,body_s.T );
 
-
+			MSP3DUtils.convertCurrentSpeed(model, lpos_current_s);
 
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.SPEED_VALID, true);
 			model.vision.setStatus(Vision.AVAILABLE, true);
 
 
-			publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,confidence,tms);
+			publishPX4Odometry(ned.T,body_s.T, MAV_FRAME.MAV_FRAME_LOCAL_NED,false,confidence,tms);
+
 			// Publish to GCL
 			publishMSPVision(ned,ned_s,tms);
 
-			model.vision.setAttitude(att);
+			model.vision.setAttitude(att_euler);
 			model.vision.setPosition(ned.T);
 			model.vision.setSpeed(ned_s.T);
 			model.vision.tms = tms * 1000;
@@ -200,7 +178,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 
 
 	public void reset() {
-
+         init("external");
 	}
 
 
@@ -223,16 +201,18 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 	}
 
 	public void init(String s) {
+		
 		tms_reset = System.currentTimeMillis();
 		reset_count++; 
+
 		if(s!=null)
 			writeLogMessage(new LogMessage("[vio] Gazebo vision reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+
 		model.vision.setStatus(Vision.RESETTING, true);
 		model.vision.setStatus(Vision.POS_VALID, false);
 		model.vision.setStatus(Vision.SPEED_VALID, false);
 		publishMSPFlags(DataModel.getSynchronizedPX4Time_us());
 
-		velocity_error = 0;
 	}
 
 	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, boolean pose_is_valid, int confidence, long tms) {
@@ -249,13 +229,9 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 			odo.z = (float) pose.z;
 			//			build_covariance(odo.pose_covariance, confidence);
 		} else {
-			//			odo.x = Float.NaN;
-			//			odo.y = Float.NaN;
-			//	odo.z = Float.NaN;
-			//			odo.x = (float)lpos.T.x;
-			//			odo.y = (float)lpos.T.y;
-			//			odo.z = (float) pose.z;
-			//			odo.pose_covariance[0] = Float.NaN;
+			odo.x = Float.NaN;
+			odo.y = Float.NaN;
+			odo.z = Float.NaN;
 		}
 
 		odo.vx = (float) speed.x;
@@ -263,20 +239,16 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		odo.vz = (float) speed.z;
 
 		// Use EKF params
+		
 		odo.pose_covariance[0] = Float.NaN;
 		odo.velocity_covariance[0] = Float.NaN;
 
-		//		build_covariance(odo.velocity_covariance, confidence);
+//		build_covariance(cov_pose,odo.pose_covariance);
+//		build_covariance(cov_speed,odo.velocity_covariance);
 
-		//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
-		//		odo.q[0] = (float)att_q.w;
-		//		odo.q[1] = (float)att_q.x;
-		//		odo.q[2] = (float)att_q.y;
-		//		odo.q[3] = (float)att_q.z;
 
 		// do not use twist
 		odo.q[0] = Float.NaN;
-
 
 		odo.reset_counter = reset_count;
 
@@ -286,6 +258,40 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		model.vision.setStatus(Vision.PUBLISHED, true);
 
 	}
+
+	//	private void publishPX4NaN(int frame, long tms) {
+	//
+	//		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
+	//		odo.frame_id       = frame;
+	//		odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
+	//
+	//		odo.time_usec =  tms * 1000;
+	//
+	//
+	//		odo.x = Float.NaN;
+	//		odo.y = Float.NaN;
+	//		odo.z = Float.NaN;
+	//
+	//
+	//		odo.vx = Float.NaN;
+	//		odo.vy = Float.NaN;
+	//		odo.vz = Float.NaN;
+	//
+	//		// Use EKF params
+	//		odo.pose_covariance[0] = Float.NaN;
+	//		odo.velocity_covariance[0] = Float.NaN;
+	//
+	//		// do not use twist
+	//		odo.q[0] = Float.NaN;
+	//
+	//
+	//		odo.reset_counter = reset_count;
+	//
+	//		control.sendMAVLinkMessage(odo);
+	//
+	//
+	//	}
+
 
 	private void publishMSPVision(Se3_F64 pose, Se3_F64 speed, long tms) {
 
@@ -298,9 +304,9 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		msg.vy =  (float) speed.T.y;
 		msg.vz =  (float) speed.T.z;
 
-		msg.h   = (float)att.getYaw();
-		msg.r   = (float)att.getRoll();
-		msg.p   = (float)att.getPitch();
+		msg.h   = (float)att_euler.getYaw();
+		msg.r   = (float)att_euler.getRoll();
+		msg.p   = (float)att_euler.getPitch();
 
 		msg.quality = 100;
 		msg.errors  = 0;
@@ -324,6 +330,19 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		control.sendMAVLinkMessage(msg);
 
 	}
+
+
+	private void build_covariance(float cov_vel, float[] cov) {
+
+		cov[0]  = cov_vel;   cov[1]  = 0; cov[2]  = 0; cov[3]  = 0; cov[4]  = 0; cov[5]  = 0;
+		cov[6]  = cov_vel;   cov[7]  = 0; cov[8]  = 0; cov[9]  = 0; cov[10] = 0;
+		cov[11] = cov_vel;   cov[12] = 0; cov[13] = 0; cov[14] = 0;
+		cov[15] = 0; cov[16] = 0; cov[17] = 0;
+		cov[18] = 0; cov[19] = 0; 
+		cov[20] = 0;
+
+	}
+
 
 	// TODO: Move to commander
 	private void setGlobalOrigin(double lat, double lon, double altitude) {
