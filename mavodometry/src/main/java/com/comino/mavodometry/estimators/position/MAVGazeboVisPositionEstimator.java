@@ -21,6 +21,7 @@ import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
 
 import georegression.geometry.GeometryMath_F64;
@@ -30,28 +31,28 @@ import georegression.struct.se.Se3_F64;
 // Note: Requires odomtery disabled in SDF <send_odometry>0</send_odometry>
 
 public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
+	
+	private final float             MAX_VEL_TESTRATIO = 1.0f;
 
 	// MAVLink messages
-	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
-	private final msg_odometry                 odo = new msg_odometry(1,1);
+	private final msg_msp_vision    msg             = new msg_msp_vision(2,1);
+	private final msg_odometry      odo             = new msg_odometry(1,1);
 
+	private final DataModel 	    model;
+	private final Se3_F64           to_ned          = new Se3_F64();
+	private final Se3_F64           to_body         = new Se3_F64();
 
-	private final WorkQueue wq = WorkQueue.getInstance();
+	private final Se3_F64           ned      		= new Se3_F64();
+	private final Se3_F64           ned_s    		= new Se3_F64();
+	private final Se3_F64           body_s    		= new Se3_F64();
+	private final Vector3D_F64      offset_pos_ned  = new Vector3D_F64();
+	private final Vector3D_F64      lpos_current_s  = new Vector3D_F64();
+	private final Attitude3D_F64    att_euler       = new Attitude3D_F64();
 
-	private final DataModel 	     model;
-	private final Se3_F64            to_ned         = new Se3_F64();
-	private final Se3_F64            to_body        = new Se3_F64();
-
-	private final Se3_F64          ned      		= new Se3_F64();
-	private final Se3_F64          ned_s    		= new Se3_F64();
-	private final Se3_F64          body_s    		= new Se3_F64();
-	private final Vector3D_F64     offset_pos_ned   = new Vector3D_F64();
-	private final Vector3D_F64     lpos_current_s   = new Vector3D_F64();
-	private final Attitude3D_F64   att_euler        = new Attitude3D_F64();
-
-	private long                     tms_reset = 0;
-
-	private int                      reset_count = 0;
+	private long                    tms_reset       = 0;
+	private int                     reset_count     = 0;
+	
+	private final float[]           groundtruth     = new float[2];
 
 	private final StreamGazeboVision vis;
 	
@@ -60,7 +61,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		super(control);
 		this.model = control.getCurrentModel();
 		this.vis   = StreamGazeboVision.getInstance(640,480);
-
+		this.model.vision.setStatus(Vision.ENABLED, true);
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
 			@Override
@@ -102,11 +103,23 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		offset_pos_ned.setTo(0,0,0);
 		model.vision.setStatus(Vision.ENABLED, true);
 		publishMSPFlags(DataModel.getSynchronizedPX4Time_us());
+		
+		groundtruth[0] = Float.NaN;
+		groundtruth[1] = Float.NaN;
+		
+		vis.registerCallback((tms,lat,lon,alt) -> {
+			if(MSPMathUtils.is_projection_initialized()) {
+				MSPMathUtils.map_projection_project(lat, lon, groundtruth);
+			}	
+		});
 
 		vis.registerCallback((tms, confidence, p, s, a) ->  {
+			
+			model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
 
 			MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 			CommonOps_DDRM.transpose(to_ned.R, to_body.R);
+			
 
 			// Simulate T265 reset cycle
 			if(tms_reset > 0 && ((System.currentTimeMillis() - tms_reset) < 2000)) {
@@ -142,11 +155,22 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				init("EKF2 Glitch");
 				return;
 			}
+			
+			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.velRatio > MAX_VEL_TESTRATIO) {
+
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				model.vision.setStatus(Vision.ERROR, true);		
+			//	init("EKF2 TestRatio");
+				publishMSPFlags(tms);
+				return;
+			}
 
 			ned.setTo(p);
 			ned_s.setTo(s);
 
-			att_euler.setFromMatrix(ned.R);
+			att_euler.setFromMatrix(ned.R);			
+			model.vision.setStatus(Vision.ERROR, false);
 
 			ned.T.plusIP(offset_pos_ned);
 
@@ -172,7 +196,6 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 			model.vision.fps = vis.getFrameRate();
 
 		});
-
 
 	}
 
@@ -307,6 +330,9 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		msg.h   = (float)att_euler.getYaw();
 		msg.r   = (float)att_euler.getRoll();
 		msg.p   = (float)att_euler.getPitch();
+		
+		msg.gx  = groundtruth[0];
+		msg.gy  = groundtruth[1];
 
 		msg.quality = 100;
 		msg.errors  = 0;
@@ -332,11 +358,11 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 	}
 
 
-	private void build_covariance(float cov_vel, float[] cov) {
+	private void build_covariance(float cov_in, float[] cov) {
 
-		cov[0]  = cov_vel;   cov[1]  = 0; cov[2]  = 0; cov[3]  = 0; cov[4]  = 0; cov[5]  = 0;
-		cov[6]  = cov_vel;   cov[7]  = 0; cov[8]  = 0; cov[9]  = 0; cov[10] = 0;
-		cov[11] = cov_vel;   cov[12] = 0; cov[13] = 0; cov[14] = 0;
+		cov[0]  = cov_in;   cov[1]  = 0; cov[2]  = 0; cov[3]  = 0; cov[4]  = 0; cov[5]  = 0;
+		cov[6]  = cov_in;   cov[7]  = 0; cov[8]  = 0; cov[9]  = 0; cov[10] = 0;
+		cov[11] = cov_in;   cov[12] = 0; cov[13] = 0; cov[14] = 0;
 		cov[15] = 0; cov[16] = 0; cov[17] = 0;
 		cov[18] = 0; cov[19] = 0; 
 		cov[20] = 0;
