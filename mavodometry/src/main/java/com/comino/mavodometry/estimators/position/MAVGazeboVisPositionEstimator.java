@@ -186,7 +186,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 			publishPX4Odometry(ned.T,body_s.T, MAV_FRAME.MAV_FRAME_LOCAL_NED,false,confidence,tms);
 
 			// Publish to GCL
-			publishMSPVision(ned,ned_s,tms);
+			publishMSPVision(ned,ned_s,groundtruth, tms);
 
 			model.vision.setAttitude(att_euler);
 			model.vision.setPosition(ned.T);
@@ -316,7 +316,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 	//	}
 
 
-	private void publishMSPVision(Se3_F64 pose, Se3_F64 speed, long tms) {
+	private void publishMSPVision(Se3_F64 pose, Se3_F64 speed, float[] gth, long tms) {
 
 
 		msg.x =  (float) pose.T.x;
@@ -331,8 +331,8 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		msg.r   = (float)att_euler.getRoll();
 		msg.p   = (float)att_euler.getPitch();
 		
-		msg.gx  = groundtruth[0];
-		msg.gy  = groundtruth[1];
+		msg.gx  = gth[0];
+		msg.gy  = gth[1];
 
 		msg.quality = 100;
 		msg.errors  = 0;
