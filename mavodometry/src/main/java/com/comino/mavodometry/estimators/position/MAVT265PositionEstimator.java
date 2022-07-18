@@ -217,6 +217,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final TimeHysteresis           att_hysteresis;
 	private boolean                        drift_compensation = false;
 
+	private float cov_velocity = 0.1f;
+
 	@SuppressWarnings("unused")
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) 
 			throws Exception {
@@ -600,6 +602,14 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				return;
 			}
 
+
+			// Filter a covariance for velocity based on test ratio
+			if(Float.isFinite(model.est.velRatio) && model.est.velRatio > 0 && Float.isFinite(cov_velocity))
+				cov_velocity = cov_velocity * 0.98f + model.est.velRatio * 3f *0.02f;
+			model.debug.x = cov_velocity;
+			
+			//cov_velocity = Float.NaN;
+
 			// Drift in hold mode:	
 			// Assumption: Speed of T265 is always valid
 			//
@@ -631,37 +641,37 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			// Check variance between Vision speed (NED) and Vision position based XYZ speed (NED)
 
-//			if(drift_compensation ) {
-//				if(pos_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, vpos_ned_s) > MAX_VEL_VARIANCE 
-//						// NOTE: Does not work while turning
-//						// TODO: Why are speeds different while turning?
-//						&& Math.abs(model.attitude.yr) < 0.3f)) {
-//
-//					if(pos_hysteresis.getDurationOfState_ms() > 2000) {
-//						//	model.vision.setStatus(Vision.ERROR, true);
-//						init("vpos");
-//						return;
-//					}
-//
-//					model.vision.setStatus(Vision.POS_VALID, false);
-//					// Use vision velocity for fusing and calculate virtual vision position by integrating
-//					vpos_ned_delta.setTo(ned_s.T); vpos_ned_delta.scale(dt_sec);
-//					vpos_ned.plusIP(vpos_ned_delta);
-//
-//					// replace vision XYZ position with velocity integration
-//					ned.T.x = vpos_ned.x;
-//					ned.T.y = vpos_ned.y;	
-//					//ned.T.z = vpos_ned.z;	// Do not use Z
-//
-//
-//				} else {
-//
-//					model.vision.setStatus(Vision.POS_VALID, true);
-//					// Use vision position for fusing and reset vision to lpos
-//					ned.T.plusIP(error_pos_ned);
-//				}
-//
-//			}
+			//			if(drift_compensation ) {
+			//				if(pos_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, vpos_ned_s) > MAX_VEL_VARIANCE 
+			//						// NOTE: Does not work while turning
+			//						// TODO: Why are speeds different while turning?
+			//						&& Math.abs(model.attitude.yr) < 0.3f)) {
+			//
+			//					if(pos_hysteresis.getDurationOfState_ms() > 2000) {
+			//						//	model.vision.setStatus(Vision.ERROR, true);
+			//						init("vpos");
+			//						return;
+			//					}
+			//
+			//					model.vision.setStatus(Vision.POS_VALID, false);
+			//					// Use vision velocity for fusing and calculate virtual vision position by integrating
+			//					vpos_ned_delta.setTo(ned_s.T); vpos_ned_delta.scale(dt_sec);
+			//					vpos_ned.plusIP(vpos_ned_delta);
+			//
+			//					// replace vision XYZ position with velocity integration
+			//					ned.T.x = vpos_ned.x;
+			//					ned.T.y = vpos_ned.y;	
+			//					//ned.T.z = vpos_ned.z;	// Do not use Z
+			//
+			//
+			//				} else {
+			//
+			//					model.vision.setStatus(Vision.POS_VALID, true);
+			//					// Use vision position for fusing and reset vision to lpos
+			//					ned.T.plusIP(error_pos_ned);
+			//				}
+			//
+			//			}
 
 
 			// Fiducial detection
@@ -700,7 +710,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Do not publish data if error detected
 				if(!model.vision.isStatus(Vision.ERROR))
-					publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,true,confidence,tms);
+					publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,cov_velocity,confidence,tms);
 
 				// Publish to GCL
 				publishMSPVision(gnd_ned,ned,ned_s,body_a,precision_lock,tms);
@@ -851,7 +861,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 
-	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, boolean pose_is_valid, int confidence, long tms) {
+	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, float cov_vel, int confidence, long tms) {
 
 		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
 		odo.frame_id       = frame;
@@ -859,20 +869,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		odo.time_usec =  tms * 1000;
 
-		if(pose_is_valid) {
-			odo.x = (float) pose.x;
-			odo.y = (float) pose.y;
-			odo.z = (float) pose.z;
-			//			build_covariance(odo.pose_covariance, confidence);
-		} else {
-			//			odo.x = Float.NaN;
-			//			odo.y = Float.NaN;
-			//	odo.z = Float.NaN;
-			odo.x = (float)lpos.T.x;
-			odo.y = (float)lpos.T.y;
-			odo.z = (float) pose.z;
-			odo.pose_covariance[0] = Float.NaN;
-		}
+		odo.x = (float) pose.x;
+		odo.y = (float) pose.y;
+		odo.z = (float) pose.z;
 
 		odo.vx = (float) speed.x;
 		odo.vy = (float) speed.y;
@@ -880,15 +879,14 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		// Use EKF params
 		odo.pose_covariance[0] = Float.NaN;
-		odo.velocity_covariance[0] = Float.NaN;
+
+		if(Float.isFinite(cov_vel))
+			build_covariance(cov_vel, odo.velocity_covariance);
+		else
+			odo.velocity_covariance[0] = Float.NaN;
 
 		//		build_covariance(odo.velocity_covariance, confidence);
 
-		//		ConvertRotation3D_F64.matrixToQuaternion(body.R, att_q);
-		//		odo.q[0] = (float)att_q.w;
-		//		odo.q[1] = (float)att_q.x;
-		//		odo.q[2] = (float)att_q.y;
-		//		odo.q[3] = (float)att_q.z;
 
 		// do not use twist
 		odo.q[0] = Float.NaN;
@@ -987,19 +985,16 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 
-	//    private void build_covariance(float[] cov, int confidence) {
-	//    	
-	//    	cov_vel  = (float)(linear_accel_cov * Math.pow(10, 3 - confidence));
-	//    	cov_twist = (float)(angular_vel_cov * Math.pow(10, 1 - confidence));
-	//    	
-	//    	cov[0]  = cov_vel;   cov[1]  = 0; cov[2]  = 0; cov[3]  = 0; cov[4]  = 0; cov[5]  = 0;
-	//        cov[6]  = cov_vel;   cov[7]  = 0; cov[8]  = 0; cov[9]  = 0; cov[10] = 0;
-	//        cov[11] = cov_vel;   cov[12] = 0; cov[13] = 0; cov[14] = 0;
-	//    	cov[15] = cov_twist; cov[16] = 0; cov[17] = 0;
-	//        cov[18] = cov_twist; cov[19] = 0; 
-	//        cov[20] = cov_twist;
-	//		
-	//	}
+	private void build_covariance(float cov_in, float[] cov) {
+
+		cov[0]  = cov_in;   cov[1]  = 0; cov[2]  = 0; cov[3]  = 0; cov[4]  = 0; cov[5]  = 0;
+		cov[6]  = cov_in;   cov[7]  = 0; cov[8]  = 0; cov[9]  = 0; cov[10] = 0;
+		cov[11] = cov_in;   cov[12] = 0; cov[13] = 0; cov[14] = 0;
+		cov[15] = 0; cov[16] = 0; cov[17] = 0;
+		cov[18] = 0; cov[19] = 0; 
+		cov[20] = 0;
+
+	}
 
 	private class FiducialHandler implements Runnable {
 
