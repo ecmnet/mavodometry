@@ -50,6 +50,7 @@ import org.bytedeco.depthai.ImageManip;
 import org.bytedeco.depthai.ImgDetection;
 import org.bytedeco.depthai.ImgDetections;
 import org.bytedeco.depthai.ImgFrame;
+import org.bytedeco.depthai.IntVector;
 import org.bytedeco.depthai.MonoCamera;
 import org.bytedeco.depthai.MonoCameraProperties;
 import org.bytedeco.depthai.NNData;
@@ -355,9 +356,9 @@ public class StreamYoloDepthAIOakD {
 			detectionNetwork.setAnchors(new float[]{10,14, 23,27, 37,58, 81,82, 135,169, 344,319});
 			StringIntVectorMap mask = new StringIntVectorMap();
 			//			BytePointer a = new BytePointer(); a.putString( "side26");
-			mask.put(new BytePointer("side26"), new int[]{1,2,3});
+			mask.put(new BytePointer("side26"), new IntVector(1,2,3));
 			//			BytePointer b = new BytePointer(); a.putString( "side13");
-			mask.put(new BytePointer("side13"), new int[]{3,4,5});
+			mask.put(new BytePointer("side13"), new IntVector(3,4,5));
 			detectionNetwork.setAnchorMasks(mask);
 			detectionNetwork.setIouThreshold(0.5f);
 
