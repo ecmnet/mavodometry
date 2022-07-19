@@ -50,6 +50,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 	private final Vector3D_F64      offset_pos_ned  = new Vector3D_F64();
 	private final Vector3D_F64      lpos_current_s  = new Vector3D_F64();
 	private final Attitude3D_F64    att_euler       = new Attitude3D_F64();
+	private final Attitude3D_F64    att_offset      = new Attitude3D_F64();
 
 	private long                    tms_reset       = 0;
 	private int                     reset_count     = 0;
@@ -99,7 +100,11 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 			if(n.isStatus(Status.MSP_ARMED) && n.isStatus(Status.MSP_LANDED)) {
 				init("armed");
 			}
-
+		});
+		
+		control.getStatusManager().addListener(Status.MSP_GPOS_VALID, (n) -> {
+			if(model.gps.numsat > 8 && n.isStatus(Status.MSP_GPOS_VALID) && n.isStatus(Status.MSP_LANDED))
+				init("gpos");
 
 		});
 
@@ -134,6 +139,8 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				offset_pos_ned.scale(-1);
 				offset_pos_ned.plusIP(p.T);
 				offset_pos_ned.scale(-1);
+				
+				att_offset.set(model.attitude.r,model.attitude.p, model.attitude.y);
 				
 				cov_velocity = RESET_VEL_COVERIANCE;
 
@@ -175,7 +182,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				ned_s.T.scale(noise);
 			}
 
-			att_euler.setFromMatrix(ned.R);			
+			att_euler.setFromMatrix(ned.R).add(att_offset);			
 			model.vision.setStatus(Vision.ERROR, false);
 
 			ned.T.plusIP(offset_pos_ned);
