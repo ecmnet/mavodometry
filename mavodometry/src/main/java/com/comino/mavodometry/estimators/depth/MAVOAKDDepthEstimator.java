@@ -101,9 +101,18 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private int depth_worker;
 
 	private final LocalMap3D map;
+	private final IVisualStreamHandler<Planar<GrayU8>> stream;
+
+	private int width;
+
+	private int height;
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, LocalMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
+		
+		this.stream = stream;
+		this.width  = width;
+		this.height = height;
 		
 
 		// read offset settings
@@ -221,6 +230,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		private final Point2D3D   tmp_p = new Point2D3D();
 		private final Point2D3D   ned_p = new Point2D3D();
+		
+		private final Planar<GrayU8> depth_colored = new Planar<GrayU8>(GrayU8.class,width,height,3);
 
 		@Override
 		public void run() {
@@ -242,6 +253,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				model.slam.ox = (float)ned_pt_n.x;
 				model.slam.oy = (float)ned_pt_n.y;
 				model.slam.oz = (float)ned_pt_n.z;		
+				
+				if(stream!=null && enableStream) {
+					
+					stream.addToStream("DEPTH",depth_colored, model, System.currentTimeMillis());
+				}
 
 
 			} catch (InterruptedException e) {
@@ -257,6 +273,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			for(int x = 0; x < in.width;x = x + DEPTH_SCALE) {
 				for(int y = 0; y < in.height;y = y + DEPTH_SCALE) {
+					
+					colorize(x,y,in,depth_colored, 2000);
+					
 					if(getSegmentPositionBody(x,y,in,tmp_p)) {
 						if(tmp_p.location.x < nearest_body.location.x)
 							nearest_body.setTo(tmp_p);
@@ -270,6 +289,20 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				}
 			}
 			return (int)(quality * 1600f / in.data.length);
+		}
+		
+		private void colorize(int x, int y, GrayU16 in, Planar<GrayU8> out, int max) {
+			int r, b; 			
+			int v = in.get(x, y);
+
+			if (v == 0) {
+				r = b = 0;
+			} else {
+				r = 255*v/max;
+				b = 255*(max - v)/max;
+			}
+			
+			out.set24u8(x, y, r << 16 | b );
 		}
 		
 
