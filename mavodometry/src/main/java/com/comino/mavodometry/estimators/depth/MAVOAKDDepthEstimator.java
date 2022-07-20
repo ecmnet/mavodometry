@@ -292,6 +292,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		}
 		
 		private void colorize(int x, int y, GrayU16 in, Planar<GrayU8> out, int max) {
+			
 			int r, b; 			
 			int v = in.get(x, y);
 
@@ -301,12 +302,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				r = 255*v/max;
 				b = 255*(max - v)/max;
 			}
-			
 			out.set24u8(x, y, r << 16 | b );
 		}
 		
-
-
 
 		// Return 3D point of depth segment in body frame
 		private boolean getSegmentPositionBody(int x, int y, GrayU16 in, Point2D3D p) {
