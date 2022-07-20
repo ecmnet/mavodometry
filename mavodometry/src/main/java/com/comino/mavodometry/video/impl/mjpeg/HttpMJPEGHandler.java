@@ -210,7 +210,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 	}
 
 	@Override
-	public void addToStream(T in, DataModel model, long tms_us) {
+	public void addToStream(String source, T in, DataModel model, long tms_us) {
 
 		if(++frame_count % FRAME_DROP == 0 || !is_running)
 			return;

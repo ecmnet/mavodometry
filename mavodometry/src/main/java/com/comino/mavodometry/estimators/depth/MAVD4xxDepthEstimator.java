@@ -201,7 +201,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(rgb, model, timeDepth);
+					stream.addToStream(getClass().getName(),rgb, model, timeDepth);
 				}
 				if(depth_overlay && enableStream)
 					overlayDepth(sub, img);
@@ -336,7 +336,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 					body_pt.setTo(raw_pt.z, raw_pt.x, raw_pt.y);
 					//					body_pt.plusIP(offset);
-					//					GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
+					//				GeometryMath_F64.mult(to_ned.R, body_pt, ned_pt );
 					//					ned_pt.plusIP(to_ned.T);
 
 					//					System.out.println(norm.x+"/"+norm.y);

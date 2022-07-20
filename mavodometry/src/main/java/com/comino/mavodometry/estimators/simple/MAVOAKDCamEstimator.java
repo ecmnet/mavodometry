@@ -51,7 +51,7 @@ public class MAVOAKDCamEstimator extends MAVAbstractEstimator  {
 
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(rgb, model, timeDepth);
+					stream.addToStream(getClass().getName(),rgb, model, timeDepth);
 				}
 
 			}

@@ -188,7 +188,7 @@ public class HttpH264Handler<T> implements HttpHandler, IVisualStreamHandler<T> 
 
 	@SuppressWarnings("unchecked")
 	@Override
-	public  void addToStream(T input, DataModel model, long tms_us) {
+	public  void addToStream(String source, T input, DataModel model, long tms_us) {
 
 
 		if((System.currentTimeMillis()-last_image_tms)<MAX_VIDEO_RATE_MS )//|| !model.sys.isStatus(Status.MSP_GCL_CONNECTED))

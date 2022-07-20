@@ -151,7 +151,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				}
 				// Add image to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(rgb, model, timeRgb);
+					stream.addToStream(getClass().getName(),rgb, model, timeRgb);
 				}
 				
 				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
@@ -254,9 +254,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		private int depthMapping(GrayU16 in) {
 			
 			int quality = 0; nearest_body.location.x = Double.MAX_VALUE;
-			
-			if(!control.isSimulation() && model.sys.isStatus(Status.MSP_LANDED))
-				return 0;
 
 			for(int x = 0; x < in.width;x = x + DEPTH_SCALE) {
 				for(int y = 0; y < in.height;y = y + DEPTH_SCALE) {
@@ -265,6 +262,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 							nearest_body.setTo(tmp_p);
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
+						if(control.isSimulation() || !model.sys.isStatus(Status.MSP_LANDED))
 						  map.update(to_ned.T,ned_p.location);   // Incremental probability
 					//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
 						quality++;

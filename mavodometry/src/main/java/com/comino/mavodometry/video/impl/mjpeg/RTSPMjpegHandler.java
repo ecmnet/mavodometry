@@ -160,7 +160,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	}
 
 	@Override
-	public void  addToStream(T in, DataModel model, long tms) {
+	public void  addToStream(String source, T in, DataModel model, long tms) {
 		try {
 			if(transfer.remainingCapacity()>0 ) //&& (modulo++ % rate) == 0 )
 
@@ -538,7 +538,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 			Thread.sleep(33);
 			tms = System.currentTimeMillis();
-			server.addToStream(test, model, tms*1000);
+			server.addToStream("test",test, model, tms*1000);
 			if(server.is_running)
 				System.out.println(server.toString());
 

@@ -417,7 +417,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				is_fiducial = false;
 
 				if(t265.isVideoEnabled() && stream!=null && enableStream && img != null) {
-					stream.addToStream(img, model, tms);
+					stream.addToStream(getClass().getName(),img, model, tms);
 				}
 
 				vpos_ned_s.setTo(0, 0, 0);
@@ -448,7 +448,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				publishMSPFlags(tms);
 				// Add left camera to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(img, model, tms);
+					stream.addToStream(getClass().getName(),img, model, tms);
 				}
 
 				return;
@@ -462,7 +462,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			//No flight controller connected => publish raw pose and speed for debugging purpose
 			if(!model.sys.isStatus(Status.MSP_CONNECTED)) {
 				if(stream!=null && enableStream) {
-					stream.addToStream(img, model, tms);
+					stream.addToStream(getClass().getName(),img, model, tms);
 				}
 				model.vision.setStatus(Vision.PUBLISHED, false);
 				publishMSPVision(gnd_ned,p,s,a,precision_lock,tms);
@@ -551,7 +551,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					publishMSPFlags(tms);
 					// Add left camera to stream
 					if(stream!=null && enableStream) {
-						stream.addToStream(img, model, tms);
+						stream.addToStream(getClass().getName(),img, model, tms);
 					}
 
 					return;
@@ -574,7 +574,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Add left camera to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(img, model, tms);
+					stream.addToStream(getClass().getName(),img, model, tms);
 				}
 
 				return;
@@ -596,7 +596,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Add left camera to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(img, model, tms);
+					stream.addToStream(getClass().getName(),img, model, tms);
 				}
 
 				return;
@@ -604,11 +604,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 
 			// Filter a covariance for velocity based on test ratio
-			if(Float.isFinite(model.est.velRatio) && model.est.velRatio > 0 && Float.isFinite(cov_velocity))
-				cov_velocity = cov_velocity * 0.98f + model.est.velRatio * 3f *0.02f;
-			model.debug.x = cov_velocity;
+	        // TODO: Limit lower bound e.g. to 0.1, otherwise gate resets
+//			if(Float.isFinite(model.est.velRatio) && model.est.velRatio > 0 && Float.isFinite(cov_velocity))
+//				cov_velocity = cov_velocity * 0.98f + model.est.velRatio * 3f *0.02f;
+//			model.debug.x = cov_velocity;
 			
-			//cov_velocity = Float.NaN;
+			cov_velocity = Float.NaN;
 
 			// Drift in hold mode:	
 			// Assumption: Speed of T265 is always valid
@@ -685,7 +686,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Add left camera to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(img, model, tms);
+					stream.addToStream(getClass().getName(),img, model, tms);
 				}
 
 				model.vision.setStatus(Vision.PUBLISHED, false);
@@ -727,7 +728,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			// Add left camera to stream
 			if(stream!=null && enableStream) {
-				stream.addToStream(img, model, tms);
+				stream.addToStream(getClass().getName(),img, model, tms);
 			}
 		});
 

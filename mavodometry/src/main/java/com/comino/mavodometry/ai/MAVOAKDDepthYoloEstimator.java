@@ -134,7 +134,7 @@ public class MAVOAKDDepthYoloEstimator extends MAVAbstractEstimator  {
 				}
 				// Add image to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(rgb, model, timeRgb);
+					stream.addToStream(getClass().getName(),rgb, model, timeRgb);
 				}
 			}
 		});
