@@ -193,6 +193,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	private class Receiver implements Runnable {
 		
 		private String stream_name = "RGB";
+		private BlockingQueue<T>  queue;
 
 		@SuppressWarnings("unchecked")
 		public void run() {
@@ -207,8 +208,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					if(RTPsocket.isClosed())
 						return;
 
-					input = transfers.get(stream_name).poll(300, TimeUnit.MILLISECONDS);
-
+					input = null;
+					queue = transfers.get(stream_name);
+					if(queue != null)
+					  input = queue.poll(300, TimeUnit.MILLISECONDS);
 
 					if(input == null ) {
 						if(!no_video) {
