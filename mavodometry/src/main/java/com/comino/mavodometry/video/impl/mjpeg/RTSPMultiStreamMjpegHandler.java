@@ -37,6 +37,7 @@ import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.rtps.RTPpacket;
 
+import boofcv.alg.filter.misc.AverageDownSampleOps;
 import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
@@ -45,10 +46,13 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-//	private static final int 		FRAME_RATE_FPS        = 15;
+	//	private static final int 		FRAME_RATE_FPS        = 15;
 	private static final int		DEFAULT_VIDEO_QUALITY = 60;
 	private static final int		MAX_VIDEO_QUALITY     = 70;
 	private static final int		LOW_VIDEO_QUALITY     = 10;
+	
+	private static final int        THUMBNAIL_WIDTH        = 64*3;
+	private static final int        THUMBNAIL_HEIGHT       = 48*3;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
 
@@ -66,8 +70,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	private final List<IOverlayListener> listeners;
 	private final BufferedImage          image;
 	private final Graphics2D             ctx;
-	
-//	private final int rate = 30 / FRAME_RATE_FPS;
+
+	//	private final int rate = 30 / FRAME_RATE_FPS;
 
 	private long       last_image_tms    = 0;
 	private float      fps = 0;
@@ -111,16 +115,20 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	private DataModel model;
 
 	private INoVideoListener no_video_handler;
-	
+
 	private final Map<String,BlockingQueue<T>> transfers = new HashMap<String,BlockingQueue<T>>();
 	
-	
+	private final Planar<GrayU8>         ov;
+	private final BufferedImage          image_thumb;
+
+
 
 	public RTSPMultiStreamMjpegHandler(int width, int height, DataModel model) {
 
 		this.model = model;
 		this.listeners = new ArrayList<IOverlayListener>();
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
+		
 		this.ctx = image.createGraphics();
 		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 9));
 
@@ -128,6 +136,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
 
 		last_image_tms = System.currentTimeMillis();
+		
+		// Experimental
+		this.image_thumb = new BufferedImage(THUMBNAIL_WIDTH, THUMBNAIL_HEIGHT, BufferedImage.TYPE_3BYTE_BGR);
+		this.ov     = new Planar<GrayU8>(GrayU8.class,THUMBNAIL_WIDTH,THUMBNAIL_HEIGHT,3);
 
 		//	rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
 
@@ -160,14 +172,14 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	public float getFps() {
 		return fps;
 	}
-	
+
 	public void enableStream(String stream_name) {
 		receiver.enableStream(stream_name);
 	}
 
 	@Override
 	public void  addToStream(String source, T in, DataModel model, long tms) {
-		
+
 		BlockingQueue<T>  queue = transfers.get(source);
 		if(queue==null) {
 			queue = new ArrayBlockingQueue<T>(5);
@@ -175,13 +187,13 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 			System.out.println(source+" videostream created..");
 			return;
 		}
-	
+
 		try {
 			if(queue.remainingCapacity()>0 ) {
 				queue.put(in);
 			}
 		} catch (InterruptedException e) { e.printStackTrace(); }
-	
+
 	}
 
 	@Override
@@ -191,7 +203,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 
 	private class Receiver implements Runnable {
-		
+
 		private String stream_name = "RGB";
 		private BlockingQueue<T>  queue;
 
@@ -209,9 +221,12 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						return;
 
 					input = null;
+					if(stream_name.contains("COMBINED")) 
+						queue = transfers.get("RGB");
+					else
 					queue = transfers.get(stream_name);
 					if(queue != null)
-					  input = queue.poll(300, TimeUnit.MILLISECONDS);
+						input = queue.poll(300, TimeUnit.MILLISECONDS);
 
 					if(input == null ) {
 						if(!no_video) {
@@ -253,12 +268,16 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
 					}
 
+					if(stream_name.contains("COMBINED")) {
+						overlayThumbnail(transfers.get("DOWN"));
+					}
+
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 					quality = quality > MAX_VIDEO_QUALITY ? MAX_VIDEO_QUALITY : quality;
 
 					tj.setJPEGQuality(quality);
 					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS);
-					
+
 					if(tj.getCompressedSize()>RTPpacket.MAX_PAYLOAD) {
 						// reduce tmporarily quality if compressed size is too high
 						tj.setJPEGQuality(quality/2);
@@ -285,7 +304,34 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 			close();
 
 		}
+
 		
+		// TODO
+		private void overlayThumbnail(BlockingQueue<T> q) {
+			
+			if(q==null)
+				return;
+
+			if(q.isEmpty()) {
+				ctx.drawImage(image_thumb,640-THUMBNAIL_WIDTH-20,480-THUMBNAIL_HEIGHT-20,620,460,0,0,THUMBNAIL_WIDTH,THUMBNAIL_HEIGHT,null);
+				return;
+			}
+			T overlay = null;
+			try {
+				overlay = q.poll(10, TimeUnit.MILLISECONDS);
+			} catch (InterruptedException e) { }
+			if(overlay == null) {
+				ctx.drawImage(image_thumb,640-THUMBNAIL_WIDTH-20,480-THUMBNAIL_HEIGHT-20,620,460,0,0,THUMBNAIL_WIDTH,THUMBNAIL_HEIGHT,null);
+				return;
+			}
+
+			AverageDownSampleOps.down((Planar<GrayU8>)overlay, ov);
+
+			ConvertBufferedImage.convertTo_U8(ov, image_thumb, true);
+			ctx.drawImage(image_thumb,640-THUMBNAIL_WIDTH-20,480-THUMBNAIL_HEIGHT-20,620,460,0,0,THUMBNAIL_WIDTH,THUMBNAIL_HEIGHT,null);
+
+		}
+
 		public void enableStream(String stream_name) {
 			this.stream_name = stream_name;
 		}
