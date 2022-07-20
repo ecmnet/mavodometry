@@ -151,7 +151,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				}
 				// Add image to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(getClass().getName(),rgb, model, timeRgb);
+					stream.addToStream("RGB",rgb, model, timeRgb);
 				}
 				
 				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;

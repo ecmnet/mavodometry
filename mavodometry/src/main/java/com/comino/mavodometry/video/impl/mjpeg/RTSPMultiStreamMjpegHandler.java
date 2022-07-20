@@ -41,7 +41,7 @@ import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
-public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
+public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	// Note: Relies on https://libjpeg-turbo.org
 
@@ -107,18 +107,16 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	private boolean no_video;
 	private int quality = 0;
 
-	private Receiver receiver = new Receiver();
+	private final Receiver receiver = new Receiver();
 	private DataModel model;
 
 	private INoVideoListener no_video_handler;
-
-	private final BlockingQueue<T> transfer = new ArrayBlockingQueue<T>(10);
 	
-	//private final Map<String,BlockingQueue<T>> transfers = new HashMap<String,BlockingQueue<T>>();
+	private final Map<String,BlockingQueue<T>> transfers = new HashMap<String,BlockingQueue<T>>();
 	
-	private int modulo;
+	
 
-	public RTSPMjpegHandler(int width, int height, DataModel model) {
+	public RTSPMultiStreamMjpegHandler(int width, int height, DataModel model) {
 
 		this.model = model;
 		this.listeners = new ArrayList<IOverlayListener>();
@@ -162,15 +160,28 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	public float getFps() {
 		return fps;
 	}
+	
+	public void enableStream(String stream_name) {
+		receiver.enableStream(stream_name);
+	}
 
 	@Override
 	public void  addToStream(String source, T in, DataModel model, long tms) {
-		try {
-			if(transfer.remainingCapacity()>0 ) //&& (modulo++ % rate) == 0 )
-				transfer.put(in);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+		
+		BlockingQueue<T>  queue = transfers.get(source);
+		if(queue==null) {
+			queue = new ArrayBlockingQueue<T>(5);
+			transfers.put(source, queue);
+			System.out.println(source+" videostream created..");
+			return;
 		}
+	
+		try {
+			if(queue.remainingCapacity()>0 ) {
+				queue.put(in);
+			}
+		} catch (InterruptedException e) { e.printStackTrace(); }
+	
 	}
 
 	@Override
@@ -180,6 +191,8 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 
 	private class Receiver implements Runnable {
+		
+		private String stream_name = "RGB";
 
 		@SuppressWarnings("unchecked")
 		public void run() {
@@ -194,7 +207,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					if(RTPsocket.isClosed())
 						return;
 
-					input = transfer.poll(300, TimeUnit.MILLISECONDS);
+					input = transfers.get(stream_name).poll(300, TimeUnit.MILLISECONDS);
 
 
 					if(input == null ) {
@@ -268,6 +281,10 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 			}
 			close();
 
+		}
+		
+		public void enableStream(String stream_name) {
+			this.stream_name = stream_name;
 		}
 
 	}
@@ -517,7 +534,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	public static void main(String argv[]) throws Exception
 	{
 		//create a Server object
-		RTSPMjpegHandler<Planar<GrayU8>> server = new RTSPMjpegHandler<Planar<GrayU8>>(640,480, new DataModel());
+		RTSPMultiStreamMjpegHandler<Planar<GrayU8>> server = new RTSPMultiStreamMjpegHandler<Planar<GrayU8>>(640,480, new DataModel());
 
 		Planar<GrayU8> test = new Planar<GrayU8>(GrayU8.class, 640,480,3);
 		DataModel model = new DataModel();

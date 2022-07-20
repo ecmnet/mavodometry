@@ -201,7 +201,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 
 				// Add rgb image to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(getClass().getName(),rgb, model, timeDepth);
+					stream.addToStream("RGB",rgb, model, timeDepth);
 				}
 				if(depth_overlay && enableStream)
 					overlayDepth(sub, img);

@@ -154,7 +154,7 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 				}
 				// Add image to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(getClass().getName(),rgb, model, timeRgb);
+					stream.addToStream("RGB",rgb, model, timeRgb);
 				}
 			}
 		});

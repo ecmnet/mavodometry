@@ -417,7 +417,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				is_fiducial = false;
 
 				if(t265.isVideoEnabled() && stream!=null && enableStream && img != null) {
-					stream.addToStream(getClass().getName(),img, model, tms);
+					stream.addToStream("DOWN",img, model, tms);
 				}
 
 				vpos_ned_s.setTo(0, 0, 0);
@@ -448,7 +448,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				publishMSPFlags(tms);
 				// Add left camera to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(getClass().getName(),img, model, tms);
+					stream.addToStream("DOWN",img, model, tms);
 				}
 
 				return;
@@ -551,7 +551,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					publishMSPFlags(tms);
 					// Add left camera to stream
 					if(stream!=null && enableStream) {
-						stream.addToStream(getClass().getName(),img, model, tms);
+						stream.addToStream("DOWN",img, model, tms);
 					}
 
 					return;
@@ -574,7 +574,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Add left camera to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(getClass().getName(),img, model, tms);
+					stream.addToStream("DOWN",img, model, tms);
 				}
 
 				return;
@@ -596,7 +596,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Add left camera to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(getClass().getName(),img, model, tms);
+					stream.addToStream("DOWN",img, model, tms);
 				}
 
 				return;
@@ -686,7 +686,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				// Add left camera to stream
 				if(stream!=null && enableStream) {
-					stream.addToStream(getClass().getName(),img, model, tms);
+					stream.addToStream("DOWN",img, model, tms);
 				}
 
 				model.vision.setStatus(Vision.PUBLISHED, false);
@@ -728,7 +728,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			// Add left camera to stream
 			if(stream!=null && enableStream) {
-				stream.addToStream(getClass().getName(),img, model, tms);
+				stream.addToStream("DOWN",img, model, tms);
 			}
 		});
 
