@@ -140,10 +140,12 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				offset_pos_ned.plusIP(p.T);
 				offset_pos_ned.scale(-1);
 				
-				att_offset.set(model.attitude.r,model.attitude.p, model.attitude.y);
+				att_euler.setFromMatrix(p.R);		
+				att_offset.set(model.attitude.r - att_euler.getRoll(),
+						       model.attitude.p - att_euler.getPitch(), 
+						       model.attitude.y - att_euler.getYaw()
+						      );
 				
-				cov_velocity = RESET_VEL_COVERIANCE;
-
 				return;
 			}
 
@@ -196,7 +198,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				model.vision.setStatus(Vision.ERROR, true);		
-				//	init("EKF2 TestRatio");
+				init("EKF2 TestRatio");
 				publishMSPFlags(tms);
 				return;
 			}
