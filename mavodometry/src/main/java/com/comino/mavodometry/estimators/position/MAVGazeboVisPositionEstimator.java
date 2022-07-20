@@ -146,6 +146,8 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 						       model.attitude.y - att_euler.getYaw()
 						      );
 				
+				cov_velocity = RESET_VEL_COVERIANCE;
+				
 				return;
 			}
 
