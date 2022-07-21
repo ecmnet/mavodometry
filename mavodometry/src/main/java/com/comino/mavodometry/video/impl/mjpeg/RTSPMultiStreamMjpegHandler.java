@@ -231,7 +231,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 				try {
 
-					if(RTPsocket.isClosed())
+					if(RTPsocket.isClosed() || transfers == null)
 						return;
 					
 					queue = transfers.get(streams[0]);
