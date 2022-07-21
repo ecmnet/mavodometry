@@ -232,6 +232,14 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		private final Point2D3D   ned_p = new Point2D3D();
 		
 		private final Planar<GrayU8> depth_colored = new Planar<GrayU8>(GrayU8.class,width,height,3);
+		
+		public DepthHandler() {
+			for(int i = 0; i < depth_colored.bands[0].data.length;i++) {
+			depth_colored.bands[0].data[i] = (byte)60;
+			depth_colored.bands[1].data[i] = (byte)60;
+			depth_colored.bands[2].data[i] = (byte)60;
+			}
+		}
 
 		@Override
 		public void run() {
@@ -274,7 +282,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			for(int x = 0; x < in.width;x = x + DEPTH_SCALE) {
 				for(int y = 0; y < in.height;y = y + DEPTH_SCALE) {
 					
-					colorize(x,y,in,depth_colored, 2000);
+					colorize(x,y,in,depth_colored, 8000);
 					
 					if(getSegmentPositionBody(x,y,in,tmp_p)) {
 						if(tmp_p.location.x < nearest_body.location.x)
@@ -293,16 +301,17 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		
 		private void colorize(int x, int y, GrayU16 in, Planar<GrayU8> out, int max) {
 			
-			int r, b; 			
+			int r, g, b; 			
 			int v = in.get(x, y);
-
-			if (v == 0) {
-				r = b = 0;
+			
+			if (v == 0 || v > max) {
+				r = b = g = 60;
 			} else {
+				g = 0;
 				r = 255*v/max;
-				b = 255*(max - v)/max;
+				b = 255*(max - v - 1)/max;
 			}
-			out.set24u8(x, y, r << 16 | b );
+			out.set24u8(x, y, r << 16 | g << 8 | b );
 		}
 		
 
