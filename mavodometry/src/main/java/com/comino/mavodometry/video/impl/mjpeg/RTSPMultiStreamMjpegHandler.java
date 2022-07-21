@@ -53,8 +53,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	private static final int		MAX_VIDEO_QUALITY     = 70;
 	private static final int		LOW_VIDEO_QUALITY     = 10;
 
-	private static final int        THUMBNAIL_WIDTH        = 64*3;
-	private static final int        THUMBNAIL_HEIGHT       = 48*3;
+	private static final int        THUMBNAIL_WIDTH        = 64*2;
+	private static final int        THUMBNAIL_HEIGHT       = 48*2;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
 
@@ -309,7 +309,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 				}
 				catch(Exception ex) {
-					ex.printStackTrace();
+					
 				}
 			}
 			close();
