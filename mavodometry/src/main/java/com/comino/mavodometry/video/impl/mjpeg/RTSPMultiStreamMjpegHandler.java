@@ -120,7 +120,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	private INoVideoListener no_video_handler;
 
 	private final Map<String,BlockingQueue<T>> transfers = new HashMap<String,BlockingQueue<T>>();
-	
+
 
 	public RTSPMultiStreamMjpegHandler(int width, int height, DataModel model) {
 
@@ -138,7 +138,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		last_image_tms = System.currentTimeMillis();
 
-		
+
 
 		//	rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
 
@@ -181,7 +181,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		BlockingQueue<T>  queue = transfers.get(source);
 		if(queue==null) {
-			queue = new ArrayBlockingQueue<T>(5);
+			queue = new ArrayBlockingQueue<T>(3);
 			transfers.put(source, queue);
 			System.out.println(source+" videostream created..");
 			return;
@@ -205,27 +205,27 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		private final int          width;
 		private final int          height;
-		
+
 		private final Point2D_I32  p0;
 		private final Point2D_I32  p1;
-		
+
 		private String[]           streams;
 		private BlockingQueue<T>   queue;
-		
+
 		public Receiver(int width, int height) {
-			
+
 			this.p0 = new Point2D_I32(width-THUMBNAIL_WIDTH-20,height-THUMBNAIL_HEIGHT-20);
 			this.p1 = new Point2D_I32(width-20, height - 20);
 			this.width = width;
 			this.height = height;
-			
+
 		}
 
 		@SuppressWarnings("unchecked")
 		public void run() {
 
 			no_video = false;
-			
+
 			System.out.println("Video streaming started ");
 			while(is_running) {
 
@@ -233,33 +233,32 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					if(RTPsocket.isClosed() || transfers == null)
 						return;
-					
-					queue = transfers.get(streams[0]);
-					
-					if(queue != null)
-						input = queue.poll(300, TimeUnit.MILLISECONDS);
 
-					if(input == null ) {
+					queue = transfers.get(streams[0]);
+
+					if(queue == null || (input = queue.poll(300, TimeUnit.MILLISECONDS)) == null) {
+
 						if(!no_video) {
 							if(no_video_handler!= null)
 								no_video_handler.trigger();
 							no_video = true;
-							ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-							ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-							tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
-							RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
-
-							int packet_length = rtp_packet.getpacket(packet_bits);
-
-							//send the packet as a DatagramPacket over the UDP socket 
-							if(!RTPsocket.isClosed()) {
-								senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
-								RTPsocket.send(senddp);
-							}
 						}
+						ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
+						ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
+						tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
+						RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
+
+						int packet_length = rtp_packet.getpacket(packet_bits);
+
+						//send the packet as a DatagramPacket over the UDP socket 
+						if(!RTPsocket.isClosed()) {
+							senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
+							RTPsocket.send(senddp);
+						}
+
 						continue;
 					} else {
-						no_video = true;
+						no_video = false;
 					}
 
 					imagenb++;
@@ -309,7 +308,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 				}
 				catch(Exception ex) {
-					
+
 				}
 			}
 			close();
