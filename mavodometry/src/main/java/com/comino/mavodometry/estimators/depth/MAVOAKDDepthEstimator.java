@@ -95,7 +95,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private int                         width34         = 0;
 
 	private final DecimalFormat fdistance  = new DecimalFormat("Obst: #0.0m");
-	private final DecimalFormat faltitude  = new DecimalFormat("at #0.0m");
+	private final DecimalFormat faltitude  = new DecimalFormat("at #0.0m;at -#0.0m");
 
 	private final WorkQueue wq = WorkQueue.getInstance();
 	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(1);
@@ -200,11 +200,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		if(!enableStream)
 			return;
 
-		drawMinDist(ctx,(int)nearest_body.observation.x, (int)nearest_body.observation.y, nearest_body.location.z);
+		drawMinDist(ctx,(int)nearest_body.observation.x, (int)nearest_body.observation.y);
 
 	}
 
-	private void drawMinDist(Graphics ctx, int x0, int y0, double zpos) {
+	private void drawMinDist(Graphics ctx, int x0, int y0) {
 
 		if(x0==0 && y0 == 0)
 			return;
@@ -215,7 +215,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 //		ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
 //		ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
 
-		String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(zpos);
+		String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(-model.slam.oz);
 		ctx.drawString(tmp, width34 - ctx.getFontMetrics().stringWidth(tmp)/2, 20);
 
 	}
