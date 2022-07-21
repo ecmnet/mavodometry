@@ -324,8 +324,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				ctx.drawImage(image_thumb,p0.x,p0.y,p1.x,p1.y,0,0,width,height,null);
 				return;
 			}
+			
 			T overlay = null;
 			overlay = q.poll(5, TimeUnit.MILLISECONDS);
+			
 			if(overlay == null) {
 				ctx.drawImage(image_thumb,p0.x,p0.y,p1.x,p1.y,0,0,width,height,null);
 				return;

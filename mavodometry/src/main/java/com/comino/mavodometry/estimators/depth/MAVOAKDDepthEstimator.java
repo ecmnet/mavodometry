@@ -258,7 +258,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 				GrayU16 depth = transfer_depth.take();
 
+				synchronized(this) {
 				model.slam.quality = depthMapping(depth);
+				}
 
 				model.slam.dm = (float)nearest_body.location.x; 
 
@@ -282,6 +284,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		}	
 
 		// map depth on a 640/DEPTH_SCALE x 480/DEPTH_SCALE basis
+		// TODO: Try AverageDownSampleOps.down((Planar<GrayU8>)overlay, ov);
 		private int depthMapping(GrayU16 in) {
 
 			int quality = 0; nearest_body.location.x = Double.MAX_VALUE;
@@ -296,9 +299,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 							nearest_body.setTo(tmp_p);
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
-						if(control.isSimulation() || !model.sys.isStatus(Status.MSP_LANDED))
+						
+						if(!model.sys.isStatus(Status.MSP_LANDED))
 							map.update(to_ned.T,ned_p.location);   // Incremental probability
 						//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
+						
 						quality++;
 					}
 				}
@@ -333,8 +338,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			p.observation.y = y;
 
 			p.location.x = Precision.round(in.get(x, y) * 1e-3 ,1);
-			if(p.location.x < MIN_DEPTH_M || p.location.x > MAX_DEPTH_M)
+			
+			if(p.location.x < MIN_DEPTH_M || p.location.x > MAX_DEPTH_M) {
+				p.location.x = Double.MAX_VALUE;
 				return false;
+			}
 
 			p2n.compute(p.observation.x,p.observation.y,norm);
 
