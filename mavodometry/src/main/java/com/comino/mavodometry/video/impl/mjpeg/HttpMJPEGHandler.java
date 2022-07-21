@@ -180,7 +180,7 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 
 					if(listeners.size()>0) {
 						for(IOverlayListener listener : listeners)
-							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+							listener.processOverlay(ctx, "none",DataModel.getSynchronizedPX4Time_us());
 					}
 				}
 

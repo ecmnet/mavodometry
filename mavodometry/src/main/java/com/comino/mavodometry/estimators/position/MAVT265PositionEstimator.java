@@ -734,7 +734,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 
 		if(stream != null && t265!=null){
-			stream.registerOverlayListener((ctx,tms) -> {
+			stream.registerOverlayListener((ctx,n,tms) -> {
 				if(enableStream)
 					overlayFeatures(ctx, tms);
 			});

@@ -275,7 +275,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					if(listeners.size()>0) {
 						for(IOverlayListener listener : listeners)
-							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+							listener.processOverlay(ctx, streams[0], DataModel.getSynchronizedPX4Time_us());
 					}
 
 					if(streams.length > 1) {
@@ -598,7 +598,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		long tms = System.currentTimeMillis();
 
-		server.registerOverlayListener((ctx,t) -> {
+		server.registerOverlayListener((ctx,n,t) -> {
 
 			ctx.setColor(Color.WHITE);
 			ctx.drawString("TMS="+t, 20, 20);

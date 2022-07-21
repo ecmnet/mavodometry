@@ -152,7 +152,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 		System.out.println("D455 depth overlay: "+depth_overlay);
 
 		if(stream!=null) {
-			stream.registerOverlayListener((ctx,tms) -> {
+			stream.registerOverlayListener((ctx,n,tms) -> {
 				if(enableStream) {
 					overlayFeatures(ctx,tms);
 					if(depth_overlay)

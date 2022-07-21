@@ -42,6 +42,8 @@ import java.util.Map;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
+import org.apache.commons.math3.util.Precision;
+
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
@@ -78,7 +80,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private final static float            MIN_DEPTH_M  	= 0.4f;
 	private final static float            MAX_DEPTH_M 	= 4.0f;
-	
+
 	private final static int              DEPTH_SCALE   = 2; 
 
 	private StreamDepthAIOakD			oakd 			= null;
@@ -110,11 +112,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, LocalMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
-		
+
 		this.stream = stream;
 		this.width  = width;
 		this.height = height;
-		
+
 
 		// read offset settings
 		offset_body.x = config.getFloatProperty(MSPParams.OAKD_OFFSET_X, String.valueOf(OFFSET_X));
@@ -126,7 +128,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			this.oakd   = StreamDepthAIOakD.getInstance(width, height);
 			//		this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
 			this.oakd.setRGBMode(!depth_overlay);
-		//	this.oakd.setRGBMode(false);
+			//	this.oakd.setRGBMode(false);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -136,9 +138,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 
 		if(stream!=null) {
-			stream.registerOverlayListener((ctx,tms) -> {
+			stream.registerOverlayListener((ctx,n,tms) -> {
 				if(enableStream) {
-					overlayFeatures(ctx,tms);
+					overlayFeatures(ctx,n,tms);
 
 				}
 			});
@@ -163,7 +165,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				if(stream!=null && enableStream) {
 					stream.addToStream("RGB",rgb, model, timeRgb);
 				}
-				
+
 				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
 				tms = System.currentTimeMillis();			
 			}
@@ -173,10 +175,10 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	public void start() throws Exception {
 		if(oakd!=null) {
-			
+
 			oakd.start();
 			p2n = (narrow(oakd.getIntrinsics())).undistort_F64(true,false);
-			
+
 			Thread.sleep(200);
 			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
 			System.out.println("Depth worker started");
@@ -195,25 +197,29 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		this.enableStream = enable;
 	}
 
-	private void overlayFeatures(Graphics ctx, long tms) {
+	private void overlayFeatures(Graphics ctx, String stream, long tms) {
 
 		if(!enableStream)
 			return;
 
-		drawMinDist(ctx,(int)nearest_body.observation.x, (int)nearest_body.observation.y);
+		drawMinDist(ctx, stream, (int)nearest_body.observation.x, (int)nearest_body.observation.y);
 
 	}
 
-	private void drawMinDist(Graphics ctx, int x0, int y0) {
+	private void drawMinDist(Graphics ctx, String stream,int x0, int y0) {
 
-		if(x0==0 && y0 == 0)
+		if(x0==0 && y0 == 0 && Float.isFinite(model.slam.dm))
 			return;
 
-//		final int ln = 10;
-//
-//		ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
-//		ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
-//		ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
+		if(stream.contains("DEPTH")) {
+
+			final int ln = 5;
+
+			ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
+			ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
+			ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
+
+		}
 
 		String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(-model.slam.oz);
 		ctx.drawString(tmp, width34 - ctx.getFontMetrics().stringWidth(tmp)/2, 20);
@@ -231,14 +237,14 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		private final Point2D3D   tmp_p = new Point2D3D();
 		private final Point2D3D   ned_p = new Point2D3D();
-		
+
 		private final Planar<GrayU8> depth_colored = new Planar<GrayU8>(GrayU8.class,width,height,3);
-		
+
 		public DepthHandler() {
 			for(int i = 0; i < depth_colored.bands[0].data.length;i++) {
-			depth_colored.bands[0].data[i] = (byte)60;
-			depth_colored.bands[1].data[i] = (byte)60;
-			depth_colored.bands[2].data[i] = (byte)60;
+				depth_colored.bands[0].data[i] = (byte)60;
+				depth_colored.bands[1].data[i] = (byte)60;
+				depth_colored.bands[2].data[i] = (byte)60;
 			}
 		}
 
@@ -262,9 +268,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				model.slam.ox = (float)ned_pt_n.x;
 				model.slam.oy = (float)ned_pt_n.y;
 				model.slam.oz = (float)ned_pt_n.z;		
-				
+
 				if(stream!=null && enableStream) {
-					
+
 					stream.addToStream("DEPTH",depth_colored, model, System.currentTimeMillis());
 				}
 
@@ -277,34 +283,38 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		// map depth on a 640/DEPTH_SCALE x 480/DEPTH_SCALE basis
 		private int depthMapping(GrayU16 in) {
-			
+
 			int quality = 0; nearest_body.location.x = Double.MAX_VALUE;
 
 			for(int x = 0; x < in.width;x = x + DEPTH_SCALE) {
 				for(int y = 0; y < in.height;y = y + DEPTH_SCALE) {
-					
+
 					colorize(x,y,in,depth_colored, 8000);
-					
+
 					if(getSegmentPositionBody(x,y,in,tmp_p)) {
 						if(tmp_p.location.x < nearest_body.location.x)
 							nearest_body.setTo(tmp_p);
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
 						if(control.isSimulation() || !model.sys.isStatus(Status.MSP_LANDED))
-						  map.update(to_ned.T,ned_p.location);   // Incremental probability
-					//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
+							map.update(to_ned.T,ned_p.location);   // Incremental probability
+						//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
 						quality++;
 					}
 				}
 			}
+
+			if(nearest_body.location.x > MAX_DEPTH_M)
+				nearest_body.location.setTo(Double.NaN,Double.NaN,Double.NaN);
+
 			return (int)(quality * 1600f / in.data.length);
 		}
-		
+
 		private void colorize(int x, int y, GrayU16 in, Planar<GrayU8> out, int max) {
-			
+
 			int r, g, b; 			
 			int v = in.get(x, y);
-			
+
 			if (v == 0 || v > max) {
 				r = b = g = 60;
 			} else {
@@ -314,7 +324,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			}
 			out.set24u8(x, y, r << 16 | g << 8 | b );
 		}
-		
+
 
 		// Return 3D point of depth segment in body frame
 		private boolean getSegmentPositionBody(int x, int y, GrayU16 in, Point2D3D p) {
@@ -322,7 +332,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			p.observation.x = x;
 			p.observation.y = y;
 
-			p.location.x = in.get(x, y) * 1e-3;
+			p.location.x = Precision.round(in.get(x, y) * 1e-3 ,1);
 			if(p.location.x < MIN_DEPTH_M || p.location.x > MAX_DEPTH_M)
 				return false;
 
@@ -330,7 +340,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			p.location.y =   p.location.x * norm.x;
 			p.location.z = - p.location.x * norm.y;
-			
+
 
 			p.location.plusIP(offset_body);
 

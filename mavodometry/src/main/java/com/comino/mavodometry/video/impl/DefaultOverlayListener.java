@@ -71,7 +71,7 @@ public class DefaultOverlayListener implements IOverlayListener {
 
 
 	@Override
-	public void processOverlay(Graphics ctx, long tms) {
+	public void processOverlay(Graphics ctx, String stream_name, long tms) {
 		
 		ctx.setColor(bgColor_header);
 		ctx.fillRect(5, 5, width-10, 21);

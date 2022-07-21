@@ -38,6 +38,6 @@ import java.awt.Graphics;
 
 public interface IOverlayListener {
 
-	public void processOverlay(Graphics ctx, long tms_usec);
+	public void processOverlay(Graphics ctx, String stream_name, long tms_usec);
 
 }

@@ -234,7 +234,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 					if(listeners.size()>0) {
 						for(IOverlayListener listener : listeners)
-							listener.processOverlay(ctx, DataModel.getSynchronizedPX4Time_us());
+							listener.processOverlay(ctx, "none",DataModel.getSynchronizedPX4Time_us());
 					}
 
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
@@ -525,7 +525,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 		long tms = System.currentTimeMillis();
 
-		server.registerOverlayListener((ctx,t) -> {
+		server.registerOverlayListener((ctx,n,t) -> {
 
 			ctx.setColor(Color.WHITE);
 			ctx.drawString("TMS="+t, 20, 20);

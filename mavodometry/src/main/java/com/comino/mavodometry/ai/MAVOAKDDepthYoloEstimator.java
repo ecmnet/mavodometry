@@ -108,7 +108,7 @@ public class MAVOAKDDepthYoloEstimator extends MAVAbstractEstimator  {
 		this.seg_distance 	= new GrayF32(width/DEPTH_SEG_W,height/DEPTH_SEG_H);
 
 		if(stream!=null) {
-			stream.registerOverlayListener((ctx,tms) -> {
+			stream.registerOverlayListener((ctx,n,tms) -> {
 				if(enableStream) {
 					overlayFeatures(ctx,tms);
 					if(depth_overlay)
