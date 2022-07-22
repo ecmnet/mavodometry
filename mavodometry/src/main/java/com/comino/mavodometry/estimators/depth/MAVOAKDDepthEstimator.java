@@ -79,7 +79,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private static final double      	  OFFSET_Z 		=   0.00;
 
 	private final static float            MIN_DEPTH_M  	= 0.3f;
-	private final static float            MAX_DEPTH_M 	= 8.0f;
+	private final static float            MAX_DEPTH_M 	= 5.0f;
 
 	private final static int              DEPTH_SCALE   = 2; 
 
@@ -299,7 +299,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
 						
-						if(!model.sys.isStatus(Status.MSP_LANDED))
+						if(control.isSimulation() || !model.sys.isStatus(Status.MSP_LANDED))
 							map.update(to_ned.T,ned_p.location);   // Incremental probability
 						//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
 						
@@ -348,7 +348,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			p2n.compute(p.observation.x,p.observation.y,norm);
 
 			p.location.y =   p.location.x * norm.x;
-			p.location.z = - p.location.x * norm.y;
+			p.location.z =   p.location.x * norm.y;
 
 
 			p.location.plusIP(offset_body);
