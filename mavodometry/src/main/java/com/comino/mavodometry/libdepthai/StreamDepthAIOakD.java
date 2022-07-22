@@ -50,6 +50,7 @@ import org.bytedeco.depthai.ImgFrame;
 import org.bytedeco.depthai.MonoCamera;
 import org.bytedeco.depthai.MonoCameraProperties;
 import org.bytedeco.depthai.Pipeline;
+import org.bytedeco.depthai.RawStereoDepthConfig.AlgorithmControl.DepthUnit;
 import org.bytedeco.depthai.StereoDepth;
 import org.bytedeco.depthai.StereoDepth.PresetMode;
 import org.bytedeco.depthai.XLinkOut;
@@ -77,8 +78,8 @@ public class StreamDepthAIOakD {
 	// TODO: Only USB2 possible due to interference with GPS. RGB stream rate therefore very low
 	// Try to encode RGB on device and decode it on HOST, do overlay eventually on GC side
 	
-	private final static int      DEPTH_CONFIDENCE = 170;
-	private final static int      DEPTH_SIGMA      = 150;
+	private final static int      DEPTH_CONFIDENCE = 120;
+//	private final static int      DEPTH_SIGMA      = 150;
 	
 	private final static float    FPS_COLOR        = 15;
 	private final static float    FPS_MONO         = 15;
@@ -258,24 +259,26 @@ public class StreamDepthAIOakD {
 			
 			depth.setDefaultProfilePreset(PresetMode.HIGH_ACCURACY);
 			depth.initialConfig().setMedianFilter(MedianFilter.KERNEL_7x7);
-			depth.initialConfig().setBilateralFilterSigma((short)DEPTH_SIGMA);
+		//	depth.initialConfig().setBilateralFilterSigma((short)DEPTH_SIGMA);
 			depth.initialConfig().setConfidenceThreshold(DEPTH_CONFIDENCE);
+			depth.initialConfig().setDepthUnit(DepthUnit.MILLIMETER);
 			
 			depth.setLeftRightCheck(true);
 			depth.setExtendedDisparity(false);
 			depth.setSubpixel(true);
 			depth.setRectification(true);
 			depth.useHomographyRectification(false);
-			depth.setRectifyEdgeFillColor(0);
-			
+			depth.setNumFramesPool(1);
+			depth.setDepthAlign(colorCam.getBoardSocket());
+
 
 			MonoCamera monoLeft = p.createMonoCamera();
-			monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
+			monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_800_P);
 			monoLeft.setBoardSocket(CameraBoardSocket.LEFT);
 			monoLeft.setFps(FPS_MONO);
 
 			MonoCamera monoRight = p.createMonoCamera();
-			monoRight.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
+			monoRight.setResolution(MonoCameraProperties.SensorResolution.THE_800_P);
 			monoRight.setBoardSocket(CameraBoardSocket.RIGHT);
 			monoRight.setFps(FPS_MONO);
 

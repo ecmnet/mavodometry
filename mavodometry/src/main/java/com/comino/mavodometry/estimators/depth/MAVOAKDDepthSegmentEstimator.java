@@ -128,7 +128,7 @@ public class MAVOAKDDepthSegmentEstimator extends MAVAbstractEstimator  {
 			this.segments_ned.add(new Point2D3D());
 
 		if(stream!=null) {
-			stream.registerOverlayListener((ctx,tms) -> {
+			stream.registerOverlayListener((ctx,n,tms) -> {
 				if(enableStream) {
 					overlayFeatures(ctx,tms);
 					if(depth_overlay)

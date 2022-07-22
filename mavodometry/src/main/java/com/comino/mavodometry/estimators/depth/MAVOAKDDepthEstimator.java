@@ -71,15 +71,15 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
-	private static final int              DEPTH_RATE    = 200;
+	private static final int              DEPTH_RATE    = 150;
 
 	// mounting offset in m
 	private static final double   	      OFFSET_X 		=  -0.06;
 	private static final double      	  OFFSET_Y 		=   0.00;
 	private static final double      	  OFFSET_Z 		=   0.00;
 
-	private final static float            MIN_DEPTH_M  	= 0.4f;
-	private final static float            MAX_DEPTH_M 	= 4.0f;
+	private final static float            MIN_DEPTH_M  	= 0.3f;
+	private final static float            MAX_DEPTH_M 	= 8.0f;
 
 	private final static int              DEPTH_SCALE   = 2; 
 
@@ -242,9 +242,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		public DepthHandler() {
 			for(int i = 0; i < depth_colored.bands[0].data.length;i++) {
-				depth_colored.bands[0].data[i] = (byte)60;
-				depth_colored.bands[1].data[i] = (byte)60;
-				depth_colored.bands[2].data[i] = (byte)60;
+				depth_colored.bands[0].data[i] = (byte)40;
+				depth_colored.bands[1].data[i] = (byte)40;
+				depth_colored.bands[2].data[i] = (byte)40;
 			}
 		}
 
@@ -258,9 +258,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 				GrayU16 depth = transfer_depth.take();
 
-				synchronized(this) {
+
 				model.slam.quality = depthMapping(depth);
-				}
+			
 
 				model.slam.dm = (float)nearest_body.location.x; 
 
@@ -284,18 +284,17 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		}	
 
 		// map depth on a 640/DEPTH_SCALE x 480/DEPTH_SCALE basis
-		// TODO: Try AverageDownSampleOps.down((Planar<GrayU8>)overlay, ov);
 		private int depthMapping(GrayU16 in) {
 
 			int quality = 0; nearest_body.location.x = Double.MAX_VALUE;
 
-			for(int x = 0; x < in.width;x = x + DEPTH_SCALE) {
-				for(int y = 0; y < in.height;y = y + DEPTH_SCALE) {
+			for(int x = 10; x < in.width-10;x = x + DEPTH_SCALE) {
+				for(int y = 10; y < in.height-10;y = y + DEPTH_SCALE) {
 
 					colorize(x,y,in,depth_colored, 8000);
 
 					if(getSegmentPositionBody(x,y,in,tmp_p)) {
-						if(tmp_p.location.x < nearest_body.location.x)
+						if(tmp_p.location.x< nearest_body.location.x)
 							nearest_body.setTo(tmp_p);
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
@@ -324,10 +323,12 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				r = b = g = 60;
 			} else {
 				g = 0;
-				r = 255*v/max;
-				b = 255*(max - v - 1)/max;
+				b = 255*v/max;
+				r = 255*(max - v - 1)/max;
 			}
-			out.set24u8(x, y, r << 16 | g << 8 | b );
+			for(int xs = 0; xs < DEPTH_SCALE;xs++)
+				for(int ys = 0; ys < DEPTH_SCALE;ys++)
+			  out.set24u8(x+xs, y+ys, r << 16 | g << 8 | b );
 		}
 
 
@@ -337,7 +338,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			p.observation.x = x;
 			p.observation.y = y;
 
-			p.location.x = Precision.round(in.get(x, y) * 1e-3 ,1);
+			p.location.x = in.get(x, y) * 1e-3;
 			
 			if(p.location.x < MIN_DEPTH_M || p.location.x > MAX_DEPTH_M) {
 				p.location.x = Double.MAX_VALUE;
