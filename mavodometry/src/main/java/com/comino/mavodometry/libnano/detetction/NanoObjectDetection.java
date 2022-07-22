@@ -2,28 +2,19 @@ package com.comino.mavodometry.libnano.detetction;
 
 import java.awt.Graphics;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.Iterator;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
 import com.comino.mavodometry.utils.DepthUtils;
 import com.comino.mavodometry.video.IVisualStreamHandler;
-import com.comino.mavutils.jna.NativeString;
 import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
 import boofcv.alg.distort.LensDistortionNarrowFOV;
-import boofcv.struct.distort.PixelTransform;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
-import georegression.struct.point.Point2D_F32;
 import georegression.struct.point.Point2D_F64;
 import georegression.struct.se.Se3_F64;
 
@@ -66,7 +57,7 @@ public class NanoObjectDetection  {
 		this.results =  ((Result[])result.toArray(MAX_OBJECTS));
 
 		if(stream!=null) {
-			stream.registerOverlayListener(ctx -> {
+			stream.registerOverlayListener((ctx,n,tms) -> {
 				overlayFeatures(ctx);
 			});
 		}
@@ -138,7 +129,7 @@ public class NanoObjectDetection  {
 //			o.getPosNED().plusIP(to_ned.T);
 //		}
 //		else {
-			o.getPosNED().set(o.getPosBODY());
+			o.getPosNED().setTo(o.getPosBODY());
 //		}
 
 	}

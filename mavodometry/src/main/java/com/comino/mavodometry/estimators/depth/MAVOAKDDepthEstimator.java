@@ -105,6 +105,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private final LocalMap3D map;
 	private final IVisualStreamHandler<Planar<GrayU8>> stream;
+	
+	private final Planar<GrayU8> depth_colored;
 
 	private int width;
 
@@ -135,6 +137,13 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		this.width34 = width * 3 / 4;
 		this.map = map;
+		
+		this.depth_colored= new Planar<GrayU8>(GrayU8.class,width,height,3);
+//		for(int i = 0; i < depth_colored.bands[0].data.length;i++) {
+//			depth_colored.bands[0].data[i] = (byte)40;
+//			depth_colored.bands[1].data[i] = (byte)40;
+//			depth_colored.bands[2].data[i] = (byte)40;
+//		}
 
 
 		if(stream!=null) {
@@ -164,6 +173,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				// Add image to stream
 				if(stream!=null && enableStream) {
 					stream.addToStream("RGB",rgb, model, timeRgb);
+					stream.addToStream("DEPTH",depth_colored, model, System.currentTimeMillis());	
 				}
 
 				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
@@ -238,14 +248,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		private final Point2D3D   tmp_p = new Point2D3D();
 		private final Point2D3D   ned_p = new Point2D3D();
 
-		private final Planar<GrayU8> depth_colored = new Planar<GrayU8>(GrayU8.class,width,height,3);
-
 		public DepthHandler() {
-			for(int i = 0; i < depth_colored.bands[0].data.length;i++) {
-				depth_colored.bands[0].data[i] = (byte)40;
-				depth_colored.bands[1].data[i] = (byte)40;
-				depth_colored.bands[2].data[i] = (byte)40;
-			}
+			
 		}
 
 		@Override
@@ -270,11 +274,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				model.slam.ox = (float)ned_pt_n.x;
 				model.slam.oy = (float)ned_pt_n.y;
 				model.slam.oz = (float)ned_pt_n.z;		
-
-				if(stream!=null && enableStream) {
-
-					stream.addToStream("DEPTH",depth_colored, model, System.currentTimeMillis());
-				}
 
 
 			} catch (InterruptedException e) {

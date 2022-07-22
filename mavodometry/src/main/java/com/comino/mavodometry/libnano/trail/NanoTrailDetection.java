@@ -3,31 +3,19 @@ package com.comino.mavodometry.libnano.trail;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.nio.ByteBuffer;
-import java.util.ArrayList;
-import java.util.Collection;
-import java.util.List;
-import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
-import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary;
 import com.comino.mavodometry.libnano.wrapper.JetsonNanoLibrary.Result;
-import com.comino.mavodometry.utils.DepthUtils;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.jna.NativeString;
-import com.sun.jna.Pointer;
 import com.sun.jna.ptr.PointerByReference;
 
 import boofcv.alg.distort.LensDistortionNarrowFOV;
-import boofcv.struct.distort.PixelTransform;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
-import georegression.geometry.GeometryMath_F64;
-import georegression.struct.point.Point2D_F32;
 import georegression.struct.point.Point2D_F64;
-import georegression.struct.point.Point3D_F64;
 import georegression.struct.se.Se3_F64;
 
 public class NanoTrailDetection  {
@@ -64,7 +52,7 @@ public class NanoTrailDetection  {
 		this.results =  ((Result[])result.toArray(6));
 
 		if(stream!=null) {
-			stream.registerOverlayListener(ctx -> {
+			stream.registerOverlayListener((ctx,n,tms) -> {
 				overlayFeatures(ctx);
 			});
 		}
@@ -94,7 +82,6 @@ public class NanoTrailDetection  {
 
 	    float current_turn_angle_deg =  DNN_TURN_ANGLE_DEG*(right_view_p - left_view_p) + DNN_LATERAL_CORRECTION_ANGLE_DEG *(right_side_p - left_side_p);
 
-	    // TODO: constraints
 
 	    turn_angle = turn_angle*(1-direction_filter_innov_coeff_) + current_turn_angle_deg*direction_filter_innov_coeff_;
 

@@ -81,7 +81,7 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 			this.segments_ned.add(new Point2D3DW());
 
 		if(stream!=null) {
-			stream.registerOverlayListener((ctx,tms) -> {
+			stream.registerOverlayListener((ctx,n,tms) -> {
 				if(enableStream) {
 					overlayFeatures(ctx,tms);
 					if(depth_overlay)

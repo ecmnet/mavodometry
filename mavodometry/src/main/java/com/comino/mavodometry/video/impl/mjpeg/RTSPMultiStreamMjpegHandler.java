@@ -174,6 +174,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	public void enableStream(String stream_name) {
 		receiver.enableStream(stream_name);
+		fps = 0;
 	}
 
 	@Override
@@ -181,18 +182,12 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		BlockingQueue<T>  queue = transfers.get(source);
 		if(queue==null) {
-			queue = new ArrayBlockingQueue<T>(3);
+			queue = new ArrayBlockingQueue<T>(10);
 			transfers.put(source, queue);
 			System.out.println(source+" videostream created..");
 			return;
 		}
-
-		try {
-			if(queue.remainingCapacity()>0 ) {
-				queue.put(in);
-			}
-		} catch (InterruptedException e) { e.printStackTrace(); }
-
+		queue.offer(in);
 	}
 
 	@Override
@@ -236,7 +231,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					queue = transfers.get(streams[0]);
 
-					if(queue == null || (input = queue.poll(300, TimeUnit.MILLISECONDS)) == null) {
+					if(queue == null || (input = queue.poll(100, TimeUnit.MILLISECONDS)) == null) {
 
 						if(!no_video) {
 							if(no_video_handler!= null)
@@ -324,10 +319,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				ctx.drawImage(image_thumb,p0.x,p0.y,p1.x,p1.y,0,0,width,height,null);
 				return;
 			}
-			
+
 			T overlay = null;
 			overlay = q.poll(5, TimeUnit.MILLISECONDS);
-			
+
 			if(overlay == null) {
 				ctx.drawImage(image_thumb,p0.x,p0.y,p1.x,p1.y,0,0,width,height,null);
 				return;
