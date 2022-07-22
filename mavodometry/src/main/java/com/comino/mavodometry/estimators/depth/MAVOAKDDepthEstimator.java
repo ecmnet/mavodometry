@@ -71,7 +71,7 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
-	private static final int              DEPTH_RATE    = 200;
+	private static final int              DEPTH_RATE    = 100;
 
 	// mounting offset in m
 	private static final double   	      OFFSET_X 		=  -0.06;
@@ -99,7 +99,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private final DecimalFormat faltitude  = new DecimalFormat("at #0.0m;at -#0.0m");
 
 	private final WorkQueue wq = WorkQueue.getInstance();
-	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(1);
+	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
 	private int depth_worker;
 
 	private final LocalMap3D map;
@@ -261,6 +261,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				model.slam.ox = (float)ned_pt_n.x;
 				model.slam.oy = (float)ned_pt_n.y;
 				model.slam.oz = (float)ned_pt_n.z;		
+				
+				transfer_depth.clear();
 
 
 			} catch (InterruptedException e) {

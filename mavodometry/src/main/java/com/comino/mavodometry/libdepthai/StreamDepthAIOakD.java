@@ -73,14 +73,14 @@ import boofcv.struct.image.Planar;
 public class StreamDepthAIOakD {
 
 	private final static UsbSpeed  USE_USB2         = UsbSpeed.HIGH;
-//	private final static UsbSpeed  USE_USB2         = UsbSpeed.SUPER_PLUS;
-	
+	//	private final static UsbSpeed  USE_USB2         = UsbSpeed.SUPER_PLUS;
+
 	// TODO: Only USB2 possible due to interference with GPS. RGB stream rate therefore very low
 	// Try to encode RGB on device and decode it on HOST, do overlay eventually on GC side
-	
+
 	private final static int      DEPTH_CONFIDENCE = 120;
-//	private final static int      DEPTH_SIGMA      = 150;
-	
+	//	private final static int      DEPTH_SIGMA      = 150;
+
 	private final static float    FPS_COLOR        = 15;
 	private final static float    FPS_MONO         = 15;
 
@@ -183,20 +183,21 @@ public class StreamDepthAIOakD {
 									listener.process(rgb, depth, rgb_tms, depth_tms);
 							}
 
-							Thread.sleep(2);
+							Thread.sleep(3);
+
 
 						} catch (InterruptedException e) { }
 
 					}
 
 				}));
-		
+
 		Thread.sleep(50);
-		
+
 		callback = new CombineOAKDCallback();
 		if(!is_running)
 			throw new Exception("No OAKD camera found");
-		
+
 
 
 
@@ -256,13 +257,13 @@ public class StreamDepthAIOakD {
 			colorCam.setInterleaved(false);
 
 			StereoDepth depth = p.createStereoDepth();
-			
+
 			depth.setDefaultProfilePreset(PresetMode.HIGH_ACCURACY);
 			depth.initialConfig().setMedianFilter(MedianFilter.KERNEL_7x7);
-		//	depth.initialConfig().setBilateralFilterSigma((short)DEPTH_SIGMA);
+			//	depth.initialConfig().setBilateralFilterSigma((short)DEPTH_SIGMA);
 			depth.initialConfig().setConfidenceThreshold(DEPTH_CONFIDENCE);
 			depth.initialConfig().setDepthUnit(DepthUnit.MILLIMETER);
-			
+
 			depth.setLeftRightCheck(true);
 			depth.setExtendedDisparity(false);
 			depth.setSubpixel(true);
@@ -289,20 +290,20 @@ public class StreamDepthAIOakD {
 				colorCam.preview().link(xlinkOut.input());
 			else
 				monoLeft.out().link(xlinkOut.input());
-			
+
 			depth.depth().link(xlinkOut.input());
 
 			try {
 
 				device = new Device(p,USE_USB2);
 				device.deallocate(false);
-				
+
 				is_running = device.isPipelineRunning();
 			} catch(RuntimeException e) {
 				is_running = false;
 				return;
 			}
-			
+
 			queue = device.getOutputQueue("preview", 10, true);
 			queue.deallocate(false);
 			int id = queue.addCallback(this);
@@ -334,31 +335,27 @@ public class StreamDepthAIOakD {
 		public void call() {
 
 			try {
-			
+
 				ImgFrame imgFrame = queue.tryGetImgFrame();
 				if(imgFrame!=null && !imgFrame.isNull() ) {
 					switch(imgFrame.getInstanceNum()) {
 					case RGB_FRAME:
 						rgb_tms = System.currentTimeMillis();
-						if(transfer_rgb.isEmpty() && rgb_mode)
-							transfer_rgb.put(imgFrame);
+						if(rgb_mode)
+							transfer_rgb.offer(imgFrame);
 						else
 							imgFrame.close();
 						break;
 					case MONO_FRAME:
 						rgb_tms = System.currentTimeMillis();
-						if(transfer_mono.isEmpty() && !rgb_mode)
-							transfer_mono.put(imgFrame);
+						if(!rgb_mode)
+							transfer_mono.offer(imgFrame);
 						else
-							imgFrame.close();
+							imgFrame.close();  // Shouldn't this be called always??
 						break;
 					case DEPTH_FRAME:
-						
 						depth_tms = System.currentTimeMillis();
-						if(transfer_depth.isEmpty())
-							transfer_depth.put(imgFrame);
-						else
-							imgFrame.close();
+						transfer_depth.offer(imgFrame);
 						break;
 					}
 

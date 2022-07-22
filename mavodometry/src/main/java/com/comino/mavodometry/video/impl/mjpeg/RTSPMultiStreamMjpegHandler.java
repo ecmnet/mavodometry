@@ -164,7 +164,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	public void start(int RTSPport) throws Exception {
 		this.RTSPport = RTSPport;
-		OdometryPool.submit(new Thread(new Controller()));
+		new Thread(new Controller()).start();
 	}
 
 	public float getFps() {
