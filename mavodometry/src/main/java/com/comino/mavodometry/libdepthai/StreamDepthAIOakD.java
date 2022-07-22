@@ -106,9 +106,9 @@ public class StreamDepthAIOakD {
 	private Device device;
 
 	private CombineOAKDCallback callback;
-	private final BlockingQueue<ImgFrame> transfer_rgb   = new ArrayBlockingQueue<ImgFrame>(20);
-	private final BlockingQueue<ImgFrame> transfer_mono  = new ArrayBlockingQueue<ImgFrame>(20);
-	private final BlockingQueue<ImgFrame> transfer_depth = new ArrayBlockingQueue<ImgFrame>(20);
+	private final BlockingQueue<ImgFrame> transfer_rgb   = new ArrayBlockingQueue<ImgFrame>(5);
+	private final BlockingQueue<ImgFrame> transfer_mono  = new ArrayBlockingQueue<ImgFrame>(5);
+	private final BlockingQueue<ImgFrame> transfer_depth = new ArrayBlockingQueue<ImgFrame>(5);
 
 	private int width;
 	private int height;
@@ -183,7 +183,7 @@ public class StreamDepthAIOakD {
 									listener.process(rgb, depth, rgb_tms, depth_tms);
 							}
 
-							Thread.sleep(15);
+							Thread.sleep(2);
 
 						} catch (InterruptedException e) { }
 
@@ -273,12 +273,12 @@ public class StreamDepthAIOakD {
 
 
 			MonoCamera monoLeft = p.createMonoCamera();
-			monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_800_P);
+			monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
 			monoLeft.setBoardSocket(CameraBoardSocket.LEFT);
 			monoLeft.setFps(FPS_MONO);
 
 			MonoCamera monoRight = p.createMonoCamera();
-			monoRight.setResolution(MonoCameraProperties.SensorResolution.THE_800_P);
+			monoRight.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
 			monoRight.setBoardSocket(CameraBoardSocket.RIGHT);
 			monoRight.setFps(FPS_MONO);
 
@@ -303,7 +303,7 @@ public class StreamDepthAIOakD {
 				return;
 			}
 			
-			queue = device.getOutputQueue("preview", 15, true);
+			queue = device.getOutputQueue("preview", 10, true);
 			queue.deallocate(false);
 			int id = queue.addCallback(this);
 
@@ -363,7 +363,7 @@ public class StreamDepthAIOakD {
 					}
 
 				} 
-			} catch (InterruptedException e) {	}
+			} catch (Exception e) {	}
 		}
 	}
 

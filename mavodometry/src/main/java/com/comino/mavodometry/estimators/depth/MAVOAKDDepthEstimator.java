@@ -71,7 +71,7 @@ import georegression.struct.se.Se3_F64;
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
-	private static final int              DEPTH_RATE    = 150;
+	private static final int              DEPTH_RATE    = 200;
 
 	// mounting offset in m
 	private static final double   	      OFFSET_X 		=  -0.06;
@@ -86,7 +86,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private StreamDepthAIOakD			oakd 			= null;
 
 	private boolean 					enableStream  	= false;
-	private boolean 					depth_overlay 	= false;
 	private Point2Transform2_F64 		p2n      		= null;
 
 	private final Se3_F64       		to_ned          = new Se3_F64();
@@ -105,19 +104,14 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private final LocalMap3D map;
 	private final IVisualStreamHandler<Planar<GrayU8>> stream;
-	
+
 	private final Planar<GrayU8> depth_colored;
 
-	private int width;
-
-	private int height;
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, LocalMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
 
 		this.stream = stream;
-		this.width  = width;
-		this.height = height;
 
 
 		// read offset settings
@@ -129,7 +123,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		try {
 			this.oakd   = StreamDepthAIOakD.getInstance(width, height);
 			//		this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
-			this.oakd.setRGBMode(!depth_overlay);
+			this.oakd.setRGBMode(true);
 			//	this.oakd.setRGBMode(false);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -137,13 +131,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		this.width34 = width * 3 / 4;
 		this.map = map;
-		
-		this.depth_colored= new Planar<GrayU8>(GrayU8.class,width,height,3);
-//		for(int i = 0; i < depth_colored.bands[0].data.length;i++) {
-//			depth_colored.bands[0].data[i] = (byte)40;
-//			depth_colored.bands[1].data[i] = (byte)40;
-//			depth_colored.bands[2].data[i] = (byte)40;
-//		}
+
+		this.depth_colored = new Planar<GrayU8>(GrayU8.class,width,height,3);
 
 
 		if(stream!=null) {
@@ -164,19 +153,17 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				model.sys.setSensor(Status.MSP_SLAM_AVAILABILITY, true);
 
 				// transfer depth data to depth handler 
-				if(transfer_depth.isEmpty()) {
-					try {
-						MSP3DUtils.convertModelToSe3_F64(model, to_ned);
-						transfer_depth.put(depth);
-					} catch (InterruptedException e) {	}
-				}
+
+				if(transfer_depth.offer(depth))
+					MSP3DUtils.convertModelToSe3_F64(model, to_ned);
+
 				// Add image to stream
 				if(stream!=null && enableStream) {
 					stream.addToStream("RGB",rgb, model, timeRgb);
 					stream.addToStream("DEPTH",depth_colored, model, System.currentTimeMillis());	
 				}
-
-				model.slam.fps = 1000f / (System.currentTimeMillis() - tms) + 0.5f;
+				
+				model.slam.fps = model.slam.fps * 0.75f + ((float)(1000f / (System.currentTimeMillis()-tms))) * 0.25f;
 				tms = System.currentTimeMillis();			
 			}
 		});
@@ -249,7 +236,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		private final Point2D3D   ned_p = new Point2D3D();
 
 		public DepthHandler() {
-			
+
 		}
 
 		@Override
@@ -264,7 +251,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 
 				model.slam.quality = depthMapping(depth);
-			
+
 
 				model.slam.dm = (float)nearest_body.location.x; 
 
@@ -297,11 +284,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 							nearest_body.setTo(tmp_p);
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
-						
+
 						if(control.isSimulation() || !model.sys.isStatus(Status.MSP_LANDED))
 							map.update(to_ned.T,ned_p.location);   // Incremental probability
 						//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
-						
+
 						quality++;
 					}
 				}
@@ -321,13 +308,13 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			if (v == 0 || v > max) {
 				r = b = g = 60;
 			} else {
-				g = 0;
 				b = 255*v/max;
 				r = 255*(max - v - 1)/max;
+				g = r / 8;
 			}
 			for(int xs = 0; xs < DEPTH_SCALE;xs++)
 				for(int ys = 0; ys < DEPTH_SCALE;ys++)
-			  out.set24u8(x+xs, y+ys, r << 16 | g << 8 | b );
+					out.set24u8(x+xs, y+ys, r << 16 | g << 8 | b );
 		}
 
 
@@ -338,7 +325,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			p.observation.y = y;
 
 			p.location.x = in.get(x, y) * 1e-3;
-			
+
 			if(p.location.x < MIN_DEPTH_M || p.location.x > MAX_DEPTH_M) {
 				p.location.x = Double.MAX_VALUE;
 				return false;
