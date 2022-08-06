@@ -128,7 +128,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	//	private float cov_vel;
 	//	private float cov_twist;
 
-	private final WorkQueue wq = WorkQueue.getInstance();
+	private final WorkQueue wq;
+	
 	private  boolean is_initialized      = false;
 
 	// MAVLink messages
@@ -228,6 +229,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			throws Exception {
 
 		super(control);
+		
+		wq     = WorkQueue.getInstance();
 
 		model.vision.clear();
 		model.vision.setStatus(Vision.ENABLED, config.getBoolProperty(MSPParams.PUBLISH_ODOMETRY, "true"));
@@ -249,9 +252,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		
 		check_veltestratio = config.getFloatProperty(MSPParams.T265_CHECK_VELTESTRATIO, Float.toString(DEFAULT_MAX_VEL_TESTRATIO));
 		System.out.println("T265 check velocity test ratio: "+check_veltestratio);
+		if(check_veltestratio <= 0)
+			writeLogMessage(new LogMessage("[msp] T265 testratio check disabled",MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 		
 		check_max_errors = config.getIntProperty(MSPParams.T265_CHECK_MAX_ERROR, Integer.toString(DEFAULT_MAX_ERRORS));
 		System.out.println("T265 max errors: "+check_max_errors);
+		if(check_max_errors <= 0)
+			writeLogMessage(new LogMessage("[msp] T265 reset disabled",MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 
 		// Do not allow drift compensation with GPS
 		// TOOD: Better check PX4 fusion parameter
@@ -822,9 +829,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		gor.time_usec = DataModel.getSynchronizedPX4Time_us();
 
 		control.sendMAVLinkMessage(gor);
-
-		MSPLogger.getInstance().writeLocalMsg("[msp] Setting reference position",
-				MAV_SEVERITY.MAV_SEVERITY_INFO);
+		writeLogMessage(new LogMessage("[msp] Setting reference position",MAV_SEVERITY.MAV_SEVERITY_INFO));
 
 	}
 
