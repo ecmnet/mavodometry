@@ -351,6 +351,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		public void enableStream(String stream_name) {
 			this.streams = stream_name.split("\\+");
+			fps = 0;
 		}
 
 	}
