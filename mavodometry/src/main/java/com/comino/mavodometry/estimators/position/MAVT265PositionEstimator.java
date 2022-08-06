@@ -104,7 +104,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final int         FIDUCIAL_HEIGHT     		= 360;
 	private static final int         FIDUCIAL_WIDTH     		= 360;
 
-	private static final float       MAX_VEL_TESTRATIO          = 0.5f;
+	private static final float       DEFAULT_MAX_VEL_TESTRATIO  = 0.5f;
 	private static final int     	 DEFAULT_MAX_ERRORS         = 20;
 
 	private static final float       MAX_VEL_VARIANCE           = 0.5f;     
@@ -218,8 +218,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final TimeHysteresis           att_hysteresis;
 	private boolean                        drift_compensation = false;
 	
-	private boolean                        check_veltestratio = false;
-	private int                            check_max_errors   = 20;
+	private float                          check_veltestratio = DEFAULT_MAX_VEL_TESTRATIO;
+	private int                            check_max_errors   = DEFAULT_MAX_ERRORS;
 
 	private float cov_velocity = 0.1f;
 
@@ -247,7 +247,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		
 		
-		check_veltestratio = config.getBoolProperty(MSPParams.T265_CHECK_VELTESTRATIO, "false");
+		check_veltestratio = config.getFloatProperty(MSPParams.T265_CHECK_VELTESTRATIO, Float.toString(DEFAULT_MAX_VEL_TESTRATIO));
 		System.out.println("T265 check velocity test ratio: "+check_veltestratio);
 		
 		check_max_errors = config.getIntProperty(MSPParams.T265_CHECK_MAX_ERROR, Integer.toString(DEFAULT_MAX_ERRORS));
@@ -592,7 +592,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	
 
 			// Velocity testRatio check if enabled
-			if(check_veltestratio && model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.velRatio > MAX_VEL_TESTRATIO) {
+			if(check_veltestratio > 0 && model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && model.est.velRatio > check_veltestratio) {
 
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
