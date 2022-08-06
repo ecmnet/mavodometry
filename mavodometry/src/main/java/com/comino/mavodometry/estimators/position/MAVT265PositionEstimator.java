@@ -104,7 +104,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final int         FIDUCIAL_HEIGHT     		= 360;
 	private static final int         FIDUCIAL_WIDTH     		= 360;
 
-	private static final int     	 MAX_ERRORS          		= 60;
+	private static final float       MAX_VEL_TESTRATIO          = 0.5f;
+	private static final int     	 DEFAULT_MAX_ERRORS         = 20;
 
 	private static final float       MAX_VEL_VARIANCE           = 0.5f;     
 	private static final float       MAX_YAW_VARIANCE           = 1.0f;
@@ -216,6 +217,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final TimeHysteresis           vel_hysteresis;
 	private final TimeHysteresis           att_hysteresis;
 	private boolean                        drift_compensation = false;
+	
+	private boolean                        check_veltestratio = false;
+	private int                            check_max_errors   = 20;
 
 	private float cov_velocity = 0.1f;
 
@@ -241,11 +245,17 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		offset.z = config.getFloatProperty(MSPParams.T265_OFFSET_Z, String.valueOf(OFFSET_Z));
 		System.out.println("T265 Mounting offset: "+offset);
 
-		// drift compensation
-		drift_compensation = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "false");
+		
+		
+		check_veltestratio = config.getBoolProperty(MSPParams.T265_CHECK_VELTESTRATIO, "false");
+		System.out.println("T265 check velocity test ratio: "+check_veltestratio);
+		
+		check_max_errors = config.getIntProperty(MSPParams.T265_CHECK_MAX_ERROR, Integer.toString(DEFAULT_MAX_ERRORS));
+		System.out.println("T265 max errors: "+check_max_errors);
 
 		// Do not allow drift compensation with GPS
 		// TOOD: Better check PX4 fusion parameter
+		drift_compensation = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "false");
 		if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && drift_compensation) {
 			drift_compensation = false;
 			writeLogMessage(new LogMessage("[vio] T265 drift compensation disabled as GPS is available", MAV_SEVERITY.MAV_SEVERITY_WARNING));
@@ -438,7 +448,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			if(confidence <= CONFIDENCE_LOW && confidence_old != confidence) {
 
-				if(++error_count > MAX_ERRORS)
+				if(++error_count > check_max_errors && check_max_errors > 0)
 					init("Low confidence");
 
 				model.vision.setStatus(Vision.SPEED_VALID, false);
@@ -545,7 +555,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) || model.sys.isSensorAvailable(Status.MSP_PIX4FLOW_AVAILABILITY)) {
 
-					if(++error_count > MAX_ERRORS)
+					if(++error_count > check_max_errors && check_max_errors > 0)
 						init("Velocity");
 
 					publishMSPFlags(tms);
@@ -565,7 +575,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.POS_VALID, false);
 				model.vision.setStatus(Vision.ERROR, true);
 
-				if(++error_count > MAX_ERRORS) {
+				if(++error_count > check_max_errors && check_max_errors > 0) {
 					init("EKF2 Glitch");
 					return;
 				}
@@ -579,15 +589,16 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				return;
 			}
+	
 
-			// Velocity testRatio check
-			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.velRatio > 1.0) {
+			// Velocity testRatio check if enabled
+			if(check_veltestratio && model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.velRatio > MAX_VEL_TESTRATIO) {
 
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				model.vision.setStatus(Vision.ERROR, true);		
 
-				if(++error_count > MAX_ERRORS) {
+				if(++error_count > check_max_errors && check_max_errors > 0) {
 					init("EKF2 TestRatio");
 					return;
 				}

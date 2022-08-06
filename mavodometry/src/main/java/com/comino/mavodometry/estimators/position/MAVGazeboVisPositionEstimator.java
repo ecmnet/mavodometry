@@ -33,6 +33,8 @@ import georegression.struct.se.Se3_F64;
 public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 
 	private final float             MAX_VEL_TESTRATIO    = 0.5f;
+	private final int     	        MAX_ERRORS           = 5;
+
 	private final float			    STD_VEL_COVARIANCE   = 0.1f;  // set to NaN to use in EKF2 parameter
 	private final float             RESET_VEL_COVERIANCE = 2.0f;
 
@@ -59,6 +61,8 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 	private float                   cov_velocity    = STD_VEL_COVARIANCE;
 
 	private final StreamGazeboVision vis;
+
+	private int                     error_count     = 0;
 
 
 	public MAVGazeboVisPositionEstimator(IMAVMSPController control) {
@@ -101,7 +105,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				init("armed");
 			}
 		});
-		
+
 		control.getStatusManager().addListener(Status.MSP_GPOS_VALID, (n) -> {
 			if(model.gps.numsat > 8 && n.isStatus(Status.MSP_GPOS_VALID) && n.isStatus(Status.MSP_LANDED))
 				init("gpos");
@@ -132,6 +136,8 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 			// Simulate T265 reset cycle
 			if(tms_reset > 0 && ((System.currentTimeMillis() - tms_reset) < 2000)) {
 
+				error_count = 0;
+
 				model.vision.setStatus(Vision.RESETTING, true);
 				model.vision.setStatus(Vision.ERROR, false);
 
@@ -139,15 +145,15 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				offset_pos_ned.scale(-1);
 				offset_pos_ned.plusIP(p.T);
 				offset_pos_ned.scale(-1);
-				
+
 				att_euler.setFromMatrix(p.R);		
 				att_offset.set(model.attitude.r - att_euler.getRoll(),
-						       model.attitude.p - att_euler.getPitch(), 
-						       model.attitude.y - att_euler.getYaw()
-						      );
-				
+						model.attitude.p - att_euler.getPitch(), 
+						model.attitude.y - att_euler.getYaw()
+						);
+
 				cov_velocity = RESET_VEL_COVERIANCE;
-				
+
 				return;
 			}
 
@@ -170,8 +176,11 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
-				model.vision.setStatus(Vision.ERROR, true);		
-				init("EKF2 Glitch");
+				model.vision.setStatus(Vision.ERROR, true);	
+				if(++error_count > MAX_ERRORS) {
+					init("EKF2 Glitch");
+					return;
+				}
 				return;
 			}
 
@@ -179,11 +188,27 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 
 			ned.setTo(p);
 			ned_s.setTo(s);
+			
+			
+			double noisex = (double)Math.random()+0.5;
+			double noisey = (double)Math.random()+0.5;
+			double noisez = (double)Math.random()+0.5;
 
-			// Simulate a vision glitch between 30 and 35 secs arming
-			if(model.sys.t_armed_ms > 30000 && model.sys.t_armed_ms < 35000) {
-				double noise = (double)Math.random() * 10f;
-				ned_s.T.scale(noise);
+			// Simulate a 5 secs vision glitch between 20 and 24 secs arming
+			if(model.sys.t_armed_ms > 20000 && model.sys.t_armed_ms < 25000) {
+				ned_s.T.x *= noisex; ned_s.T.y *= noisey; ned_s.T.z *= noisez;
+			}
+
+			// Simulate a 0.5secs vision glitch between 30 and 31 secs arming for 100ms
+			if(model.sys.t_armed_ms > 30000 && model.sys.t_armed_ms <30500) {
+				ned_s.T.x *= noisex * 5 ; ned_s.T.y *= noisey * 5; ned_s.T.z *= noisez;
+			}
+
+			// Simulate a 10secs vision glitch between 40 and 60 secs arming
+			if(model.sys.t_armed_ms > 40000 && model.sys.t_armed_ms < 60000) {
+				double tmp = ned_s.T.x;
+				ned_s.T.x = ned_s.T.y*noisex; ned_s.T.y = tmp * noisey; ned_s.T.z *= noisez;
+				ned.T.x   *= noisex; ned.T.y   *= noisey; ned.T.z   *= noisez;
 			}
 
 			att_euler.setFromMatrix(ned.R).add(att_offset);			
@@ -200,8 +225,18 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				model.vision.setStatus(Vision.ERROR, true);		
-				init("EKF2 TestRatio");
+
 				publishMSPFlags(tms);
+				
+				System.err.println(model.sys.t_armed_ms+": "+error_count);
+
+				if(++error_count > MAX_ERRORS) {
+					init("EKF2 TestRatio");
+					return;
+				}
+
+				publishMSPFlags(tms);
+
 				return;
 			}
 
@@ -212,9 +247,9 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 
 			// Filter a covariance for velocity based on test ratio
 			if(Float.isFinite(model.est.velRatio) && model.est.velRatio > 0 && Float.isFinite(cov_velocity))
-			  cov_velocity = cov_velocity * 0.98f + model.est.velRatio * 3f *0.02f;
+				cov_velocity = cov_velocity * 0.98f + model.est.velRatio * 3f *0.02f;
 			model.debug.x = cov_velocity;
-			
+
 
 
 			publishPX4Odometry(ned.T,body_s.T, MAV_FRAME.MAV_FRAME_LOCAL_NED, cov_velocity ,confidence,tms);
@@ -291,13 +326,13 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		// Use EKF params
 
 		odo.pose_covariance[0] = Float.NaN;
-		
+
 		if(Float.isFinite(cov_vel))
 			build_covariance(cov_vel,odo.velocity_covariance);
 		else
-		    odo.velocity_covariance[0] = Float.NaN;
+			odo.velocity_covariance[0] = Float.NaN;
 
-	
+
 		// do not use twist
 		odo.q[0] = Float.NaN;
 

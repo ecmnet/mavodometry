@@ -162,7 +162,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					stream.addToStream("RGB",rgb, model, timeRgb);
 					stream.addToStream("DEPTH",depth_colored, model, System.currentTimeMillis());	
 				}
-				
+
 				model.slam.fps = model.slam.fps * 0.75f + ((float)(1000f / (System.currentTimeMillis()-tms))) * 0.25f;
 				tms = System.currentTimeMillis();			
 			}
@@ -205,7 +205,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private void drawMinDist(Graphics ctx, String stream,int x0, int y0) {
 
-		if(x0==0 && y0 == 0 && Float.isFinite(model.slam.dm))
+		if((x0==0 && y0 == 0))
 			return;
 
 		if(stream.contains("DEPTH")) {
@@ -218,7 +218,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		}
 
-		String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(-model.slam.oz);
+		String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(model.slam.oz);
 		ctx.drawString(tmp, width34 - ctx.getFontMetrics().stringWidth(tmp)/2, 20);
 
 	}
@@ -252,16 +252,14 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 				model.slam.quality = depthMapping(depth);
 
-
-				model.slam.dm = (float)nearest_body.location.x; 
-
 				GeometryMath_F64.mult(to_ned.R, nearest_body.location, ned_pt_n );
 				ned_pt_n.plusIP(to_ned.T);
 
+				model.slam.dm = (float)nearest_body.location.x; 
 				model.slam.ox = (float)ned_pt_n.x;
 				model.slam.oy = (float)ned_pt_n.y;
 				model.slam.oz = (float)ned_pt_n.z;		
-				
+
 				transfer_depth.clear();
 
 
