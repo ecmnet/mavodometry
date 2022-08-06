@@ -50,8 +50,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	// Note: Relies on https://libjpeg-turbo.org
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 50;
-	private static final int		MAX_VIDEO_QUALITY     = 70;
-	private static final int		LOW_VIDEO_QUALITY     = 10;
+	private static final int		MAX_VIDEO_QUALITY     = 90;
+	private static final int		LOW_VIDEO_QUALITY     = 20;
 
 	private static final int        THUMBNAIL_WIDTH        = 64*2;
 	private static final int        THUMBNAIL_HEIGHT       = 48*2;
