@@ -31,27 +31,24 @@ import org.libjpegturbo.turbojpeg.TJCompressor;
 import org.libjpegturbo.turbojpeg.TJException;
 
 import com.comino.mavcom.model.DataModel;
-import com.comino.mavcom.model.segment.Status;
-import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.video.INoVideoListener;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.rtps.RTPpacket;
 
-import boofcv.alg.filter.misc.AverageDownSampleOps;
 import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.struct.point.Point2D_I32;
-import javafx.geometry.Point2D;
+
 
 public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-	private static final int		DEFAULT_VIDEO_QUALITY = 50;
+	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
-	private static final int		LOW_VIDEO_QUALITY     = 20;
+	private static final int		LOW_VIDEO_QUALITY     = 40;
 
 	private static final int        THUMBNAIL_WIDTH        = 64*2;
 	private static final int        THUMBNAIL_HEIGHT       = 48*2;
@@ -130,7 +127,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		this.image_thumb = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 
 		this.ctx = image.createGraphics();
-		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 9));
+		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 10));
 
 		this.buffer      = new byte[width*height*6];
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
