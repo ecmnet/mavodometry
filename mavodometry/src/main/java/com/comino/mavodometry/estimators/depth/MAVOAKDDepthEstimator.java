@@ -277,13 +277,14 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			for(int x = 10; x < in.width-10;x = x + DEPTH_SCALE) {
 				for(int y = 10; y < in.height-10;y = y + DEPTH_SCALE) {
 
-					colorize(x,y,in,depth_colored, 8000);
+					colorize(x,y,in,depth_colored, 9000);
 
 					if(getSegmentPositionBody(x,y,in,tmp_p)) {
-						if(tmp_p.location.x< nearest_body.location.x)
-							nearest_body.setTo(tmp_p);
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
+						if(tmp_p.location.x< nearest_body.location.x && 
+								ned_p.location.z < (-(model.hud.at)) ) // consider terrain as ground
+							nearest_body.setTo(tmp_p);
 
 						if(control.isSimulation() || !model.sys.isStatus(Status.MSP_LANDED))
 							map.update(to_ned.T,ned_p.location);   // Incremental probability
