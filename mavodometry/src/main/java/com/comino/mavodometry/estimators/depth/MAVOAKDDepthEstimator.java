@@ -208,10 +208,10 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		if((x0==0 && y0 == 0))
 			return;
 
-		if(stream.contains("DEPTH")) {
+		if(stream.contains("DEPTH") && Float.isFinite(model.slam.dm)) {
 
 			final int ln = 5;
-
+			
 			ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
 			ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
 			ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
@@ -282,8 +282,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					if(getSegmentPositionBody(x,y,in,tmp_p)) {
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
-						if(tmp_p.location.x< nearest_body.location.x && 
-								ned_p.location.z < (-(model.hud.at)) ) // consider terrain as ground
+						if( Float.isFinite(model.hud.at) &&
+								tmp_p.location.x< nearest_body.location.x && 
+								ned_p.location.z < (-(model.hud.at+0.1f)) ) // consider terrain as ground
 							nearest_body.setTo(tmp_p);
 
 						if(control.isSimulation() || !model.sys.isStatus(Status.MSP_LANDED))
