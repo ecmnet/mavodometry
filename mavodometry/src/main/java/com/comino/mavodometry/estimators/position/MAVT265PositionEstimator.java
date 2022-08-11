@@ -214,13 +214,14 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;
 
-	private final TimeHysteresis           pos_hysteresis;
+//	private final TimeHysteresis           pos_hysteresis;
 	private final TimeHysteresis           vel_hysteresis;
 	private final TimeHysteresis           att_hysteresis;
-	private boolean                        drift_compensation = false;
+//	private boolean                        drift_compensation = false;
 	
 	private float                          check_veltestratio = DEFAULT_MAX_VEL_TESTRATIO;
 	private int                            check_max_errors   = DEFAULT_MAX_ERRORS;
+	private float                          old_veltestratio   = -1f;
 
 	private float cov_velocity = 0.1f;
 
@@ -262,12 +263,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		// Do not allow drift compensation with GPS
 		// TOOD: Better check PX4 fusion parameter
-		drift_compensation = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "false");
-		if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && drift_compensation) {
-			drift_compensation = false;
-			writeLogMessage(new LogMessage("[vio] T265 drift compensation disabled as GPS is available", MAV_SEVERITY.MAV_SEVERITY_WARNING));
-		} else
-			System.out.println("T265 drift compensation enabled: "+drift_compensation);
+//		drift_compensation = config.getBoolProperty(MSPParams.T265_DRIFT_COMPENSATION, "false");
+//		if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && drift_compensation) {
+//			drift_compensation = false;
+//			writeLogMessage(new LogMessage("[vio] T265 drift compensation disabled as GPS is available", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+//		} else
+//			System.out.println("T265 drift compensation enabled: "+drift_compensation);
 
 		// fiducial settings
 		fiducial_size   = config.getFloatProperty(MSPParams.T265_FIDUCIAL_SIZE,String.valueOf(FIDUCIAL_SIZE));
@@ -340,22 +341,22 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
-		pos_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_FALLING);
+//		pos_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_FALLING);
 		vel_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_RISING);
 		att_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_RISING);
-
-		// Switch to VEL integration
-		pos_hysteresis.registerAction(TimeHysteresis.EDGE_RISING, () -> {
-			// Store current position when velocity mode is entered
-			vpos_ned.setTo(lpos.T);  
-		});
-
-		// switch to POS
-		pos_hysteresis.registerAction(TimeHysteresis.EDGE_FALLING, () -> {
-			// Store current offset of vision position for correction when position mode is entered
-			//	error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, lpos.T.z - ned.T.z);
-			error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, 0); // Do not use Z
-		});
+//
+//		// Switch to VEL integration
+//		pos_hysteresis.registerAction(TimeHysteresis.EDGE_RISING, () -> {
+//			// Store current position when velocity mode is entered
+//			vpos_ned.setTo(lpos.T);  
+//		});
+//
+//		// switch to POS
+//		pos_hysteresis.registerAction(TimeHysteresis.EDGE_FALLING, () -> {
+//			// Store current offset of vision position for correction when position mode is entered
+//			//	error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, lpos.T.z - ned.T.z);
+//			error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, 0); // Do not use Z
+//		});
 
 		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
 		t265.registerCallback((tms, confidence, p, s, a, img) ->  {
@@ -366,14 +367,14 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			switch(confidence) {
 			case CONFIDENCE_FAILED:
-				quality = 0.00f; error_count++; is_fiducial = false; 
+				quality = 0.00f; is_fiducial = false; 
 				is_initialized = false;
 				break;
 			case CONFIDENCE_LOW:
-				quality = 0.33f; error_count++;
+				quality = 0.33f; 
 				break;
 			case CONFIDENCE_MEDIUM:
-				quality = 0.66f; error_count = 0;
+				quality = 0.66f; 
 				break;
 			case CONFIDENCE_HIGH:
 				if(confidence_old != CONFIDENCE_HIGH) {
@@ -439,8 +440,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				tms_old  = tms; 
 
 				error_pos_ned.setTo(0,0,0);
-				pos_hysteresis.reset();
 				att_hysteresis.reset();
+				vel_hysteresis.reset();
 
 				return;
 			}
@@ -542,7 +543,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			if(att_hysteresis.check(Math.abs(att.getYaw() - model.attitude.y) > MAX_YAW_VARIANCE)) {
 				model.vision.setStatus(Vision.ATT_VALID, false);
-				//	model.vision.setStatus(Vision.ERROR, true);
 			} else {
 				model.vision.setStatus(Vision.ATT_VALID, true);
 			}
@@ -558,9 +558,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.ERROR, true);
 
 				if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) || model.sys.isSensorAvailable(Status.MSP_PIX4FLOW_AVAILABILITY)) {
-
-					if(++error_count > check_max_errors && check_max_errors > 0)
-						init("Velocity");
+					
+					
+					error_count++;
+					
+					if(error_count == 1 && check_max_errors > 0)
+						  writeLogMessage(new LogMessage("[vio] Velocity divergence exceeded limit ", MAV_SEVERITY.MAV_SEVERITY_INFO));
 
 					publishMSPFlags(tms);
 					// Add left camera to stream
@@ -572,27 +575,28 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				}
 			}  
 
-			// Solution status check if GPS is available => do not publish
-			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.isFlagSet(EstStatus.EKF_GPS_GLITCH)) {
-
-				model.vision.setStatus(Vision.SPEED_VALID, false);
-				model.vision.setStatus(Vision.POS_VALID, false);
-				model.vision.setStatus(Vision.ERROR, true);
-
-				if(++error_count > check_max_errors && check_max_errors > 0) {
-					init("EKF2 Glitch");
-					return;
-				}
-
-				publishMSPFlags(tms);
-
-				// Add left camera to stream
-				if(stream!=null && enableStream) {
-					stream.addToStream("DOWN",img, model, tms);
-				}
-
-				return;
-			}
+//			// Solution status check if GPS is available => do not publish
+//			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.isFlagSet(EstStatus.EKF_GPS_GLITCH)) {
+//				
+//				model.vision.setStatus(Vision.SPEED_VALID, false);
+//				model.vision.setStatus(Vision.POS_VALID, false);
+//				model.vision.setStatus(Vision.ERROR, true);
+//				
+//				error_count++;
+//				
+//				if(error_count == 1 && check_max_errors > 0)
+//					  writeLogMessage(new LogMessage("[vio] GPS Glitch detected ", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+//
+//
+//				publishMSPFlags(tms);
+//
+//				// Add left camera to stream
+//				if(stream!=null && enableStream) {
+//					stream.addToStream("DOWN",img, model, tms);
+//				}
+//
+//				return;
+//			}
 	
 
 			// Velocity testRatio check if enabled
@@ -600,12 +604,32 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
-				model.vision.setStatus(Vision.ERROR, true);		
+				model.vision.setStatus(Vision.ERROR, true);	
+				
+				error_count++;
+				
+				if(old_veltestratio == model.est.velRatio) {
+					
+					publishMSPFlags(tms);
 
-				if(++error_count > check_max_errors && check_max_errors > 0) {
-					init("EKF2 TestRatio");
+					// Add left camera to stream
+					if(stream!=null && enableStream) {
+						stream.addToStream("DOWN",img, model, tms);
+					}
 					return;
 				}
+				
+				old_veltestratio = model.est.velRatio;
+				
+				
+				if(error_count == 1 && check_max_errors > 0)
+					  writeLogMessage(new LogMessage("[vio] Testratio exceeded limit ", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+
+			
+				
+				// Note: Testratio wird nicht mehr zurückgemeldet, sobald EKF2 vision (Prüfung auf test ratio?) nicht mehr akzeptiert
+			    //       dabei ist es egal ob man Odometry an EKF2 sendet oder nicht.
+				
 
 				publishMSPFlags(tms);
 
@@ -616,6 +640,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				return;
 			}
+			
+			if(error_count >= check_max_errors && check_max_errors > 0) {
+				
+				init("Error count");
+				return;
+			}
+			
+			
+			error_count = 0;
 
 
 			// Filter a covariance for velocity based on test ratio
