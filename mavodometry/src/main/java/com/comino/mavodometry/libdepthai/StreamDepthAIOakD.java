@@ -50,9 +50,16 @@ import org.bytedeco.depthai.ImgFrame;
 import org.bytedeco.depthai.MonoCamera;
 import org.bytedeco.depthai.MonoCameraProperties;
 import org.bytedeco.depthai.Pipeline;
+import org.bytedeco.depthai.RawStereoDepthConfig;
 import org.bytedeco.depthai.RawStereoDepthConfig.AlgorithmControl.DepthUnit;
+import org.bytedeco.depthai.RawStereoDepthConfig.PostProcessing;
+import org.bytedeco.depthai.RawStereoDepthConfig.PostProcessing.DecimationFilter;
+import org.bytedeco.depthai.RawStereoDepthConfig.PostProcessing.SpatialFilter;
+import org.bytedeco.depthai.RawStereoDepthConfig.PostProcessing.SpeckleFilter;
+import org.bytedeco.depthai.RawStereoDepthConfig.PostProcessing.TemporalFilter;
 import org.bytedeco.depthai.StereoDepth;
 import org.bytedeco.depthai.StereoDepth.PresetMode;
+import org.bytedeco.depthai.StereoDepthConfig;
 import org.bytedeco.depthai.XLinkOut;
 import org.bytedeco.depthai.global.depthai.CameraBoardSocket;
 import org.bytedeco.depthai.global.depthai.MedianFilter;
@@ -259,10 +266,21 @@ public class StreamDepthAIOakD {
 			StereoDepth depth = p.createStereoDepth();
 
 			depth.setDefaultProfilePreset(PresetMode.HIGH_ACCURACY);
-			depth.initialConfig().setMedianFilter(MedianFilter.KERNEL_7x7);
-			//	depth.initialConfig().setBilateralFilterSigma((short)DEPTH_SIGMA);
-			depth.initialConfig().setConfidenceThreshold(DEPTH_CONFIDENCE);
-			depth.initialConfig().setDepthUnit(DepthUnit.MILLIMETER);
+			StereoDepthConfig config = depth.initialConfig();
+			
+			config.setMedianFilter(MedianFilter.KERNEL_7x7);
+			config.setConfidenceThreshold(DEPTH_CONFIDENCE);
+			config.setDepthUnit(DepthUnit.MILLIMETER);
+			
+			// Postprocessing lags a bit 
+			
+//			RawStereoDepthConfig sconfig = config.get();		
+//			PostProcessing    pp = sconfig.postProcessing();
+//			SpeckleFilter    spf = new SpeckleFilter(); spf.enable(false); pp.speckleFilter(spf);
+//			TemporalFilter   tmf = new TemporalFilter(); tmf.enable(true);  pp.temporalFilter(tmf); 
+//			SpatialFilter    saf = new SpatialFilter(); saf.enable(true); saf.holeFillingRadius((byte)2); saf.numIterations(1); pp.spatialFilter(saf);
+//			DecimationFilter def = new DecimationFilter(); def.decimationFactor(1); pp.decimationFilter(def);
+//			config.set(sconfig);
 
 			depth.setLeftRightCheck(true);
 			depth.setExtendedDisparity(false);
