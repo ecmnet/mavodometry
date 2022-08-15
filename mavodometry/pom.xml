@@ -115,12 +115,12 @@
 		<dependency>
 			<groupId>org.bytedeco</groupId>
 			<artifactId>depthai</artifactId>
-			<version>2.17.0-1.5.8-SNAPSHOT</version>
+			<version>2.17.3-1.5.8-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>org.bytedeco</groupId>
 			<artifactId>depthai-platform</artifactId>
-			<version>2.17.0-1.5.8-SNAPSHOT</version>
+			<version>2.17.3-1.5.8-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>org.bytedeco</groupId>
@@ -167,10 +167,17 @@
 					<groupId>org.bytedeco</groupId>
 					<artifactId>artoolkitplus</artifactId>
 				</exclusion>
+				<exclusion>
+					<groupId>org.bytedeco</groupId>
+					<artifactId>videoinput</artifactId>
+				</exclusion>
+			
+
                 <exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>ffmpeg</artifactId>
 				</exclusion>
+				
 
 			</exclusions>
 		</dependency>
@@ -219,10 +226,13 @@
 					<groupId>org.bytedeco</groupId>
 					<artifactId>artoolkitplus-platform</artifactId>
 				</exclusion>
+
                 <exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>ffmpeg-platform</artifactId>
 				</exclusion>
+
+
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>artoolkitplus-platform</artifactId>
