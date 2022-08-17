@@ -480,7 +480,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					stream.addToStream(getClass().getName(),img, model, tms);
 				}
 				model.vision.setStatus(Vision.PUBLISHED, false);
-				publishMSPVision(gnd_ned,p,s,a,precision_lock,tms);
+				publishMSPVision(p,s,a,precision_lock,tms);
 				return;
 			}
 
@@ -738,7 +738,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				}
 
 				model.vision.setStatus(Vision.PUBLISHED, false);
-				publishMSPGroundTruth(ned);
+				model.vision.setGroundTruth(ned.T);
+				publishMSPFlags(tms);
 				return;
 			}
 
@@ -748,8 +749,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			case GROUNDTRUTH_MODE:
 
 				// just set ground truth in local model and send to GCL
-				publishMSPGroundTruth(ned);
-				break;
+				model.vision.setGroundTruth(ned.T);
+				publishMSPFlags(tms);
+
+			   break;
 
 
 			case LPOS_ODO_MODE_POSITION:
@@ -762,7 +765,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,cov_velocity,confidence,tms);
 
 				// Publish to GCL
-				publishMSPVision(gnd_ned,ned,ned_s,body_a,precision_lock,tms);
+				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
+				
+				model.vision.setGroundTruth(gnd_ned.T);
 
 				break;
 
@@ -922,26 +927,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	}
 
-	private void publishMSPGroundTruth(Se3_F64 pose) {
 
-		model.vision.setGroundTruth(pose.T);
-		msg.gx    =  model.vision.gx;
-		msg.gy    =  model.vision.gy;
-		msg.gz    =  model.vision.gz;
-		msg.flags = model.vision.flags;
-		control.sendMAVLinkMessage(msg);
-
-		msg.quality = (int)(quality * 100f);
-		msg.errors  = error_count;
-		msg.tms     = DataModel.getSynchronizedPX4Time_us();
-		msg.flags   = model.vision.flags;
-		msg.fps     = model.vision.fps;
-
-		control.sendMAVLinkMessage(msg);
-
-	}
-
-	private void publishMSPVision(Se3_F64 orig,Se3_F64 pose, Se3_F64 speed, Se3_F64 acc_body, Vector4D_F64 offset,long tms) {
+	private void publishMSPVision(Se3_F64 pose, Se3_F64 speed, Se3_F64 acc_body, Vector4D_F64 offset,long tms) {
 
 
 		msg.x =  (float) pose.T.x;
@@ -955,10 +942,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		msg.ax =  (float) acc_body.T.x;
 		msg.ay =  (float) acc_body.T.y;
 		msg.az =  (float) acc_body.T.z;
-
-		msg.gx =  (float) orig.T.x;
-		msg.gy =  (float) orig.T.y;
-		msg.gz =  (float) orig.T.z;
 
 		msg.px =  (float)offset.x;
 		msg.py =  (float)offset.y;
