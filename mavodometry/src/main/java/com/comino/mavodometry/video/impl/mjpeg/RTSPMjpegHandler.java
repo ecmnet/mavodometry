@@ -343,7 +343,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 			RTSPBufferedWriter.close();
 			RTSPsocket.close();
 		} catch (IOException e) {
-			// TODO Auto-generated catch block
+		
 			e.printStackTrace();
 		}
 
@@ -497,7 +497,7 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					try {
 						RTSPsocket.close();
 					} catch (IOException e1) {
-						// TODO Auto-generated catch block
+					
 						e1.printStackTrace();
 					}
 					e.printStackTrace();
