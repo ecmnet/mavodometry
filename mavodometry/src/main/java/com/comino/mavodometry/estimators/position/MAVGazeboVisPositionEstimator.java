@@ -20,6 +20,7 @@ import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
+import com.comino.mavcom.utils.MSPCovariance;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -61,6 +62,8 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 	private float                   cov_velocity    = STD_VEL_COVARIANCE;
 
 	private final StreamGazeboVision vis;
+	
+	private MSPCovariance                  cov_s = new MSPCovariance(10);
 
 	private int                     error_count     = 0;
 
@@ -206,9 +209,9 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 			//			}
 			//
 			//
-			//			if(model.sys.t_armed_ms > 30000 && model.sys.t_armed_ms <40000) {
-			//				ned_s.T.x *= -1;
-			//			}
+						if(model.sys.t_armed_ms > 30000 && model.sys.t_armed_ms <40000) {
+							ned_s.T.x *= -1;
+						}
 			//
 			//			// Simulate a 10secs vision glitch between 40 and 60 secs arming
 			//			if(model.sys.t_armed_ms > 40000 && model.sys.t_armed_ms < 60000) {
@@ -225,6 +228,8 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 			GeometryMath_F64.mult( to_body.R, ned_s.T ,body_s.T );
 
 			MSP3DUtils.convertCurrentSpeed(model, lpos_current_s);
+			
+			model.debug.x = (float)cov_s.determine(ned_s.T.norm(), lpos_current_s.norm(), false);
 
 			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.velRatio > MAX_VEL_TESTRATIO) {
 

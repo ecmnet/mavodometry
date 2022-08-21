@@ -276,9 +276,9 @@ public class StreamDepthAIOakD {
 			
 //			RawStereoDepthConfig sconfig = config.get();		
 //			PostProcessing    pp = sconfig.postProcessing();
-//			SpeckleFilter    spf = new SpeckleFilter(); spf.enable(false); pp.speckleFilter(spf);
+//			SpeckleFilter    spf = new SpeckleFilter(); spf.enable(true); spf.speckleRange(80); pp.speckleFilter(spf);
 //			TemporalFilter   tmf = new TemporalFilter(); tmf.enable(true);  pp.temporalFilter(tmf); 
-//			SpatialFilter    saf = new SpatialFilter(); saf.enable(true); saf.holeFillingRadius((byte)2); saf.numIterations(1); pp.spatialFilter(saf);
+//			SpatialFilter    saf = new SpatialFilter(); saf.enable(true); saf.holeFillingRadius((byte)3); saf.numIterations(1); pp.spatialFilter(saf);
 //			DecimationFilter def = new DecimationFilter(); def.decimationFactor(1); pp.decimationFilter(def);
 //			config.set(sconfig);
 

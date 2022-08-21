@@ -196,6 +196,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		private final int          width;
 		private final int          height;
+		
+		private long  tms_start = 0;
 
 		private final Point2D_I32  p0;
 		private final Point2D_I32  p1;
@@ -218,12 +220,16 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 			no_video = false;
 
 			System.out.println("Video streaming started ");
+			tms_start = System.currentTimeMillis();
 			while(is_running) {
 
 				try {
 
-					if(RTPsocket.isClosed() || transfers == null || streams == null)
+					if(RTPsocket.isClosed() || transfers == null || streams == null) {
+						Thread.sleep(100);
 						return;
+					}
+					
 
 					queue = transfers.get(streams[0]);
 
@@ -274,8 +280,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						tj.setJPEGQuality(quality/2);
 						tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS);
 					}
+					
 
-					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
+					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(System.currentTimeMillis()-tms_start), buffer, tj.getCompressedSize());
+			//    	RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 					int packet_length = rtp_packet.getpacket(packet_bits);
 
 					//send the packet as a DatagramPacket over the UDP socket 

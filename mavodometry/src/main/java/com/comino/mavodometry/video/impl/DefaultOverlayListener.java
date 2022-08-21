@@ -91,7 +91,7 @@ public class DefaultOverlayListener implements IOverlayListener {
 		tmp = model.sys.getModeString();
 		ctx.drawString(tmp, width - ctx.getFontMetrics().stringWidth(tmp)-20, 20);
 
-		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_INFO,tms)) {
+		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG,tms)) {
 			ctx.setColor(bgColor_header);
 			ctx.fillRect(5, height-21, width-35, 19);
 			ctx.setColor(Color.white);

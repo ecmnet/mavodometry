@@ -64,6 +64,7 @@ import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
+import com.comino.mavcom.utils.MSPCovariance;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseCV;
 import com.comino.mavodometry.utils.TimeHysteresis;
@@ -223,6 +224,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private int                            check_max_errors   = DEFAULT_MAX_ERRORS;
 	private float                          old_veltestratio   = -1f;
 
+	private MSPCovariance                  cov_s = new MSPCovariance(10);
 	private float cov_velocity = 0.1f;
 
 	@SuppressWarnings("unused")
@@ -656,6 +658,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 //			if(Float.isFinite(model.est.velRatio) && model.est.velRatio > 0 && Float.isFinite(cov_velocity))
 //				cov_velocity = cov_velocity * 0.98f + model.est.velRatio * 3f *0.02f;
 //			model.debug.x = cov_velocity;
+			
+			// Test vision vs. lpos velocity cov
+			model.debug.x = (float)cov_s.determine(ned_s.T.norm(), lpos_current_s.norm(), false);
 			
 			cov_velocity = Float.NaN;
 
