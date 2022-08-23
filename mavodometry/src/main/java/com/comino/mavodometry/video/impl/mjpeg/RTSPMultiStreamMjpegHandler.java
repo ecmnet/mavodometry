@@ -234,9 +234,9 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					queue = transfers.get(streams[0]);
 
 					try {
-						if(queue == null || (input = queue.poll(100, TimeUnit.MILLISECONDS)) == null) {
+						if(queue == null || (input = queue.poll(250, TimeUnit.MILLISECONDS)) == null) {
 							sendNoVideo();
-							Thread.sleep(100);
+							Thread.sleep(50);
 							continue;
 						} 
 					}
@@ -315,6 +315,11 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				no_video = true;
 			}
 			ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
+			
+			if(streams!=null && streams.length > 1) {
+				overlayThumbnail(transfers.get(streams[1]));
+			}
+			
 			ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
 			tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
 			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());

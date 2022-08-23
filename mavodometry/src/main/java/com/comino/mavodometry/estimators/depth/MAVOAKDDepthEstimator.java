@@ -82,7 +82,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private final static float            MAX_DEPTH_M 	= 5.0f;
 
 	private final static int              DEPTH_SCALE   = 2; 
-	private final static int 			  DEPTH_OFFSET  = 20;
+	private final static int 			  DEPTH_OFFSET  = 10;
 
 	private StreamDepthAIOakD			oakd 			= null;
 
@@ -276,7 +276,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			int quality = 0; nearest_body.location.x = Double.MAX_VALUE;
 
 			for(int x = DEPTH_OFFSET; x < in.width-DEPTH_OFFSET;x = x + DEPTH_SCALE) {
-				for(int y = DEPTH_OFFSET; y < in.height-DEPTH_OFFSET;y = y + DEPTH_SCALE) {
+				for(int y = 5; y < in.height-5;y = y + DEPTH_SCALE) {
 
 					colorize(x,y,in,depth_colored, 9000);
 
