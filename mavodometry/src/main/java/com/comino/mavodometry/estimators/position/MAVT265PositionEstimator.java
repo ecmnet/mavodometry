@@ -363,7 +363,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		//			error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, 0); // Do not use Z
 		//		});
 
-		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180_PREDICT,width,height);
+		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
 		t265.registerCallback((tms, confidence, p, s, a, img) ->  {
 
 			// Bug in CB; sometimes called twice
@@ -396,7 +396,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Reset procedure ------------------------------------------------------------------------------------------------
 			// Note: This takes 2sec for T265;
 
-			if((System.currentTimeMillis() - tms_reset) < 1800 || !is_initialized) {
+			if((System.currentTimeMillis() - tms_reset) < 2000 || !is_initialized) {
 				tms_reset = 0; confidence_old = 0; is_initialized = true; error_count = 0;
 
 				// set initial T265 pose as origin
@@ -449,6 +449,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				vel_hysteresis.reset();
 
 				tms_last_reset = System.currentTimeMillis();
+
+				publishMSPFlags(tms);
 
 				return;
 			}
@@ -607,44 +609,52 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			if((System.currentTimeMillis() - tms_last_reset) < 200)
 				return;
 
-			model.vision.setStatus(Vision.RESETTING, false);
+			if(model.vision.isStatus(Vision.RESETTING)) {
+				reset_count++;
+				model.vision.setStatus(Vision.RESETTING, false);
+			}
 
 			// Test vision vs. lpos velocity cov
 			cov_s_f = (float)Math.abs(cov_s.determine(ned_s.T.norm(), lpos_current_s.norm(), false)*10f);
 			model.debug.x = cov_s_f;
-			
-//			if(cov_s_f > 0.3) {
-//				
-//				model.vision.setStatus(Vision.SPEED_VALID, false);
-//				model.vision.setStatus(Vision.POS_VALID, false);
-//				model.vision.setStatus(Vision.ERROR, true);	
-//				
-//				error_count++;
-//				
-//				if(error_count == 1 && check_max_errors > 0)
-//					writeLogMessage(new LogMessage("[vio] Covariance exceeded limit.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-//				
-//				publishMSPFlags(tms);
-//
-//				// Add left camera to stream
-//				if(stream!=null && enableStream) {
-//					stream.addToStream("DOWN",img, model, tms);
-//				}
-//
-//				if(error_count > check_max_errors) {
-//					init("Covariance");	
-//				}
-//				
-//				return;
-//				
-//			}
+
+			//			if(cov_s_f > 0.3) {
+			//				
+			//				model.vision.setStatus(Vision.SPEED_VALID, false);
+			//				model.vision.setStatus(Vision.POS_VALID, false);
+			//				model.vision.setStatus(Vision.ERROR, true);	
+			//				
+			//				error_count++;
+			//				
+			//				if(error_count == 1 && check_max_errors > 0)
+			//					writeLogMessage(new LogMessage("[vio] Covariance exceeded limit.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+			//				
+			//				publishMSPFlags(tms);
+			//
+			//				// Add left camera to stream
+			//				if(stream!=null && enableStream) {
+			//					stream.addToStream("DOWN",img, model, tms);
+			//				}
+			//
+			//				if(error_count > check_max_errors) {
+			//					init("Covariance");	
+			//				}
+			//				
+			//				return;
+			//				
+			//			}
 
 
-			// Velocity testRatio check if enabled, GPS is available but not when GPS glitches reported
+			// Velocity testRatio check if enabled, EKF2 reports absolute position but not when GPS glitches reported
 			if(check_veltestratio > 0 
 					&&  model.est.velRatio > check_veltestratio 
-					&&	model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY)
+
 					&&	(System.currentTimeMillis() - tms_last_reset) > VISION_SETTLE_MS
+
+					// TODO: ggf. Ursache des crashes, Situation: GPS Glitch und Vision run-away
+					//       Was wäre zu tun: Vision darf auf keinen Fall verwendet werden -> Flow hätte halten sollen
+					//
+
 					&&  (model.est.flags & ESTIMATOR_STATUS_FLAGS.ESTIMATOR_GPS_GLITCH) != ESTIMATOR_STATUS_FLAGS.ESTIMATOR_GPS_GLITCH
 					)  {
 
@@ -653,25 +663,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.ERROR, true);	
 
 				error_count++;
-
-				//				if(old_veltestratio == model.est.velRatio) {
-				//
-				//					publishMSPFlags(tms);
-				//
-				//					// Add left camera to stream
-				//					if(stream!=null && enableStream) {
-				//						stream.addToStream("DOWN",img, model, tms);
-				//					}
-				//					return;
-				//				}
-
-				//				old_veltestratio = model.est.velRatio;
-
-
-//				if(error_count == 1 && check_max_errors > 0)
-//					writeLogMessage(new LogMessage("[vio] Testratio exceeded limit.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-//
-
 
 				// Note: Testratio wird nicht mehr zurückgemeldet, sobald EKF2 vision (Prüfung auf test ratio?) nicht mehr akzeptiert
 				//       dabei ist es egal ob man Odometry an EKF2 sendet oder nicht.
@@ -690,13 +681,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				return;
 			}
-
-			//			if(error_count >= check_max_errors && check_max_errors > 0) {
-			//
-			//				init("Error count");
-			//				return;
-			//			}
-
 
 			error_count = 0;
 
@@ -794,6 +778,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				return;
 			}
 
+
 			// Publishing data
 			switch(mode) {
 
@@ -859,7 +844,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	public void init(String s) {
 		if(t265!=null) {
 			tms_reset = System.currentTimeMillis();
-			reset_count++; 
 			quality = 0; 
 			ned_s.reset(); body_s.reset(); body_a.reset();
 			t265.reset();
