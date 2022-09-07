@@ -481,10 +481,10 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 						
 							current_speed.getTranslation().setTo( rawpose.velocity().z(), -rawpose.velocity().x(), - rawpose.velocity().y());
 							
-							// avoid drift around 0
-							current_speed.T.z = Math.abs(current_speed.T.z) > 0.02f ? current_speed.T.z : 0;
-							current_speed.T.x = Math.abs(current_speed.T.x) > 0.01f ? current_speed.T.x : 0;
-							current_speed.T.y = Math.abs(current_speed.T.y) > 0.01f ? current_speed.T.y : 0;
+//							// avoid drift around 0
+//							current_speed.T.z = Math.abs(current_speed.T.z) > 0.02f ? current_speed.T.z : 0;
+//							current_speed.T.x = Math.abs(current_speed.T.x) > 0.01f ? current_speed.T.x : 0;
+//							current_speed.T.y = Math.abs(current_speed.T.y) > 0.01f ? current_speed.T.y : 0;
 							
 							current_speed.getRotation().setTo(current_pose.getRotation());
 
@@ -496,7 +496,7 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 							dt_s = (getUnixTime_ms() - tms) / 1000f;
 
-							if(dt_s > 0) {
+							if(dt_s > 0 && dt_s < 0.030f) {
 
 								prepose.velocity().x(dt_s/2 * rawpose.acceleration().x() + rawpose.velocity().x());
 								prepose.velocity().y(dt_s/2 * rawpose.acceleration().y() + rawpose.velocity().y());

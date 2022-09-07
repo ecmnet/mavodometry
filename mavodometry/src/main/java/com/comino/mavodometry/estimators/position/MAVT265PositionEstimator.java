@@ -167,6 +167,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Vector3D_F64  offset_vel_body = new Vector3D_F64();
 	private final Vector3D_F64  angular_rates   = new Vector3D_F64();
 	private final Vector3D_F64  lpos_current_s  = new Vector3D_F64();
+	private final Vector3D_F64  lgps_current_s  = new Vector3D_F64();
 	private final Vector3D_F64  vpos_ned_s      = new Vector3D_F64();
 	private final Vector3D_F64  vpos_ned_delta  = new Vector3D_F64();
 	private final Vector3D_F64  vpos_ned        = new Vector3D_F64();
@@ -497,6 +498,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Get current position and speeds
 			MSP3DUtils.convertModelToSe3_F64(model, lpos);
 			MSP3DUtils.convertCurrentSpeed(model, lpos_current_s);
+			
+			lgps_current_s.x = model.gps.lx_s;
+			lgps_current_s.y = model.gps.ly_s;
 
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 
@@ -614,38 +618,18 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.RESETTING, false);
 			}
 
-			// Test vision vs. lpos velocity cov
-			cov_s_f = (float)Math.abs(cov_s.determine(ned_s.T.norm(), lpos_current_s.norm(), false)*10f);
-			model.debug.x = cov_s_f;
-
-			//			if(cov_s_f > 0.3) {
-			//				
-			//				model.vision.setStatus(Vision.SPEED_VALID, false);
-			//				model.vision.setStatus(Vision.POS_VALID, false);
-			//				model.vision.setStatus(Vision.ERROR, true);	
-			//				
-			//				error_count++;
-			//				
-			//				if(error_count == 1 && check_max_errors > 0)
-			//					writeLogMessage(new LogMessage("[vio] Covariance exceeded limit.", MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-			//				
-			//				publishMSPFlags(tms);
-			//
-			//				// Add left camera to stream
-			//				if(stream!=null && enableStream) {
-			//					stream.addToStream("DOWN",img, model, tms);
-			//				}
-			//
-			//				if(error_count > check_max_errors) {
-			//					init("Covariance");	
-			//				}
-			//				
-			//				return;
-			//				
-			//			}
-
+			// Test vision vs. gps velocity cov
+			float lpos_s_norm = (float)lgps_current_s.norm();
+			cov_s_f = (float)Math.abs(cov_s.determine(ned_s.T.norm(), lpos_s_norm, false));
+			
+			if(lpos_s_norm > 0 && lpos_s_norm < 10 && model.est.isFlagSet(EstStatus.HORIZONTAL_ABS_POS_OK)) {
+			  model.debug.x = cov_s_f / lpos_s_norm;
+			  if( model.debug.x > 1.0)
+				  model.vision.setStatus(Vision.EXPERIMENTAL,true);
+			}
 
 			// Velocity testRatio check if enabled, EKF2 reports absolute position but not when GPS glitches reported
+			// Note: 070922: Reset leads to wrong velocity info if not aligned with GPS (=> disabled currently, refer to msp.properties)
 			if(check_veltestratio > 0 
 					&&  model.est.velRatio > check_veltestratio 
 
@@ -675,7 +659,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					stream.addToStream("DOWN",img, model, tms);
 				}
 
-				if(error_count > check_max_errors) {
+				if(error_count > check_max_errors && check_max_errors > 0 ) {
 					init("Testratio");	
 				}
 
