@@ -90,7 +90,7 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 	private static final int WIDTH  = 848;
 	private static final int HEIGHT = 800;
-	
+
 	public static final  int POS_FOREWARD     			= 0;
 	public static final  int POS_DOWNWARD    			= 1; // UP
 	public static final  int POS_DOWNWARD_180 			= 2; // Jetson
@@ -308,11 +308,11 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 				sensor = createSensor(sensor_list, 0);
 
 				// Test: enable pose jumping and check velocity drift
-				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_POSE_JUMPING,  true);
+				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_POSE_JUMPING,  false);
 				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_MAPPING,  true);
 				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_MAP_PRESERVATION, false);
 				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_DYNAMIC_CALIBRATION,  true);
-				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_RELOCALIZATION,  true);
+				setSensorOption(sensor,realsense2.RS2_OPTION_ENABLE_RELOCALIZATION,  false);
 
 				setSensorOption(sensor,realsense2.RS2_OPTION_FRAMES_QUEUE_SIZE,  1);
 
@@ -322,8 +322,8 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 				config = rs2_create_config(error);
 				checkError(error);
 
-//				rs2_config_enable_device(config, getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_SERIAL_NUMBER),error);
-//				checkError(error);
+				//				rs2_config_enable_device(config, getDeviceInfo(dev, realsense2.RS2_CAMERA_INFO_SERIAL_NUMBER),error);
+				//				checkError(error);
 
 				rs2_config_enable_stream(config, realsense2.RS2_STREAM_POSE, 0, 0, 0, realsense2.RS2_FORMAT_6DOF, 200 , error);
 				checkError(error);
@@ -335,7 +335,7 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 					rs2_config_enable_stream(config, realsense2.RS2_STREAM_FISHEYE, 1, WIDTH, HEIGHT, realsense2.RS2_FORMAT_Y8, 30, error);
 					checkError(error);
 					rs2_config_enable_stream(config, realsense2.RS2_STREAM_FISHEYE, 2, WIDTH, HEIGHT, realsense2.RS2_FORMAT_Y8, 30, error);
-    				checkError(error);
+					checkError(error);
 					video_enabled = true;
 
 				} else {
@@ -360,212 +360,217 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 					try {
 
-						// Note: Timeout set to max as RTC is reset via NTP
-						frames = rs2_pipeline_wait_for_frames(pipeline, Integer.MAX_VALUE, error);
-						checkError(error);
+						synchronized(this) {
 
-						tms = (long)rs2_get_frame_timestamp(frames,error);
+							// Note: Timeout set to max as RTC is reset via NTP
+							frames = rs2_pipeline_wait_for_frames(pipeline, Integer.MAX_VALUE, error);
+							checkError(error);
 
-						// avoid doubled triggers
-						if((tms - tms_old) < 1) {
-							rs2_release_frame(frames);
-							continue;
-						}
-						tms_old = tms;
+							tms = (long)rs2_get_frame_timestamp(frames,error);
 
-
-						num_of_frames = rs2_embedded_frames_count(frames, error);
-						if(num_of_frames < 1)
-							continue;
-
-						if(num_of_frames == 1) {
-							// Odometry only at 50Hz
-							skipper = 4;
-							is_initialized = true;
-						} else
-							// Full set at 30 Hz
-							skipper = 1;
-
-						count_framesets++;
-
-						left = false; 
-
-
-						for(int i = 0; i < num_of_frames;i++) {
-
-							frame = rs2_extract_frame(frames, i, error);
-
-							if(0 != rs2_is_frame_extendable_to(frame, realsense2.RS2_EXTENSION_POSE_FRAME, error)) {
-								rs2_pose_frame_get_pose_data(frame, rawpose, error);
+							// avoid doubled triggers
+							if((tms - tms_old) < 1) {
+								rs2_release_frame(frames);
+								continue;
 							}
+							tms_old = tms;
 
-							// get left camera at 15Hz
-							if(0 != rs2_is_frame_extendable_to(frame, realsense2.RS2_EXTENSION_VIDEO_FRAME, error) && (count_framesets % 2 == 0)) {
-								
-								if(!left) {
-									left = true;
-									if(mode_left==null) {
-										mode_left = rs2_get_frame_stream_profile(frame,error);
-										rs2_get_video_stream_intrinsics(mode_left, intrinsics_left, error);
-										left_model = createFisheyeModel(intrinsics_left);
+
+							num_of_frames = rs2_embedded_frames_count(frames, error);
+							if(num_of_frames < 1)
+								continue;
+
+							if(num_of_frames == 1) {
+								// Odometry only at 50Hz
+								skipper = 4;
+								is_initialized = true;
+							} else
+								// Full set at 30 Hz
+								skipper = 1;
+
+							count_framesets++;
+
+							left = false; 
+
+
+							for(int i = 0; i < num_of_frames;i++) {
+
+								frame = rs2_extract_frame(frames, i, error);
+
+								if(0 != rs2_is_frame_extendable_to(frame, realsense2.RS2_EXTENSION_POSE_FRAME, error)) {
+									rs2_pose_frame_get_pose_data(frame, rawpose, error);
+								}
+
+								// get left camera at 15Hz
+								if(0 != rs2_is_frame_extendable_to(frame, realsense2.RS2_EXTENSION_VIDEO_FRAME, error) && (count_framesets % 2 == 0)) {
+
+									if(!left) {
+										left = true;
+										if(mode_left==null) {
+											mode_left = rs2_get_frame_stream_profile(frame,error);
+											rs2_get_video_stream_intrinsics(mode_left, intrinsics_left, error);
+											left_model = createFisheyeModel(intrinsics_left);
+										} else {
+											rs2_keep_frame(frame);
+											bufferGrayToU8(rs2_get_frame_data(frame, error).getPointer(BytePointer.class),img);
+										} 
 									} else {
-										rs2_keep_frame(frame);
-										bufferGrayToU8(rs2_get_frame_data(frame, error).getPointer(BytePointer.class),img);
-									} 
-								} else {
-									if(mode_right==null) {
-										mode_right = rs2_get_frame_stream_profile(frame,error);
-										rs2_get_video_stream_intrinsics(mode_right, intrinsics_right, error);
-										rs2_get_extrinsics(mode_left, mode_right, extrinsics, error);
-										right_model = createFisheyeModel(intrinsics_right);
-										is_initialized = true;
+										if(mode_right==null) {
+											mode_right = rs2_get_frame_stream_profile(frame,error);
+											rs2_get_video_stream_intrinsics(mode_right, intrinsics_right, error);
+											rs2_get_extrinsics(mode_left, mode_right, extrinsics, error);
+											right_model = createFisheyeModel(intrinsics_right);
+											is_initialized = true;
+										}
 									}
-								}
-							} 
+								} 
 
-							rs2_release_frame(frame);
-						}
-
-						rs2_release_frame(frames);
-
-						switch(mount) {
-
-						case POS_FOREWARD:
-
-							current_pose.getTranslation().setTo( - rawpose.translation().z(), rawpose.translation().x(), - rawpose.translation().y());
-							ConvertRotation3D_F64.quaternionToMatrix(
-									rawpose.rotation().w(),
-									-rawpose.rotation().z(),
-									rawpose.rotation().x(),
-									-rawpose.rotation().y(), current_pose.getRotation());
-
-							current_speed.getTranslation().setTo(- rawpose.velocity().z(), rawpose.velocity().x(), - rawpose.velocity().y());
-							current_speed.getRotation().setTo(current_pose.getRotation());
-
-							current_acceleration.getTranslation().setTo(- rawpose.acceleration().z(), rawpose.acceleration().x(), - rawpose.acceleration().y());
-
-							break;
-
-						case POS_DOWNWARD:
-
-							current_pose.getTranslation().setTo( -rawpose.translation().z(), rawpose.translation().x(), - rawpose.translation().y());
-
-							ConvertRotation3D_F64.quaternionToMatrix(
-									rawpose.rotation().w(),
-									-rawpose.rotation().z(),
-									rawpose.rotation().x(),
-									-rawpose.rotation().y(), tmp);
-
-							CommonOps_DDRM.mult(tmp, rtY90 , current_pose.getRotation());
-
-							current_speed.getTranslation().setTo( -rawpose.velocity().z(), rawpose.velocity().x(), - rawpose.velocity().y());
-							current_speed.getRotation().setTo(current_pose.getRotation());
-
-							current_acceleration.getTranslation().setTo(- rawpose.acceleration().z(), rawpose.acceleration().x(), - rawpose.acceleration().y());
-
-							break;
-
-
-						case POS_DOWNWARD_180:
-
-
-							current_pose.getTranslation().setTo( rawpose.translation().z(), -rawpose.translation().x(), - rawpose.translation().y());
-
-							ConvertRotation3D_F64.quaternionToMatrix(
-									rawpose.rotation().w(),
-									rawpose.rotation().z(),
-									-rawpose.rotation().x(),
-									-rawpose.rotation().y(), tmp);
-
-							CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
-						
-							current_speed.getTranslation().setTo( rawpose.velocity().z(), -rawpose.velocity().x(), - rawpose.velocity().y());
-							
-//							// avoid drift around 0
-//							current_speed.T.z = Math.abs(current_speed.T.z) > 0.02f ? current_speed.T.z : 0;
-//							current_speed.T.x = Math.abs(current_speed.T.x) > 0.01f ? current_speed.T.x : 0;
-//							current_speed.T.y = Math.abs(current_speed.T.y) > 0.01f ? current_speed.T.y : 0;
-							
-							current_speed.getRotation().setTo(current_pose.getRotation());
-
-							current_acceleration.getTranslation().setTo(rawpose.acceleration().z(), -rawpose.acceleration().x(), - rawpose.acceleration().y());
-
-							break;
-
-						case POS_DOWNWARD_180_PREDICT:
-
-							dt_s = (getUnixTime_ms() - tms) / 1000f;
-
-							if(dt_s > 0 && dt_s < 0.030f) {
-
-								prepose.velocity().x(dt_s/2 * rawpose.acceleration().x() + rawpose.velocity().x());
-								prepose.velocity().y(dt_s/2 * rawpose.acceleration().y() + rawpose.velocity().y());
-								prepose.velocity().z(dt_s/2 * rawpose.acceleration().z() + rawpose.velocity().z());
-
-								prepose.translation().x(dt_s * prepose.velocity().x() + rawpose.translation().x());
-								prepose.translation().y(dt_s * prepose.velocity().y() + rawpose.translation().y());
-								prepose.translation().z(dt_s * prepose.velocity().z() + rawpose.translation().z());
-
-
-								// TODO: Predict rotation also
-								//						rs2_vector W = {
-								//								dt_s * (dt_s/2 * rawpose.angular_acceleration.x + rawpose.angular_velocity.x),
-								//								dt_s * (dt_s/2 * rawpose.angular_acceleration.y + rawpose.angular_velocity.y),
-								//								dt_s * (dt_s/2 * rawpose.angular_acceleration.z + rawpose.angular_velocity.z),
-								//						};
-								//						P.rotation = quaternion_multiply(quaternion_exp(W), pose.rotation);
-
+								rs2_release_frame(frame);
 							}
 
-							current_pose.getTranslation().setTo( prepose.translation().z(), -prepose.translation().x(), - prepose.translation().y());
+							rs2_release_frame(frames);
 
-							ConvertRotation3D_F64.quaternionToMatrix(
-									rawpose.rotation().w(),
-									rawpose.rotation().z(),
-									-rawpose.rotation().x(),
-									-rawpose.rotation().y(), tmp);
+							switch(mount) {
 
-							CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
+							case POS_FOREWARD:
 
-							current_speed.getTranslation().setTo( prepose.velocity().z(), -prepose.velocity().x(), - prepose.velocity().y());
-							current_speed.getRotation().setTo(current_pose.getRotation());
-							
-							// avoid drift around 0
-							current_speed.T.x = Math.abs(current_speed.T.x) > 0.01f ? current_speed.T.x : 0;
-							current_speed.T.y = Math.abs(current_speed.T.y) > 0.01f ? current_speed.T.y : 0;
-							current_speed.T.z = Math.abs(current_speed.T.z) > 0.02f ? current_speed.T.z : 0;
+								current_pose.getTranslation().setTo( - rawpose.translation().z(), rawpose.translation().x(), - rawpose.translation().y());
+								ConvertRotation3D_F64.quaternionToMatrix(
+										rawpose.rotation().w(),
+										-rawpose.rotation().z(),
+										rawpose.rotation().x(),
+										-rawpose.rotation().y(), current_pose.getRotation());
 
-							current_acceleration.getTranslation().setTo(rawpose.acceleration().z(), -rawpose.acceleration().x(), - rawpose.acceleration().y());
+								current_speed.getTranslation().setTo(- rawpose.velocity().z(), rawpose.velocity().x(), - rawpose.velocity().y());
+								current_speed.getRotation().setTo(current_pose.getRotation());
 
-							break;
-						}
+								current_acceleration.getTranslation().setTo(- rawpose.acceleration().z(), rawpose.acceleration().x(), - rawpose.acceleration().y());
+
+								break;
+
+							case POS_DOWNWARD:
+
+								current_speed.getTranslation().setTo( -rawpose.velocity().z(), rawpose.velocity().x(), - rawpose.velocity().y());
+								current_pose.getTranslation().setTo( -rawpose.translation().z(), rawpose.translation().x(), - rawpose.translation().y());
+
+								ConvertRotation3D_F64.quaternionToMatrix(
+										rawpose.rotation().w(),
+										-rawpose.rotation().z(),
+										rawpose.rotation().x(),
+										-rawpose.rotation().y(), tmp);
+
+								CommonOps_DDRM.mult(tmp, rtY90 , current_pose.getRotation());
 
 
-						if(reset_request) {
-							try {
-								synchronized(this) {
-									reset_request = false;
-									rs2_pipeline_stop(pipeline, error);
-									try { Thread.sleep(100); } catch (InterruptedException e) {  }
-									rs2_pipeline_start_with_config(pipeline, config, error);
-									fps = 0;
-								}
-							} catch(Exception e) { e.printStackTrace(); }
-							continue;
-						}
+								current_speed.getRotation().setTo(current_pose.getRotation());
 
-						// Note: Limit callback rate via skipper
-						if(is_initialized && (count_framesets % skipper) == 0) {
-							if(tms!=tms0)
-								fps = (int)(1000.0f/(tms - tms0));
-							tms0 = tms;
-							
-							for(IPoseCallback callback : callbacks)
-								callback.handle(tms, rawpose.tracker_confidence(), current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
+								current_acceleration.getTranslation().setTo(- rawpose.acceleration().z(), rawpose.acceleration().x(), - rawpose.acceleration().y());
+
+								break;
+
+
+							case POS_DOWNWARD_180:
+
+								current_speed.getTranslation().setTo( rawpose.velocity().z(), -rawpose.velocity().x(), - rawpose.velocity().y());
+								current_pose.getTranslation().setTo( rawpose.translation().z(), -rawpose.translation().x(), - rawpose.translation().y());
+
+								ConvertRotation3D_F64.quaternionToMatrix(
+										rawpose.rotation().w(),
+										rawpose.rotation().z(),
+										-rawpose.rotation().x(),
+										-rawpose.rotation().y(), tmp);
+
+								CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
+
+
+								//							// avoid drift around 0
+								//							current_speed.T.z = Math.abs(current_speed.T.z) > 0.02f ? current_speed.T.z : 0;
+								//							current_speed.T.x = Math.abs(current_speed.T.x) > 0.01f ? current_speed.T.x : 0;
+								//							current_speed.T.y = Math.abs(current_speed.T.y) > 0.01f ? current_speed.T.y : 0;
+
+								current_speed.getRotation().setTo(current_pose.getRotation());
+
+
+
+								current_acceleration.getTranslation().setTo(rawpose.acceleration().z(), -rawpose.acceleration().x(), - rawpose.acceleration().y());
+
+								break;
+
+//							case POS_DOWNWARD_180_PREDICT:
+//
+//								dt_s = (getUnixTime_ms() - tms) / 1000f;
+//
+//								if(dt_s > 0 && dt_s < 0.030f) {
+//
+//									prepose.velocity().x(dt_s/2 * rawpose.acceleration().x() + rawpose.velocity().x());
+//									prepose.velocity().y(dt_s/2 * rawpose.acceleration().y() + rawpose.velocity().y());
+//									prepose.velocity().z(dt_s/2 * rawpose.acceleration().z() + rawpose.velocity().z());
+//
+//									prepose.translation().x(dt_s * prepose.velocity().x() + rawpose.translation().x());
+//									prepose.translation().y(dt_s * prepose.velocity().y() + rawpose.translation().y());
+//									prepose.translation().z(dt_s * prepose.velocity().z() + rawpose.translation().z());
+//
+//
+//									// TODO: Predict rotation also
+//									//						rs2_vector W = {
+//									//								dt_s * (dt_s/2 * rawpose.angular_acceleration.x + rawpose.angular_velocity.x),
+//									//								dt_s * (dt_s/2 * rawpose.angular_acceleration.y + rawpose.angular_velocity.y),
+//									//								dt_s * (dt_s/2 * rawpose.angular_acceleration.z + rawpose.angular_velocity.z),
+//									//						};
+//									//						P.rotation = quaternion_multiply(quaternion_exp(W), pose.rotation);
+//
+//								}
+//
+//								current_pose.getTranslation().setTo( prepose.translation().z(), -prepose.translation().x(), - prepose.translation().y());
+//
+//								ConvertRotation3D_F64.quaternionToMatrix(
+//										rawpose.rotation().w(),
+//										rawpose.rotation().z(),
+//										-rawpose.rotation().x(),
+//										-rawpose.rotation().y(), tmp);
+//
+//								CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
+//
+//								current_speed.getTranslation().setTo( prepose.velocity().z(), -prepose.velocity().x(), - prepose.velocity().y());
+//								current_speed.getRotation().setTo(current_pose.getRotation());
+//
+//								// avoid drift around 0
+//								current_speed.T.x = Math.abs(current_speed.T.x) > 0.01f ? current_speed.T.x : 0;
+//								current_speed.T.y = Math.abs(current_speed.T.y) > 0.01f ? current_speed.T.y : 0;
+//								current_speed.T.z = Math.abs(current_speed.T.z) > 0.02f ? current_speed.T.z : 0;
+//
+//								current_acceleration.getTranslation().setTo(rawpose.acceleration().z(), -rawpose.acceleration().x(), - rawpose.acceleration().y());
+//
+//								break;
+							}
+
+
+							if(reset_request) {
+								try {
+									synchronized(this) {
+										reset_request = false;
+										rs2_pipeline_stop(pipeline, error);
+										try { Thread.sleep(200); } catch (InterruptedException e) {  }
+										rs2_pipeline_start_with_config(pipeline, config, error);
+										fps = 0; current_speed.reset(); current_pose.reset();
+									}
+								} catch(Exception e) { e.printStackTrace(); }
+								continue;
+							}
+
+							// Note: Limit callback rate via skipper
+							if(is_initialized && (count_framesets % skipper) == 0) {
+								if(tms!=tms0)
+									fps = (int)(1000.0f/(tms - tms0));
+								tms0 = tms;
+
+								for(IPoseCallback callback : callbacks)
+									callback.handle(tms, rawpose.tracker_confidence(), current_pose,current_speed, current_acceleration, img.subimage(x0, y0, x1, y1));
+							}
 						}
 
 					} catch(Exception e) {
-						
+
 						System.err.println(e.getMessage());
 						rs2_pipeline_stop(pipeline, error);
 						try { Thread.sleep(100); } catch (InterruptedException k) {  }
