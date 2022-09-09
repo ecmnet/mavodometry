@@ -39,7 +39,6 @@ import java.text.DecimalFormat;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
-import org.mavlink.messages.ESTIMATOR_STATUS_FLAGS;
 import org.mavlink.messages.MAV_ESTIMATOR_TYPE;
 import org.mavlink.messages.MAV_FRAME;
 import org.mavlink.messages.MAV_SEVERITY;
@@ -49,12 +48,10 @@ import org.mavlink.messages.MSP_COMPONENT_CTRL;
 import org.mavlink.messages.lquac.msg_msp_command;
 import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
-import org.mavlink.messages.lquac.msg_set_gps_global_origin;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
-import com.comino.mavcom.log.MSPLogger;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.EstStatus;
@@ -67,7 +64,6 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.MSPCovariance;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseCV;
-import com.comino.mavodometry.utils.TimeHysteresis;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -95,7 +91,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	// Modes
 	public static final int  GROUNDTRUTH_MODE       			= 1;
-	public static final int  LPOS_ODO_MODE_POSITION 		    = 2;
+	public static final int  LPOS_ODO_MODE_POSITION_NED 	    = 2;
+	public static final int  LPOS_ODO_MODE_POSITION_BODY 	    = 3;
 
 	private static final int         FIDUCIAL_ID            	= 284;
 	private static final float       FIDUCIAL_SIZE          	= 0.168f;
@@ -108,11 +105,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final float       DEFAULT_MAX_VEL_TESTRATIO  = 0.5f;
 	private static final int     	 DEFAULT_MAX_ERRORS         = 20;
 
-	private static final float       MAX_VEL_VARIANCE           = 0.5f;     
-	private static final float       MAX_YAW_VARIANCE           = 1.0f;
-
 	private static final long        LOCK_TIMEOUT_MS            = 1000;
-	private static final long        VISION_SETTLE_MS           = 300;
+	private static final long        VISION_SETTLE_MS           = 500;
 
 	// mounting offset in m
 	private static final double   	 OFFSET_X 					=   0.00;
@@ -149,7 +143,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Se3_F64          to_tmp          	= new Se3_F64();
 
 	private final Se3_F64          ned      		= new Se3_F64();
-	private final Se3_F64          ned_old          = new Se3_F64();
 	private final Se3_F64          gnd_ned  	 	= new Se3_F64();
 	private final Se3_F64          ned_s    		= new Se3_F64();
 	private final Se3_F64          body     		= new Se3_F64();
@@ -164,14 +157,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Vector3D_F64  offset     		= new Vector3D_F64();
 	private final Vector3D_F64  offset_pos_ned  = new Vector3D_F64();
 	private final Vector3D_F64  error_pos_ned   = new Vector3D_F64();
-	private final Vector3D_F64  offset_vel_body = new Vector3D_F64();
-	private final Vector3D_F64  angular_rates   = new Vector3D_F64();
 	private final Vector3D_F64  lpos_current_s  = new Vector3D_F64();
-	private final Vector3D_F64  lgps_current_s  = new Vector3D_F64();
-	private final Vector3D_F64  vpos_ned_s      = new Vector3D_F64();
-	private final Vector3D_F64  vpos_ned_delta  = new Vector3D_F64();
-	private final Vector3D_F64  vpos_ned        = new Vector3D_F64();
-	//private final Vector3D_F64  reposition_ned  = new Vector3D_F64();
 
 	private final Attitude3D_F64   att      	= new Attitude3D_F64();
 	//	private final Quaternion_F64   att_q        = new Quaternion_F64();
@@ -183,6 +169,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private int        confidence_old = 0;
 	private double             dt_sec = 0;
 	private double           dt_sec_1 = 0;
+	
+	private float         lpos_s_norm = 0;
+	private float          ned_s_norm = 0;
 
 	private boolean    enableStream   = false;
 
@@ -218,18 +207,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;
 
-	//	private final TimeHysteresis           pos_hysteresis;
-	private final TimeHysteresis           vel_hysteresis;
-	private final TimeHysteresis           att_hysteresis;
-	//	private boolean                        drift_compensation = false;
-
 	private float                          check_veltestratio = DEFAULT_MAX_VEL_TESTRATIO;
-	private int                            check_max_errors   = DEFAULT_MAX_ERRORS;
-	private float                          old_veltestratio   = -1f;                     
+	private int                            check_max_errors   = DEFAULT_MAX_ERRORS;                   
 
-	private MSPCovariance                  cov_s = new MSPCovariance(10);
+	private MSPCovariance                  cov_s = new MSPCovariance(5);
 	private float                          cov_s_f = 0;
-	private float cov_velocity = 0.1f;
+	
+	private float                          covariance_velocity = 0.1f;
 
 	@SuppressWarnings("unused")
 	public <T> MAVT265PositionEstimator(IMAVMSPController control,  MSPConfig config, int width, int height, int mode, IVisualStreamHandler<Planar<GrayU8>> stream) 
@@ -347,23 +331,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 
-		//		pos_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_FALLING);
-		vel_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_RISING);
-		att_hysteresis = new TimeHysteresis(0.5f,TimeHysteresis.EDGE_RISING);
-		//
-		//		// Switch to VEL integration
-		//		pos_hysteresis.registerAction(TimeHysteresis.EDGE_RISING, () -> {
-		//			// Store current position when velocity mode is entered
-		//			vpos_ned.setTo(lpos.T);  
-		//		});
-		//
-		//		// switch to POS
-		//		pos_hysteresis.registerAction(TimeHysteresis.EDGE_FALLING, () -> {
-		//			// Store current offset of vision position for correction when position mode is entered
-		//			//	error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, lpos.T.z - ned.T.z);
-		//			error_pos_ned.setTo(lpos.T.x - ned.T.x, lpos.T.y - ned.T.y, 0); // Do not use Z
-		//		});
-
 		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
 		t265.registerCallback((tms, confidence, p, s, a, img) ->  {
 
@@ -397,7 +364,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Reset procedure ------------------------------------------------------------------------------------------------
 			// Note: This takes 2sec for T265;
 
-			if((System.currentTimeMillis() - tms_reset) < 2000 || !is_initialized) {
+			if((System.currentTimeMillis() - tms_reset) < 2500 || !is_initialized) {
 				tms_reset = 0; confidence_old = 0; is_initialized = true; error_count = 0;
 
 				// set initial T265 pose as origin
@@ -441,13 +408,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					stream.addToStream("DOWN",img, model, tms);
 				}
 
-				vpos_ned_s.setTo(0, 0, 0);
-				ned_old.setTo(ned);
 				tms_old  = tms; 
 
 				error_pos_ned.setTo(0,0,0);
-				att_hysteresis.reset();
-				vel_hysteresis.reset();
+
+				cov_s.reset();
 
 				tms_last_reset = System.currentTimeMillis();
 
@@ -481,6 +446,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			confidence_old = confidence;
 
+			// timea and fps
+			dt_sec   = (tms - tms_old) / 1000f;
+			dt_sec_1 = 1.0 / dt_sec;
+			model.vision.fps = (float)dt_sec_1;
+			tms_old = tms;
+
 
 
 			//No flight controller connected => publish raw pose and speed for debugging purpose
@@ -498,32 +469,26 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Get current position and speeds
 			MSP3DUtils.convertModelToSe3_F64(model, lpos);
 			MSP3DUtils.convertCurrentSpeed(model, lpos_current_s);
-			
-			lgps_current_s.x = model.gps.lx_s;
-			lgps_current_s.y = model.gps.ly_s;
 
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 
 			p.concat(to_body, body);
 
-			// timea and fps
-			dt_sec   = (tms - tms_old) / 1000f;
-			dt_sec_1 = 1.0 / dt_sec;
-			model.vision.fps = (float)dt_sec_1;
-			tms_old = tms;
 
 			// rotate sensor velocities and acceleration to body frame
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
 			GeometryMath_F64.mult(to_body.R, a.T, body_a.T);
+			
+			
 
 			// eventually calculate rr,pr,yr and do not use model rates
 			// should compesate rotations in speed
-			// TODO: To be tested in real flight
+			// TODO: Seems not to be the reason of velocity runaway; maybe re-enable
 
-			angular_rates.setTo(model.attitude.rr, model.attitude.pr, model.attitude.yr);
-			offset_vel_body.crossSetTo(angular_rates, offset);
-			offset_vel_body.scale(-1);
-			body_s.T.plusIP(offset_vel_body);
+//			angular_rates.setTo(model.attitude.rr, model.attitude.pr, model.attitude.yr);
+//			offset_vel_body.crossSetTo(angular_rates, offset);
+//			offset_vel_body.scale(-1);
+//			body_s.T.plusIP(offset_vel_body);
 
 			// Get model attitude rotation
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
@@ -534,17 +499,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			GeometryMath_F64.mult(to_ned.R, body_s.T,ned_s.T);
 			GeometryMath_F64.mult(to_ned.R, offset, offset_pos_ned );
 
-			// TODO: validate sensor speeds in NED
-
 			// add rotated offset
 			offset_pos_ned.scale(-1);
 			ned.T.plusIP(offset_pos_ned);
-
-			// calculate ned speed based on position
-			vpos_ned_s.x = ( ned.T.x - ned_old.T.x ) * dt_sec_1;
-			vpos_ned_s.y = ( ned.T.y - ned_old.T.y ) * dt_sec_1;
-			vpos_ned_s.z = ( ned.T.z - ned_old.T.z ) * dt_sec_1;
-			ned_old.setTo(ned);
 
 			// Set rotation to vision based rotation
 			CommonOps_DDRM.mult( initial_rot, p.R , ned.R );
@@ -553,194 +510,90 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// get euler angles
 			att.setFromMatrix(ned.R);
 
-			if(att_hysteresis.check(Math.abs(att.getYaw() - model.attitude.y) > MAX_YAW_VARIANCE)) {
-				model.vision.setStatus(Vision.ATT_VALID, false);
-			} else {
-				model.vision.setStatus(Vision.ATT_VALID, true);
-			}
-
 			// Assume vision position and velocity valid
 			model.vision.setStatus(Vision.POS_VALID, true);
 			model.vision.setStatus(Vision.SPEED_VALID, true);
+			model.vision.setStatus(Vision.EXPERIMENTAL, false);
 
-			// Sensor speed test
-			//			if(vel_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, ned_s.T) > MAX_VEL_VARIANCE)) {
-			//
-			//				model.vision.setStatus(Vision.SPEED_VALID, false);
-			//				model.vision.setStatus(Vision.ERROR, true);
-			//
-			//				if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) || model.sys.isSensorAvailable(Status.MSP_PIX4FLOW_AVAILABILITY)) {
-			//
-			//
-			//					error_count++;
-			//					publishMSPFlags(tms);
-			//					
-			//					if(error_count == 1 && check_max_errors > 0)
-			//						writeLogMessage(new LogMessage("[vio] Velocity divergence exceeded limit ", MAV_SEVERITY.MAV_SEVERITY_INFO));
-			//
-			//					// Add left camera to stream
-			//					if(stream!=null && enableStream) {
-			//						stream.addToStream("DOWN",img, model, tms);
-			//					}
-			//
-			//					return;
-			//				}
-			//			}  
 
-			//			// Solution status check if GPS is available => do not publish
-			//			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.isFlagSet(EstStatus.EKF_GPS_GLITCH)) {
-			//				
-			//				model.vision.setStatus(Vision.SPEED_VALID, false);
-			//				model.vision.setStatus(Vision.POS_VALID, false);
-			//				model.vision.setStatus(Vision.ERROR, true);
-			//				
-			//				error_count++;
-			//				
-			//				if(error_count == 1 && check_max_errors > 0)
-			//					  writeLogMessage(new LogMessage("[vio] GPS Glitch detected ", MAV_SEVERITY.MAV_SEVERITY_WARNING));
-			//
-			//
-			//				publishMSPFlags(tms);
-			//
-			//				// Add left camera to stream
-			//				if(stream!=null && enableStream) {
-			//					stream.addToStream("DOWN",img, model, tms);
-			//				}
-			//
-			//				return;
-			//			}
-
-			if((System.currentTimeMillis() - tms_last_reset) < 200)
-				return;
-
+			// Reset count handling
 			if(model.vision.isStatus(Vision.RESETTING)) {
 				reset_count++;
 				model.vision.setStatus(Vision.RESETTING, false);
 			}
-
-			// Test vision vs. gps velocity cov
-			float lpos_s_norm = (float)lgps_current_s.norm();
-			cov_s_f = (float)Math.abs(cov_s.determine(ned_s.T.norm(), lpos_s_norm, false));
 			
-			if(lpos_s_norm > 0 && lpos_s_norm < 10 && model.est.isFlagSet(EstStatus.HORIZONTAL_ABS_POS_OK)) {
-			  model.debug.x = cov_s_f / lpos_s_norm;
-			  if( model.debug.x > 1.0)
-				  model.vision.setStatus(Vision.EXPERIMENTAL,true);
+			lpos_s_norm = (float)lpos_current_s.norm();
+			ned_s_norm  = (float)ned_s.T.norm();
+			
+			// Validity checks for vision
+
+			// 1. Vision velocity vs. lpos velocity covariance check
+			cov_s_f = (float)Math.abs(cov_s.determine(ned_s_norm, lpos_s_norm, false) / lpos_s_norm);
+
+			if(lpos_s_norm > 0 && lpos_s_norm < 10 && model.est.isFlagSet(EstStatus.HORIZONTAL_ABS_POS_OK) && cov_s_f > 0.2) {
+					model.vision.setStatus(Vision.SPEED_VALID, false);
+					model.vision.setStatus(Vision.POS_VALID, false);
+					model.vision.setStatus(Vision.ERROR, true);	
+					
+					if(lpos_s_norm < 0.3)
+					  init("CovVel");	
+					
+					publishMSPFlags(tms);
+					return;  
 			}
-
-			// Velocity testRatio check if enabled, EKF2 reports absolute position but not when GPS glitches reported
-			// Note: 070922: Reset leads to wrong velocity info if not aligned with GPS (=> disabled currently, refer to msp.properties)
-			if(check_veltestratio > 0 
-					&&  model.est.velRatio > check_veltestratio 
-
-					&&	(System.currentTimeMillis() - tms_last_reset) > VISION_SETTLE_MS
-
-					// TODO: ggf. Ursache des crashes, Situation: GPS Glitch und Vision run-away
-					//       Was wäre zu tun: Vision darf auf keinen Fall verwendet werden -> Flow hätte halten sollen
-					//
-
-					&&  (model.est.flags & ESTIMATOR_STATUS_FLAGS.ESTIMATOR_GPS_GLITCH) != ESTIMATOR_STATUS_FLAGS.ESTIMATOR_GPS_GLITCH
-					)  {
-
+			
+			// 2. Vision velocity vs. local speed reported by EKF2 (absolute divergence)
+			if((Math.abs(ned_s.T.x - lpos_current_s.x) > 0.2) ||
+			   (Math.abs(ned_s.T.y - lpos_current_s.y) > 0.2) ||
+			   (Math.abs(ned_s.T.z - lpos_current_s.z) > 0.2) 
+			   ) {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
-				model.vision.setStatus(Vision.ERROR, true);	
-
-				error_count++;
-
-				// Note: Testratio wird nicht mehr zurückgemeldet, sobald EKF2 vision (Prüfung auf test ratio?) nicht mehr akzeptiert
-				//       dabei ist es egal ob man Odometry an EKF2 sendet oder nicht.
-
-
-				publishMSPFlags(tms);
-
-				// Add left camera to stream
-				if(stream!=null && enableStream) {
-					stream.addToStream("DOWN",img, model, tms);
-				}
-
-				if(error_count > check_max_errors && check_max_errors > 0 ) {
-					init("Testratio");	
-				}
-
+				model.vision.setStatus(Vision.EXPERIMENTAL, true);
+				
+				if(++error_count > 5 && lpos_s_norm < 0.3 )
+					  init("SpeedDev");	
+				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
 				return;
 			}
+			
+			// 3. Max vision velocity
+			if(body_s.T.norm() > 1.0) {
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
+				if(lpos_s_norm < 0.3)
+					  init("MaxSpeed");	
+				return;
+			}
+			
+			// 4. Testratio velocity check
+			if(model.est.velRatio > 0.4f) {
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
+				if(++error_count > 10 && lpos_s_norm < 0.3 )
+					  init("TestRatio");		
+			}
+			
+			// 5. Local speed limit for vision support
+			if(lpos_s_norm > 1.0) {
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				publishMSPFlags(tms);
+				return;
+			}
+			
+			// Determine vision covariance matrix dependent on the local speed
+			if(lpos_s_norm < 0.3)
+				covariance_velocity = 0.1f;
+			else if(lpos_s_norm < 0.5)
+				covariance_velocity = 0.2f;
+			else 
+			    covariance_velocity = 0.8f;
+				
 
 			error_count = 0;
-
-
-			// Filter a covariance for velocity based on test ratio
-			// TODO: Limit lower bound e.g. to 0.1, otherwise gate resets
-			//			if(Float.isFinite(model.est.velRatio) && model.est.velRatio > 0 && Float.isFinite(cov_velocity))
-			//				cov_velocity = cov_velocity * 0.98f + model.est.velRatio * 3f *0.02f;
-			//			model.debug.x = cov_velocity;
-
-
-			cov_velocity = Float.NaN;
-
-			// Drift in hold mode:	
-			// Assumption: Speed of T265 is always valid
-			//
-			// WARNING: Publishing POS always for xy; z directly published (without integration)
-			// =======
-			//
-			// Idea: Use vision position as long as vpos speed and vision speed do not differ much (XY only).
-			// otherwise use velocity integration to provide a position; EKF2 is kept in vision position mode
-			// if switched to position, consider current offset between ned and lpos, as EKF2 resets
-			// to vision position. Do not consider Z here
-			//     ==> WORKS (note: do not maintain vision offsets in PX4 parameters)
-			//
-			// Questions: Does this detect vision position jumps?
-			//     ==> TODO: Test in OH
-			//         TODO: Enable position sending and test done 4.2.22
-			//               ==> Manual test: ok
-			//               ==> Flight test:
-			//                      1. initialization fails (height, velpos)
-			//                      2. Flight test ok, integration works
-			//         ==> seems to be the solution
-			//             ==> Simulated position jumps work well
-			//         ==> Observation: Z integration has drift
-			//         ==> Observation: VY variance much higher than VX
-			//             ==> solved by using ned position to calculate speed instead of body pos
-			//             TODO: Check VposZ
-			//
-			//         TODO: Use also integrated Z in velocity mode: Target: also Z should be stable
-
-
-			// Check variance between Vision speed (NED) and Vision position based XYZ speed (NED)
-
-			//			if(drift_compensation ) {
-			//				if(pos_hysteresis.check(MSP3DUtils.distance2D(lpos_current_s, vpos_ned_s) > MAX_VEL_VARIANCE 
-			//						// NOTE: Does not work while turning
-			//						// TODO: Why are speeds different while turning?
-			//						&& Math.abs(model.attitude.yr) < 0.3f)) {
-			//
-			//					if(pos_hysteresis.getDurationOfState_ms() > 2000) {
-			//						//	model.vision.setStatus(Vision.ERROR, true);
-			//						init("vpos");
-			//						return;
-			//					}
-			//
-			//					model.vision.setStatus(Vision.POS_VALID, false);
-			//					// Use vision velocity for fusing and calculate virtual vision position by integrating
-			//					vpos_ned_delta.setTo(ned_s.T); vpos_ned_delta.scale(dt_sec);
-			//					vpos_ned.plusIP(vpos_ned_delta);
-			//
-			//					// replace vision XYZ position with velocity integration
-			//					ned.T.x = vpos_ned.x;
-			//					ned.T.y = vpos_ned.y;	
-			//					//ned.T.z = vpos_ned.z;	// Do not use Z
-			//
-			//
-			//				} else {
-			//
-			//					model.vision.setStatus(Vision.POS_VALID, true);
-			//					// Use vision position for fusing and reset vision to lpos
-			//					ned.T.plusIP(error_pos_ned);
-			//				}
-			//
-			//			}
-
 
 			// Fiducial detection
 			model.vision.setStatus(Vision.FIDUCIAL_ENABLED, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
@@ -775,14 +628,27 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				break;
 
 
-			case LPOS_ODO_MODE_POSITION:
+			case LPOS_ODO_MODE_POSITION_NED:
 
 				// Publish position data NED frame, speed body frame;  with ground truth
 				//		publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,model.vision.isStatus(Vision.POS_VALID),confidence,tms);
 
 				// Do not publish data if error detected
 				if(!model.vision.isStatus(Vision.ERROR))
-					publishPX4Odometry(ned.T,body_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,cov_velocity,confidence,tms);
+					publishPX4Odometry(ned.T,ned_s.T,MAV_FRAME.MAV_FRAME_LOCAL_NED,MAV_FRAME.MAV_FRAME_BODY_FRD,covariance_velocity,tms);
+
+				// Publish to GCL
+				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
+
+				model.vision.setGroundTruth(gnd_ned.T);
+
+				break;
+
+			case LPOS_ODO_MODE_POSITION_BODY:
+
+				// Do not publish data if error detected
+				if(!model.vision.isStatus(Vision.ERROR))
+					publishPX4Odometry(body.T,body_s.T,MAV_FRAME.MAV_FRAME_BODY_FRD,MAV_FRAME.MAV_FRAME_BODY_FRD,covariance_velocity,tms);
 
 				// Publish to GCL
 				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
@@ -906,11 +772,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 
-	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, float cov_vel, int confidence, long tms) {
+	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, int frame_child,float cov_vel, long tms) {
 
 		odo.estimator_type = MAV_ESTIMATOR_TYPE.MAV_ESTIMATOR_TYPE_VISION;
 		odo.frame_id       = frame;
-		odo.child_frame_id = MAV_FRAME.MAV_FRAME_BODY_FRD;
+		odo.child_frame_id = frame_child;
 
 		odo.time_usec =  tms * 1000;
 
@@ -929,9 +795,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			build_covariance(cov_vel, odo.velocity_covariance);
 		else
 			odo.velocity_covariance[0] = Float.NaN;
-
-		//		build_covariance(odo.velocity_covariance, confidence);
-
 
 		// do not use twist
 		odo.q[0] = Float.NaN;
