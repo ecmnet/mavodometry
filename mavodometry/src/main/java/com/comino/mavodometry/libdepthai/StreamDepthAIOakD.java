@@ -163,6 +163,7 @@ public class StreamDepthAIOakD {
 										rgb_tms = System.currentTimeMillis();
 										bufferRgbToMsU8(frame.getData().asByteBuffer(),rgb);
 										frameCount = frame.getSequenceNum();
+
 									}
 								} 
 							}

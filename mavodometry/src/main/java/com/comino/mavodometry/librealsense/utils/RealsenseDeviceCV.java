@@ -228,8 +228,8 @@ public class RealsenseDeviceCV  {
 	}
 	
 	protected long getFrameMetaData(rs2_frame frame, int type) throws Exception {
-//		if(!toBoolean(rs2_supports_frame_metadata(frame,type,error)))
-//			return -1;
+		if(!toBoolean(rs2_supports_frame_metadata(frame,type,error)))
+			return -1;
 		long result = rs2_get_frame_metadata(frame,type,error);
 		checkError(error);
 		return result;	

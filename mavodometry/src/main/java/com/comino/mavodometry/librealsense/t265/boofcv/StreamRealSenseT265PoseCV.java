@@ -132,8 +132,6 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 	private int x0,y0,x1,y1;
 	private int mount;
 
-	private long current_exposure;
-
 
 	private final DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
 	private final DMatrixRMaj   rtY90P = CommonOps_DDRM.identity( 3 );
@@ -235,11 +233,6 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 	public int getMount() {
 		return mount;
 	}
-
-	public long getCurrentExposure() {
-		return current_exposure;
-	}
-
 
 	public CameraKannalaBrandt getLeftModel() {
 		return left_model;
@@ -429,10 +422,6 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 											right_model = createFisheyeModel(intrinsics_right);
 											is_initialized = true;
 										}
-									}
-
-									if((count_framesets % 100) == 0) {
-										current_exposure = getFrameMetaData(frame,realsense2.RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
 									}
 								} 
 
