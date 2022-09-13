@@ -102,8 +102,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final int         FIDUCIAL_HEIGHT     		= 360;
 	private static final int         FIDUCIAL_WIDTH     		= 360;
 
-	private static final float       DEFAULT_MAX_VEL_TESTRATIO  = 0.5f;
-	private static final int     	 DEFAULT_MAX_ERRORS         = 20;
+	private static final float       MAX_VEL_TESTRATIO          = 0.4f;
+	private static final int     	 MAX_COUNT_ERRORS           = 5;
+	private static final float       MAX_ALLOWED_SPEED_FOR_INIT = 0.4f;
 
 	private static final long        LOCK_TIMEOUT_MS            = 1000;
 	private static final long        VISION_SETTLE_MS           = 500;
@@ -157,7 +158,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Vector3D_F64  offset     		= new Vector3D_F64();
 	private final Vector3D_F64  offset_pos_ned  = new Vector3D_F64();
 	private final Vector3D_F64  error_pos_ned   = new Vector3D_F64();
-	private final Vector3D_F64  lpos_current_s  = new Vector3D_F64();
+	private final Vector3D_F64  lpos_s          = new Vector3D_F64();
 
 	private final Attitude3D_F64   att      	= new Attitude3D_F64();
 	//	private final Quaternion_F64   att_q        = new Quaternion_F64();
@@ -165,11 +166,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private float             quality = 0;
 	private long              tms_old = 0;
 	private long            tms_reset = 0;
-	private long       tms_last_reset = 0;
+	private long  tms_last_tstr_error = 0;
 	private int        confidence_old = 0;
 	private double             dt_sec = 0;
 	private double           dt_sec_1 = 0;
-	
+
 	private float         lpos_s_norm = 0;
 	private float          ned_s_norm = 0;
 
@@ -205,14 +206,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private String stmp;
 
 	private GrayU8 fiducial = new GrayU8(1,1);
-	private int fiducial_worker;
-
-	private float                          check_veltestratio = DEFAULT_MAX_VEL_TESTRATIO;
-	private int                            check_max_errors   = DEFAULT_MAX_ERRORS;                   
+	private int fiducial_worker;               
 
 	private MSPCovariance                  cov_s = new MSPCovariance(5);
+	private MSPCovariance                  cov_p = new MSPCovariance(5);
+	private MSPCovariance                  cov_a = new MSPCovariance(5);
 	private float                          cov_s_f = 0;
-	
+
 	private float                          covariance_velocity = 0.1f;
 
 	@SuppressWarnings("unused")
@@ -241,15 +241,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 
 
-		check_veltestratio = config.getFloatProperty(MSPParams.T265_CHECK_VELTESTRATIO, Float.toString(DEFAULT_MAX_VEL_TESTRATIO));
-		System.out.println("T265 check velocity test ratio: "+check_veltestratio);
-		if(check_veltestratio <= 0)
-			writeLogMessage(new LogMessage("[msp] T265 testratio check disabled",MAV_SEVERITY.MAV_SEVERITY_DEBUG));
-
-		check_max_errors = config.getIntProperty(MSPParams.T265_CHECK_MAX_ERROR, Integer.toString(DEFAULT_MAX_ERRORS));
-		System.out.println("T265 max errors: "+check_max_errors);
-		if(check_max_errors <= 0)
-			writeLogMessage(new LogMessage("[msp] T265 reset disabled",MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+		//		check_veltestratio = config.getFloatProperty(MSPParams.T265_CHECK_VELTESTRATIO, Float.toString(DEFAULT_MAX_VEL_TESTRATIO));
+		//		System.out.println("T265 check velocity test ratio: "+check_veltestratio);
+		//		if(check_veltestratio <= 0)
+		//			writeLogMessage(new LogMessage("[msp] T265 testratio check disabled",MAV_SEVERITY.MAV_SEVERITY_DEBUG));
+		//
+		//		check_max_errors = config.getIntProperty(MSPParams.T265_CHECK_MAX_ERROR, Integer.toString(DEFAULT_MAX_ERRORS));
+		//		System.out.println("T265 max errors: "+check_max_errors);
+		//		if(check_max_errors <= 0)
+		//			writeLogMessage(new LogMessage("[msp] T265 reset disabled",MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 
 		// Do not allow drift compensation with GPS
 		// TOOD: Better check PX4 fusion parameter
@@ -412,9 +412,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				error_pos_ned.setTo(0,0,0);
 
-				cov_s.reset();
+				cov_s.reset(); cov_p.reset(); cov_a.reset();
 
-				tms_last_reset = System.currentTimeMillis();
+				tms_last_tstr_error = 0;
 
 				publishMSPFlags(tms);
 
@@ -428,7 +428,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			if(confidence <= CONFIDENCE_LOW && confidence_old != confidence) {
 
-				if(++error_count > check_max_errors && check_max_errors > 0)
+				if(++error_count > MAX_COUNT_ERRORS)
 					init("Low confidence");
 
 				model.vision.setStatus(Vision.SPEED_VALID, false);
@@ -468,7 +468,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			// Get current position and speeds
 			MSP3DUtils.convertModelToSe3_F64(model, lpos);
-			MSP3DUtils.convertCurrentSpeed(model, lpos_current_s);
+			MSP3DUtils.convertCurrentSpeed(model, lpos_s);
 
 			CommonOps_DDRM.transpose(p.R, to_body.R);
 
@@ -478,17 +478,17 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// rotate sensor velocities and acceleration to body frame
 			GeometryMath_F64.mult(to_body.R, s.T, body_s.T);
 			GeometryMath_F64.mult(to_body.R, a.T, body_a.T);
-			
-			
+
+
 
 			// eventually calculate rr,pr,yr and do not use model rates
 			// should compesate rotations in speed
 			// TODO: Seems not to be the reason of velocity runaway; maybe re-enable
 
-//			angular_rates.setTo(model.attitude.rr, model.attitude.pr, model.attitude.yr);
-//			offset_vel_body.crossSetTo(angular_rates, offset);
-//			offset_vel_body.scale(-1);
-//			body_s.T.plusIP(offset_vel_body);
+			//			angular_rates.setTo(model.attitude.rr, model.attitude.pr, model.attitude.yr);
+			//			offset_vel_body.crossSetTo(angular_rates, offset);
+			//			offset_vel_body.scale(-1);
+			//			body_s.T.plusIP(offset_vel_body);
 
 			// Get model attitude rotation
 			MSP3DUtils.convertModelRotationToSe3_F64(model, to_ned);
@@ -521,77 +521,110 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				reset_count++;
 				model.vision.setStatus(Vision.RESETTING, false);
 			}
-			
-			lpos_s_norm = (float)lpos_current_s.norm();
+
+			lpos_s_norm = (float)lpos_s.norm();
 			ned_s_norm  = (float)ned_s.T.norm();
-			
+
 			// Validity checks for vision
+
+			// 0. Experiments
+
+			// debug.x => relative speed covariance between local speed and vision speed vector
+			// debug.y => position covariance between local pos and vision pos vecttor
+			// debug.z => pitch covariance between local pitch and vision pitch
+
+			model.debug.y = (float)Math.abs(cov_p.determine(ned.T.norm(), lpos.T.norm(), true)*100.0f);
+			model.debug.z = (float)(Math.abs(cov_a.determine(model.attitude.p, att.getPitch(), false) / model.attitude.p));
 
 			// 1. Vision velocity vs. lpos velocity covariance check
 			cov_s_f = (float)Math.abs(cov_s.determine(ned_s_norm, lpos_s_norm, false) / lpos_s_norm);
 
+			model.debug.x = cov_s_f;
+
 			if(lpos_s_norm > 0 && lpos_s_norm < 10 && model.est.isFlagSet(EstStatus.HORIZONTAL_ABS_POS_OK) && cov_s_f > 0.2) {
-					model.vision.setStatus(Vision.SPEED_VALID, false);
-					model.vision.setStatus(Vision.POS_VALID, false);
-					model.vision.setStatus(Vision.ERROR, true);	
-					
-					if(lpos_s_norm < 0.3)
-					  init("CovVel");	
-					
-					publishMSPFlags(tms);
-					return;  
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				model.vision.setStatus(Vision.ERROR, true);	
+
+				init("CovVel");	
+
+				publishMSPFlags(tms);
+				return;  
 			}
-			
+
 			// 2. Vision velocity vs. local speed reported by EKF2 (absolute divergence)
-			if((Math.abs(ned_s.T.x - lpos_current_s.x) > 0.2) ||
-			   (Math.abs(ned_s.T.y - lpos_current_s.y) > 0.2) ||
-			   (Math.abs(ned_s.T.z - lpos_current_s.z) > 0.2) 
-			   ) {
+
+			if((Math.abs(ned_s.T.x - lpos_s.x) > 0.2) ||
+					(Math.abs(ned_s.T.y - lpos_s.y) > 0.2) ||
+					(Math.abs(ned_s.T.z - lpos_s.z) > 0.2) 
+					) {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				model.vision.setStatus(Vision.EXPERIMENTAL, true);
-				
-				if(++error_count > 5 && lpos_s_norm < 0.3 )
-					  init("SpeedDev");	
+
+				if(++error_count > MAX_COUNT_ERRORS)
+					init("SpeedDev");	
 				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
 				return;
 			}
-			
-			// 3. Max vision velocity
-			if(body_s.T.norm() > 1.0) {
-				model.vision.setStatus(Vision.SPEED_VALID, false);
-				model.vision.setStatus(Vision.POS_VALID, false);
-				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
-				if(lpos_s_norm < 0.3)
-					  init("MaxSpeed");	
-				return;
-			}
-			
-			// 4. Testratio velocity check
+
+
+			// 3. Testratio velocity check
 			if(model.est.velRatio > 0.4f) {
+				if(tms_last_tstr_error == 0)
+					tms_last_tstr_error = System.currentTimeMillis();
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
+				model.vision.setStatus(Vision.ERROR, true);	
 				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
-				if(++error_count > 10 && lpos_s_norm < 0.3 )
-					  init("TestRatio");		
+				if((System.currentTimeMillis() - tms_last_tstr_error) < 300)
+						return;
+//				if(++error_count > MAX_COUNT_ERRORS)
+//					init("TestRatioVel");	
 			}
-			
-			// 5. Local speed limit for vision support
-			if(lpos_s_norm > 1.0) {
+
+			tms_last_tstr_error = 0;
+
+			// 4. Local speed limit for vision support
+
+			if(lpos_s_norm > 1.0 && model.gps.eph < 2.0) {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				publishMSPFlags(tms);
 				return;
 			}
-			
+
+			// 5. Max vision velocity just for safety
+			if(body_s.T.norm() > 1.0 && model.gps.eph < 2.0) {
+				model.vision.setStatus(Vision.SPEED_VALID, false);
+				model.vision.setStatus(Vision.POS_VALID, false);
+				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
+				init("MaxSpeed");	
+				return;
+			}
+
 			// Determine vision covariance matrix dependent on the local speed
-			if(lpos_s_norm < 0.3)
+			// TODO: Seems not to have an effect: BINGO: PARAMETER set incorrectly => done
+
+			if(ned_s_norm < 0.2)
+				covariance_velocity = 0.05f;
+			else if(ned_s_norm < 0.4)
 				covariance_velocity = 0.1f;
-			else if(lpos_s_norm < 0.5)
-				covariance_velocity = 0.2f;
+			else if(ned_s_norm < 0.6)
+				covariance_velocity = 0.3f;
 			else 
-			    covariance_velocity = 0.8f;
-				
+				covariance_velocity = 0.6f;
+
+			//			float vel_diff = Math.abs(ned_s_norm - lpos_s_norm);
+			//			if(vel_diff < 0.1)
+			//				covariance_velocity = 0.05f;
+			//			else if(vel_diff < 0.2)
+			//				covariance_velocity = 0.1f;
+			//			else if(vel_diff < 0.3)
+			//				covariance_velocity = 0.3f;
+			//			else 
+			//				covariance_velocity = 0.6f;
+
 
 			error_count = 0;
 
@@ -672,18 +705,18 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		});
 
 
-		if(stream != null && t265!=null){
-			stream.registerOverlayListener((ctx,n,tms) -> {
-				if(enableStream)
-					overlayFeatures(ctx, tms);
-			});
-		}
+				if(stream != null && t265!=null){
+					stream.registerOverlayListener((ctx,n,tms) -> {
+						if(enableStream)
+							overlayFeatures(ctx, tms);
+					});
+				}
 
 
-		if(t265.getMount() == StreamRealSenseT265PoseCV.POS_FOREWARD)
-			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted forewards");
-		else
-			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted downwards");
+				if(t265.getMount() == StreamRealSenseT265PoseCV.POS_FOREWARD)
+					System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted forewards");
+				else
+					System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted downwards");
 
 	}
 
@@ -692,7 +725,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 	public void init(String s) {
-		if(t265!=null) {
+		if(t265!=null && ( lpos_s_norm < MAX_ALLOWED_SPEED_FOR_INIT || !model.sys.isStatus(Status.MSP_LPOS_VALID))) {
 			tms_reset = System.currentTimeMillis();
 			quality = 0; 
 			ned_s.reset(); body_s.reset(); body_a.reset();
@@ -889,6 +922,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		@Override
 		public void run() {
+			
 			// Precision lock procedure 
 			if(!model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK)) {
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
@@ -983,69 +1017,4 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	}
 
-
-
-	//	private class DriftEstimator {
-	//
-	//		private final List<Vector4D_F64> lock_positions  = new ArrayList<Vector4D_F64>();
-	//		private final Vector4D_F64       lock_start      = new Vector4D_F64();
-	//
-	//		private final Vector4D_F64       tmp             = new Vector4D_F64();
-	//
-	//		private double                   max_time        = 5.0;
-	//		private boolean                  estimated       = false;
-	//
-	//
-	//		public DriftEstimator(double max_time) {
-	//			this.max_time = max_time;
-	//		}
-	//
-	//		public boolean add(double t_sec, Vector4D_F64 pos) {
-	//			if(lock_positions.size() > 0 && (t_sec - lock_positions.get(0).w) >= max_time)
-	//				return false;
-	//			if(lock_positions.isEmpty()) {
-	//				lock_start.setTo(pos); lock_start.scale(-1);
-	//			}
-	//			lock_positions.add(new Vector4D_F64(pos.x,pos.y,pos.z, t_sec));
-	//			return true;
-	//		}
-	//
-	//		public boolean add(Vector4D_F64 pos) {
-	//			return add(System.currentTimeMillis()/1000.0,pos);
-	//		}
-	//
-	//		public void clear() {
-	//			lock_positions.clear();
-	//			estimated = false;
-	//		}
-	//
-	//		public int size() {
-	//			return lock_positions.size();
-	//		}
-	//		
-	//		public boolean isEstimated() {
-	//			return estimated;
-	//		}
-	//
-	//		public boolean estimate(Vector4D_F64 drift_estimate) {
-	//			tmp.setTo(0,0,0,0); estimated = false;
-	//
-	//			if(lock_positions.size() < 2)
-	//				return estimated;
-	//
-	//			final double dt_1 = 1 / (lock_positions.get(lock_positions.size()-1).w - lock_positions.get(0).w);
-	//
-	//			for(int i=0;i<lock_positions.size();i++) {
-	//				// TODO: Variance
-	//				tmp.plusIP(lock_positions.get(i));
-	//			}
-	//			tmp.scale(dt_1);
-	//
-	//			// TODO: Check validity
-	//			drift_estimate.setTo(tmp);
-	//			estimated = true;
-	//			
-	//			return estimated;
-	//		}
-	//	}
 }

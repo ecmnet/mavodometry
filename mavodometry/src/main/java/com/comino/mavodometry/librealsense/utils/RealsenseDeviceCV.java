@@ -12,6 +12,8 @@ import static org.bytedeco.librealsense2.global.realsense2.rs2_get_failed_functi
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_option;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_sensor_info;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_get_sensors_count;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_get_frame_metadata;
+import static org.bytedeco.librealsense2.global.realsense2.rs2_supports_frame_metadata;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_hardware_reset;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_query_devices;
 import static org.bytedeco.librealsense2.global.realsense2.rs2_query_sensors;
@@ -27,10 +29,12 @@ import org.bytedeco.librealsense2.rs2_context;
 import org.bytedeco.librealsense2.rs2_device;
 import org.bytedeco.librealsense2.rs2_device_list;
 import org.bytedeco.librealsense2.rs2_error;
+import org.bytedeco.librealsense2.rs2_frame;
 import org.bytedeco.librealsense2.rs2_options;
 import org.bytedeco.librealsense2.rs2_sensor;
 import org.bytedeco.librealsense2.rs2_sensor_list;
 import org.bytedeco.librealsense2.global.realsense2;
+
 
 public class RealsenseDeviceCV  {
 
@@ -62,6 +66,7 @@ public class RealsenseDeviceCV  {
 
 
 	protected boolean is_initialized = false;
+	
 
 	public RealsenseDeviceCV() throws Exception {
 
@@ -118,6 +123,8 @@ public class RealsenseDeviceCV  {
 
 		rs2_set_option(options, optionIndex, value, error);
 		checkError(error);
+		
+		options.releaseReference();
 	}
 
 	public float getSensorOption(rs2_sensor sensor, int optionIndex)  throws Exception {
@@ -131,6 +138,8 @@ public class RealsenseDeviceCV  {
 
 		float val = rs2_get_option(options, optionIndex, error);
 		checkError(error);
+		
+		options.releaseReference();
 
 		return val;
 	}
@@ -193,7 +202,7 @@ public class RealsenseDeviceCV  {
 
 	protected String getDeviceInfo(rs2_device device, int info) throws Exception {
 		// check if info is supported
-		rs2_error error = new rs2_error();
+	//	rs2_error error = new rs2_error();
 		boolean isSupported = toBoolean(rs2_supports_device_info(device, info, error));
 		checkError(error);
 
@@ -209,13 +218,21 @@ public class RealsenseDeviceCV  {
 
 	protected String getSensorInfo(rs2_sensor sensor, int num) throws Exception {
 		// check if info is supported
-		rs2_error error = new rs2_error();
+	//	rs2_error error = new rs2_error();
 
 		// read device info
 		String infoText = rs2_get_sensor_info(sensor, num, error).getString();
 		checkError(error);
 
 		return infoText;
+	}
+	
+	protected long getFrameMetaData(rs2_frame frame, int type) throws Exception {
+//		if(!toBoolean(rs2_supports_frame_metadata(frame,type,error)))
+//			return -1;
+		long result = rs2_get_frame_metadata(frame,type,error);
+		checkError(error);
+		return result;	
 	}
 
 	protected static boolean toBoolean(int value) {

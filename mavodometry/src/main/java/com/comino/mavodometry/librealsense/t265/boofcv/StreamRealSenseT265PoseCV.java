@@ -132,6 +132,8 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 	private int x0,y0,x1,y1;
 	private int mount;
 
+	private long current_exposure;
+
 
 	private final DMatrixRMaj   rtY90  = CommonOps_DDRM.identity( 3 );
 	private final DMatrixRMaj   rtY90P = CommonOps_DDRM.identity( 3 );
@@ -234,6 +236,10 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 		return mount;
 	}
 
+	public long getCurrentExposure() {
+		return current_exposure;
+	}
+
 
 	public CameraKannalaBrandt getLeftModel() {
 		return left_model;
@@ -316,6 +322,7 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 				setSensorOption(sensor,realsense2.RS2_OPTION_FRAMES_QUEUE_SIZE,  1);
 
+
 				pipeline = rs2_create_pipeline(ctx, error);
 				checkError(error);
 
@@ -390,7 +397,7 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 							count_framesets++;
 
-							left = false; 
+							left = false;
 
 
 							for(int i = 0; i < num_of_frames;i++) {
@@ -422,6 +429,10 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 											right_model = createFisheyeModel(intrinsics_right);
 											is_initialized = true;
 										}
+									}
+
+									if((count_framesets % 100) == 0) {
+										current_exposure = getFrameMetaData(frame,realsense2.RS2_FRAME_METADATA_ACTUAL_EXPOSURE);
 									}
 								} 
 
@@ -496,52 +507,52 @@ public class StreamRealSenseT265PoseCV extends RealsenseDeviceCV {
 
 								break;
 
-//							case POS_DOWNWARD_180_PREDICT:
-//
-//								dt_s = (getUnixTime_ms() - tms) / 1000f;
-//
-//								if(dt_s > 0 && dt_s < 0.030f) {
-//
-//									prepose.velocity().x(dt_s/2 * rawpose.acceleration().x() + rawpose.velocity().x());
-//									prepose.velocity().y(dt_s/2 * rawpose.acceleration().y() + rawpose.velocity().y());
-//									prepose.velocity().z(dt_s/2 * rawpose.acceleration().z() + rawpose.velocity().z());
-//
-//									prepose.translation().x(dt_s * prepose.velocity().x() + rawpose.translation().x());
-//									prepose.translation().y(dt_s * prepose.velocity().y() + rawpose.translation().y());
-//									prepose.translation().z(dt_s * prepose.velocity().z() + rawpose.translation().z());
-//
-//
-//									// TODO: Predict rotation also
-//									//						rs2_vector W = {
-//									//								dt_s * (dt_s/2 * rawpose.angular_acceleration.x + rawpose.angular_velocity.x),
-//									//								dt_s * (dt_s/2 * rawpose.angular_acceleration.y + rawpose.angular_velocity.y),
-//									//								dt_s * (dt_s/2 * rawpose.angular_acceleration.z + rawpose.angular_velocity.z),
-//									//						};
-//									//						P.rotation = quaternion_multiply(quaternion_exp(W), pose.rotation);
-//
-//								}
-//
-//								current_pose.getTranslation().setTo( prepose.translation().z(), -prepose.translation().x(), - prepose.translation().y());
-//
-//								ConvertRotation3D_F64.quaternionToMatrix(
-//										rawpose.rotation().w(),
-//										rawpose.rotation().z(),
-//										-rawpose.rotation().x(),
-//										-rawpose.rotation().y(), tmp);
-//
-//								CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
-//
-//								current_speed.getTranslation().setTo( prepose.velocity().z(), -prepose.velocity().x(), - prepose.velocity().y());
-//								current_speed.getRotation().setTo(current_pose.getRotation());
-//
-//								// avoid drift around 0
-//								current_speed.T.x = Math.abs(current_speed.T.x) > 0.01f ? current_speed.T.x : 0;
-//								current_speed.T.y = Math.abs(current_speed.T.y) > 0.01f ? current_speed.T.y : 0;
-//								current_speed.T.z = Math.abs(current_speed.T.z) > 0.02f ? current_speed.T.z : 0;
-//
-//								current_acceleration.getTranslation().setTo(rawpose.acceleration().z(), -rawpose.acceleration().x(), - rawpose.acceleration().y());
-//
-//								break;
+								//							case POS_DOWNWARD_180_PREDICT:
+								//
+								//								dt_s = (getUnixTime_ms() - tms) / 1000f;
+								//
+								//								if(dt_s > 0 && dt_s < 0.030f) {
+								//
+								//									prepose.velocity().x(dt_s/2 * rawpose.acceleration().x() + rawpose.velocity().x());
+								//									prepose.velocity().y(dt_s/2 * rawpose.acceleration().y() + rawpose.velocity().y());
+								//									prepose.velocity().z(dt_s/2 * rawpose.acceleration().z() + rawpose.velocity().z());
+								//
+								//									prepose.translation().x(dt_s * prepose.velocity().x() + rawpose.translation().x());
+								//									prepose.translation().y(dt_s * prepose.velocity().y() + rawpose.translation().y());
+								//									prepose.translation().z(dt_s * prepose.velocity().z() + rawpose.translation().z());
+								//
+								//
+								//									// TODO: Predict rotation also
+								//									//						rs2_vector W = {
+								//									//								dt_s * (dt_s/2 * rawpose.angular_acceleration.x + rawpose.angular_velocity.x),
+								//									//								dt_s * (dt_s/2 * rawpose.angular_acceleration.y + rawpose.angular_velocity.y),
+								//									//								dt_s * (dt_s/2 * rawpose.angular_acceleration.z + rawpose.angular_velocity.z),
+								//									//						};
+								//									//						P.rotation = quaternion_multiply(quaternion_exp(W), pose.rotation);
+								//
+								//								}
+								//
+								//								current_pose.getTranslation().setTo( prepose.translation().z(), -prepose.translation().x(), - prepose.translation().y());
+								//
+								//								ConvertRotation3D_F64.quaternionToMatrix(
+								//										rawpose.rotation().w(),
+								//										rawpose.rotation().z(),
+								//										-rawpose.rotation().x(),
+								//										-rawpose.rotation().y(), tmp);
+								//
+								//								CommonOps_DDRM.mult(tmp, rtY90P , current_pose.getRotation());
+								//
+								//								current_speed.getTranslation().setTo( prepose.velocity().z(), -prepose.velocity().x(), - prepose.velocity().y());
+								//								current_speed.getRotation().setTo(current_pose.getRotation());
+								//
+								//								// avoid drift around 0
+								//								current_speed.T.x = Math.abs(current_speed.T.x) > 0.01f ? current_speed.T.x : 0;
+								//								current_speed.T.y = Math.abs(current_speed.T.y) > 0.01f ? current_speed.T.y : 0;
+								//								current_speed.T.z = Math.abs(current_speed.T.z) > 0.02f ? current_speed.T.z : 0;
+								//
+								//								current_acceleration.getTranslation().setTo(rawpose.acceleration().z(), -rawpose.acceleration().x(), - rawpose.acceleration().y());
+								//
+								//								break;
 							}
 
 
