@@ -105,6 +105,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final float       MAX_VEL_TESTRATIO          = 0.4f;
 	private static final int     	 MAX_COUNT_ERRORS           = 5;
 	private static final float       MAX_ALLOWED_SPEED_FOR_INIT = 0.4f;
+	private static final float       MAX_GYRO_CHECK_FOR_INIT    = 1.0f;
 
 	private static final long        LOCK_TIMEOUT_MS            = 1000;
 	private static final long        VISION_SETTLE_MS           = 500;
@@ -368,9 +369,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			if((System.currentTimeMillis() - tms_reset) < 2500 || !is_initialized) {
 				tms_reset = 0; confidence_old = 0; is_initialized = true; error_count = 0;
 
-				// Gyro check => do not reset if motion is too high (should avoid runaway)
+				// Gyro check => do not reset if motion is too high (should avoid reset-runaway)
 				gyro.setTo(model.imu.gyrox,model.imu.gyroy,model.imu.gyroz);
-				if(gyro.norm() > 1.0) {
+				if(gyro.norm() > MAX_GYRO_CHECK_FOR_INIT) {
 					init("Reset(Gyro)");
 					return;
 				}
