@@ -618,9 +618,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				return;
 			}
 
-			// Determine vision covariance matrix dependent on the local speed
-			// TODO: Seems not to have an effect: BINGO: PARAMETER set incorrectly => done
-
 			if(ned_s_norm < 0.2)
 				covariance_velocity = 0.05f;
 			else if(ned_s_norm < 0.4)
@@ -629,16 +626,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				covariance_velocity = 0.3f;
 			else 
 				covariance_velocity = 0.6f;
-
-			//			float vel_diff = Math.abs(ned_s_norm - lpos_s_norm);
-			//			if(vel_diff < 0.1)
-			//				covariance_velocity = 0.05f;
-			//			else if(vel_diff < 0.2)
-			//				covariance_velocity = 0.1f;
-			//			else if(vel_diff < 0.3)
-			//				covariance_velocity = 0.3f;
-			//			else 
-			//				covariance_velocity = 0.6f;
 
 
 			error_count = 0;
