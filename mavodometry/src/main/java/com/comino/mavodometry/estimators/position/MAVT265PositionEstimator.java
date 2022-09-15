@@ -367,13 +367,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			if((System.currentTimeMillis() - tms_reset) < 2500 || !is_initialized) {
 				tms_reset = 0; confidence_old = 0; is_initialized = true; error_count = 0;
-				
+
 				// Gyro check => do not reset if motion is too high (should avoid runaway)
-			    gyro.setTo(model.imu.gyrox,model.imu.gyroy,model.imu.gyroz);
-			    if(gyro.norm() > 1.0) {
-			    	init("Reset(Gyro)");
-			    	return;
-			    }
+				gyro.setTo(model.imu.gyrox,model.imu.gyroy,model.imu.gyroz);
+				if(gyro.norm() > 1.0) {
+					init("Reset(Gyro)");
+					return;
+				}
 
 				// set initial T265 pose as origin
 				to_body.setTranslation(- p.T.x , - p.T.y , - p.T.z );
@@ -545,19 +545,24 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			model.debug.z = (float)(Math.abs(cov_a.determine(model.attitude.p, att.getPitch(), false) / model.attitude.p));
 
 			// 1. Vision velocity vs. lpos velocity covariance check
-			cov_s_f = (float)Math.abs(cov_s.determine(ned_s_norm, lpos_s_norm, false) / lpos_s_norm);
+            //	   but only if lpos_s is valid
+			
+			if(model.sys.isStatus(Status.MSP_LPOS_VALID)) {
+				
+				cov_s_f = (float)Math.abs(cov_s.determine(ned_s_norm, lpos_s_norm, false) / lpos_s_norm);
 
-			model.debug.x = cov_s_f;
+				model.debug.x = cov_s_f;
 
-			if(lpos_s_norm > 0 && lpos_s_norm < 10 && model.est.isFlagSet(EstStatus.HORIZONTAL_ABS_POS_OK) && cov_s_f > 0.2) {
-				model.vision.setStatus(Vision.SPEED_VALID, false);
-				model.vision.setStatus(Vision.POS_VALID, false);
-				model.vision.setStatus(Vision.ERROR, true);	
+				if(lpos_s_norm > 0 && lpos_s_norm < 10 && model.est.isFlagSet(EstStatus.HORIZONTAL_ABS_POS_OK) && cov_s_f > 0.2) {
+					model.vision.setStatus(Vision.SPEED_VALID, false);
+					model.vision.setStatus(Vision.POS_VALID, false);
+					model.vision.setStatus(Vision.ERROR, true);	
 
-				init("CovVel");	
+					init("CovVel");	
 
-				publishMSPFlags(tms);
-				return;  
+					publishMSPFlags(tms);
+					return;  
+				}
 			}
 
 			// 2. Vision velocity vs. local speed reported by EKF2 (absolute divergence), 
@@ -588,9 +593,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.ERROR, true);	
 				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
 				if((System.currentTimeMillis() - tms_last_tstr_error) < 300)
-						return;
-//				if(++error_count > MAX_COUNT_ERRORS)
-//					init("TestRatioVel");	
+					return;
+				//				if(++error_count > MAX_COUNT_ERRORS)
+				//					init("TestRatioVel");	
 			}
 
 			tms_last_tstr_error = 0;
@@ -612,7 +617,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				init("MaxSpeed");	
 				return;
 			}
-			
+
 			// Determine vision covariance matrix dependent on the local speed
 			// TODO: Seems not to have an effect: BINGO: PARAMETER set incorrectly => done
 
@@ -715,18 +720,18 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		});
 
 
-				if(stream != null && t265!=null){
-					stream.registerOverlayListener((ctx,n,tms) -> {
-						if(enableStream)
-							overlayFeatures(ctx, tms);
-					});
-				}
+		if(stream != null && t265!=null){
+			stream.registerOverlayListener((ctx,n,tms) -> {
+				if(enableStream)
+					overlayFeatures(ctx, tms);
+			});
+		}
 
 
-				if(t265.getMount() == StreamRealSenseT265PoseCV.POS_FOREWARD)
-					System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted forewards");
-				else
-					System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted downwards");
+		if(t265.getMount() == StreamRealSenseT265PoseCV.POS_FOREWARD)
+			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted forewards");
+		else
+			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted downwards");
 
 	}
 
@@ -932,7 +937,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		@Override
 		public void run() {
-			
+
 			// Precision lock procedure 
 			if(!model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK)) {
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
