@@ -561,6 +561,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					init("CovVel");	
 
 					publishMSPFlags(tms);
+					
+					if(stream!=null && enableStream) 
+						stream.addToStream("DOWN",img, model, tms);
+					
 					return;  
 				}
 			}
@@ -576,10 +580,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				model.vision.setStatus(Vision.EXPERIMENTAL, true);
-
-				if(++error_count > MAX_COUNT_ERRORS)
-					init("SpeedDev");	
+				
 				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
+				
+				if(stream!=null && enableStream) 
+					stream.addToStream("DOWN",img, model, tms);
+
+				if(++error_count > MAX_COUNT_ERRORS) 
+					init("SpeedDev");
+				
 				return;
 			}
 
@@ -592,8 +601,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.POS_VALID, false);
 				model.vision.setStatus(Vision.ERROR, true);	
 				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
-				if((System.currentTimeMillis() - tms_last_tstr_error) < 300)
+				if((System.currentTimeMillis() - tms_last_tstr_error) < 300) {
+					if(stream!=null && enableStream) 
+						stream.addToStream("DOWN",img, model, tms);
 					return;
+				}
 				//				if(++error_count > MAX_COUNT_ERRORS)
 				//					init("TestRatioVel");	
 			}
@@ -606,6 +618,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				publishMSPFlags(tms);
+				if(stream!=null && enableStream) 
+					stream.addToStream("DOWN",img, model, tms);
 				return;
 			}
 
@@ -640,9 +654,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			if(!model.vision.isStatus(Vision.ENABLED)) {
 
 				// Add left camera to stream
-				if(stream!=null && enableStream) {
+				if(stream!=null && enableStream) 
 					stream.addToStream("DOWN",img, model, tms);
-				}
 
 				model.vision.setStatus(Vision.PUBLISHED, false);
 				model.vision.setGroundTruth(ned.T);
