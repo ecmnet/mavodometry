@@ -104,10 +104,9 @@ public class DefaultOverlayListener implements IOverlayListener {
 		ctx.drawLine(width-25,height-ln,width-ln,height-ln);
 		ctx.drawLine(width-ln,height-25,width-ln,height-ln);
 		
-		// action operator
-		ctx.drawRect(7, 13, 6, 6);
-		
-		
+		// close operator
+		ctx.drawLine(7,10,14,17);
+		ctx.drawLine(14,10,7,17);
 		
 	}
 
