@@ -159,6 +159,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private final Vector3D_F64  offset_pos_ned  = new Vector3D_F64();
 	private final Vector3D_F64  error_pos_ned   = new Vector3D_F64();
 	private final Vector3D_F64  lpos_s          = new Vector3D_F64();
+	private final Vector3D_F64  gyro            = new Vector3D_F64();
 
 	private final Attitude3D_F64   att      	= new Attitude3D_F64();
 	//	private final Quaternion_F64   att_q        = new Quaternion_F64();
@@ -366,6 +367,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			if((System.currentTimeMillis() - tms_reset) < 2500 || !is_initialized) {
 				tms_reset = 0; confidence_old = 0; is_initialized = true; error_count = 0;
+				
+				// Gyro check => do not reset if motion is too high (should avoid runaway)
+			    gyro.setTo(model.imu.gyrox,model.imu.gyroy,model.imu.gyroz);
+			    if(gyro.norm() > 1.0) {
+			    	init("Reset(Gyro)");
+			    	return;
+			    }
 
 				// set initial T265 pose as origin
 				to_body.setTranslation(- p.T.x , - p.T.y , - p.T.z );
@@ -552,11 +560,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				return;  
 			}
 
-			// 2. Vision velocity vs. local speed reported by EKF2 (absolute divergence)
+			// 2. Vision velocity vs. local speed reported by EKF2 (absolute divergence), 
+			//    but only if lpos_s is valid
 
-			if((Math.abs(ned_s.T.x - lpos_s.x) > 0.2) ||
+			if(model.sys.isStatus(Status.MSP_LPOS_VALID) && ( 
+					(Math.abs(ned_s.T.x - lpos_s.x) > 0.2) ||
 					(Math.abs(ned_s.T.y - lpos_s.y) > 0.2) ||
-					(Math.abs(ned_s.T.z - lpos_s.z) > 0.2) 
+					(Math.abs(ned_s.T.z - lpos_s.z) > 0.2) )
 					) {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
@@ -585,9 +595,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			tms_last_tstr_error = 0;
 
-			// 4. Local speed limit for vision support
+			// 4. Local speed limit for vision support but only if lpos_s is valid
 
-			if(lpos_s_norm > 1.0 && model.gps.eph < 2.0) {
+			if(model.sys.isStatus(Status.MSP_LPOS_VALID) && lpos_s_norm > 1.0) {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				publishMSPFlags(tms);
@@ -595,14 +605,14 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			}
 
 			// 5. Max vision velocity just for safety
-			if(body_s.T.norm() > 1.0 && model.gps.eph < 2.0) {
+			if(	body_s.T.norm() > 1.0 && model.gps.eph < 2.0) {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
 				init("MaxSpeed");	
 				return;
 			}
-
+			
 			// Determine vision covariance matrix dependent on the local speed
 			// TODO: Seems not to have an effect: BINGO: PARAMETER set incorrectly => done
 
