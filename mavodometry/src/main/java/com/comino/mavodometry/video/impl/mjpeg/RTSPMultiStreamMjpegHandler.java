@@ -45,6 +45,8 @@ import georegression.struct.point.Point2D_I32;
 public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	// Note: Relies on https://libjpeg-turbo.org
+	
+	private static final long       MAX_VIDEO_RATE_MS     = 40;
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
@@ -170,7 +172,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	public void enableStream(String stream_name) {
 		receiver.enableStream(stream_name);
-		fps = 0;
 	}
 
 	@Override
@@ -216,6 +217,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		@SuppressWarnings("unchecked")
 		public void run() {
+			
+			long dt_ms = 0; fps = 1000f / MAX_VIDEO_RATE_MS;
 
 			no_video = false;
 
@@ -248,10 +251,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					no_video = false;
 					imagenb++;
-
-					fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) / 60f;
-					last_image_tms = System.currentTimeMillis();
-
+					
+	
 
 					if(input instanceof Planar) {
 						ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
@@ -268,6 +269,13 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					if(streams.length > 1) {
 						overlayThumbnail(transfers.get(streams[1]));
 					}
+					
+					dt_ms = System.currentTimeMillis()-last_image_tms;
+					if(dt_ms < MAX_VIDEO_RATE_MS)
+						continue;
+					last_image_tms = System.currentTimeMillis();
+					
+					fps = ((fps * 59) + ((float)(1000f / dt_ms ))) / 60f;
 
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 					quality = quality > MAX_VIDEO_QUALITY ? MAX_VIDEO_QUALITY : quality;
@@ -361,7 +369,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		public void enableStream(String stream_name) {
 			this.streams = stream_name.split("\\+");
-			fps = 0;
 		}
 
 	}
