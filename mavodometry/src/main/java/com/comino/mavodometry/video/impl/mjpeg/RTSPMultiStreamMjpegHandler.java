@@ -46,7 +46,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	// Note: Relies on https://libjpeg-turbo.org
 	
-	private static final long       MAX_VIDEO_RATE_MS     = 40;
+	private static final long       MAX_VIDEO_RATE_MS      = 40;
+	private static final float      DEFAULT_VIDEO_RATE_FPS = 15.1f;
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
@@ -218,7 +219,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		@SuppressWarnings("unchecked")
 		public void run() {
 			
-			long dt_ms = 0; fps = 1000f / MAX_VIDEO_RATE_MS;
+			long dt_ms = 0; fps = DEFAULT_VIDEO_RATE_FPS;
 
 			no_video = false;
 
