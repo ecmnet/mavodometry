@@ -369,7 +369,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			if((System.currentTimeMillis() - tms_reset) < 2500 || !is_initialized) {
 				tms_reset = 0; confidence_old = 0; is_initialized = true; error_count = 0;
 
-				// Gyro check => do not reset if motion is too high (should avoid reset-runaway)
+				// Gyro check => do not reset if rotation is too high (should avoid reset-runaway)
 				gyro.setTo(model.imu.gyrox,model.imu.gyroy,model.imu.gyroz);
 				if(gyro.norm() > MAX_GYRO_CHECK_FOR_INIT) {
 					init("Reset(Gyro)");
