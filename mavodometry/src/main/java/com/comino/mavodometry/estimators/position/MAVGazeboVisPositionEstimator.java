@@ -72,7 +72,10 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		super(control);
 		this.model = control.getCurrentModel();
 		this.vis   = StreamGazeboVision.getInstance(640,480);
-		this.model.vision.setStatus(Vision.ENABLED, true);
+		this.model.vision.setStatus(Vision.ENABLED, vis.isAvailable());
+		
+		if(!vis.isAvailable())
+			return;
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
 			@Override
