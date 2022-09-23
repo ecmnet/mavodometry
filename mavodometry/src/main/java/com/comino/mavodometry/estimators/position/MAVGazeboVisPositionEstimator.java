@@ -296,7 +296,6 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 
 	@Override
 	public void start() throws Exception {
-		System.out.println("Gazebo vision plugin started for SITL");
 		vis.start();
 
 	}
