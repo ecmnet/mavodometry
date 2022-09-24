@@ -1,5 +1,7 @@
 package com.comino.mavodometry.estimators.position;
 
+import java.awt.BasicStroke;
+
 /****************************************************************************
  *
  *   Copyright (c) 2020,2022 Eike Mansfeld ecm@gmx.de. All rights reserved.
@@ -35,6 +37,8 @@ package com.comino.mavodometry.estimators.position;
 
 import java.awt.Color;
 import java.awt.Graphics;
+import java.awt.Graphics2D;
+import java.awt.Stroke;
 import java.text.DecimalFormat;
 
 import org.ejml.data.DMatrixRMaj;
@@ -133,6 +137,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	// MAVLink messages
 	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
 	private final msg_odometry                 odo = new msg_odometry(1,1);
+	
+	private final Stroke  fine             = new BasicStroke(1);
+	private final Stroke  thick            = new BasicStroke(2);
 
 	// Controls
 	private StreamRealSenseT265PoseCV t265;
@@ -723,7 +730,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		if(stream != null && t265!=null){
 			stream.registerOverlayListener((ctx,n,tms) -> {
-				if(enableStream)
+				if(enableStream && n.contains("DOWN"))
 					overlayFeatures(ctx, tms);
 			});
 		}
@@ -776,7 +783,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 
-	private void overlayFeatures(Graphics ctx, long tms) {
+	private void overlayFeatures(Graphics2D ctx, long tms) {
 
 		ctx.setColor(Color.white);
 
@@ -798,13 +805,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				stmp = flocked1.format(-precision_lock.z);
 			else
 				stmp = flocked2.format(-precision_lock.z);	
-			ctx.drawString(stmp, width4*3 - ctx.getFontMetrics().stringWidth(stmp)/2, 20);
+			ctx.drawString(stmp, width4*2 - ctx.getFontMetrics().stringWidth(stmp)/2, 20);
 		}
 	}
 
-	private void drawFiducialArea(Graphics ctx, int x0, int y0, int x1, int y1) {
+	private void drawFiducialArea(Graphics2D ctx, int x0, int y0, int x1, int y1) {
 
 		final int ln = 20;
+		
+		ctx.setStroke(thick);
 
 		ctx.drawLine(x0,y0,x0+ln,y0);
 		ctx.drawLine(x0,y0,x0,y0+ln);
@@ -817,6 +826,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		ctx.drawLine(x1,y1,x1-ln,y1);
 		ctx.drawLine(x1,y1,x1,y1-ln);
+		
+		ctx.setStroke(fine);
 
 	}
 

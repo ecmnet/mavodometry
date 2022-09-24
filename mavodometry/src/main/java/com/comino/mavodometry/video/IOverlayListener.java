@@ -34,10 +34,10 @@
 
 package com.comino.mavodometry.video;
 
-import java.awt.Graphics;
+import java.awt.Graphics2D;
 
 public interface IOverlayListener {
 
-	public void processOverlay(Graphics ctx, String stream_name, long tms_usec);
+	public void processOverlay(Graphics2D ctx, String stream_name, long tms_usec);
 
 }
