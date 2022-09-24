@@ -44,21 +44,24 @@ import com.comino.mavcom.model.segment.Status;
 import com.comino.mavodometry.video.IOverlayListener;
 
 public class DefaultOverlayListener implements IOverlayListener {
-	
-	
+
+
 	private DataModel model;
-	
-	private final Color	bgColor_header     = new Color(128,128,128,130);
-	private final DecimalFormat ftime      = new DecimalFormat("#0.0s");
+
+	private final Color	bgColor_header     = new Color(95, 158, 160,130);
+	private final Color	bgColor_message    = new Color(95, 158, 160,190);
+
+	private final DecimalFormat ftime      = new DecimalFormat("##0.0s");
+	private final DecimalFormat faltitude  = new DecimalFormat("#0.0m;#0.0-m");
 
 	private int width;
 	private int height;
-	
+
 	private int width2;
 	private int height2;
-	
+
 	private String tmp;
-	
+
 	public DefaultOverlayListener(int width, int height, DataModel model) {
 		super();
 		this.model   = model;
@@ -72,42 +75,45 @@ public class DefaultOverlayListener implements IOverlayListener {
 
 	@Override
 	public void processOverlay(Graphics ctx, String stream_name, long tms) {
-		
+
 		ctx.setColor(bgColor_header);
 		ctx.fillRect(5, 5, width-10, 21);
-		
-		ctx.drawLine(100, height2, width2-20, height2); ctx.drawLine(width2+20, height2, width-100, height2);
-		ctx.drawLine(width2, 100, width2, height2-20); ctx.drawLine(width2, height2+20, width2, height-100);
 
 		ctx.setPaintMode();
 		ctx.setColor(Color.white);
-		
+
+		ctx.drawLine(100, height2, width2-20, height2); ctx.drawLine(width2+20, height2, width-100, height2);
+		ctx.drawLine(width2, 100, width2, height2-20); ctx.drawLine(width2, height2+20, width2, height-100);
 
 		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
 			ctx.drawString(ftime.format(model.sys.t_armed_ms/1000f), 23, 20);
 		}
 
-		
+		ctx.drawString(faltitude.format(model.state.l_z), 55, 20);
+
 		tmp = model.sys.getModeString();
 		ctx.drawString(tmp, width - ctx.getFontMetrics().stringWidth(tmp)-20, 20);
 
 		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG,tms)) {
-			ctx.setColor(bgColor_header);
-			ctx.fillRect(5, height-21, width-35, 19);
+			
+			ctx.setColor(bgColor_message);
+			ctx.fillRect(5, height-24, width-10, 19);
 			ctx.setColor(Color.white);
-			ctx.drawString(model.msg.text, 10, height-6);
-		}
-		
-		// resize operator
-		final int ln = 10;
+			ctx.drawString(model.msg.text, 15, height-11);
+			
+		} else {
 
-		ctx.drawLine(width-25,height-ln,width-ln,height-ln);
-		ctx.drawLine(width-ln,height-25,width-ln,height-ln);
-		
+			// resize operator
+			final int ln = 10;
+			ctx.drawLine(width-25,height-ln,width-ln,height-ln);
+			ctx.drawLine(width-ln,height-25,width-ln,height-ln);
+
+		}
+
 		// close operator
-		ctx.drawLine(7,10,14,17);
-		ctx.drawLine(14,10,7,17);
-		
+		ctx.drawLine(7,12,14,19);
+		ctx.drawLine(14,12,7,19);
+
 	}
 
 }

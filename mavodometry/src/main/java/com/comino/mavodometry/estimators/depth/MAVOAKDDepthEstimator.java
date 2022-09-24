@@ -96,8 +96,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private long   						tms 			= 0;
 	private int                         width34         = 0;
 
-	private final DecimalFormat fdistance  = new DecimalFormat("Obst: #0.0m");
-	private final DecimalFormat faltitude  = new DecimalFormat("at #0.0m;at -#0.0m");
+	private final DecimalFormat fdistance  = new DecimalFormat("Obst: #0.0m / ");
+	private final DecimalFormat faltitude  = new DecimalFormat("#0.0m;#0.0-m");
 
 	private final WorkQueue wq = WorkQueue.getInstance();
 	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
@@ -219,7 +219,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		}
 
-		String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(model.slam.oz);
+		final String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(model.slam.oz);
 		ctx.drawString(tmp, width34 - ctx.getFontMetrics().stringWidth(tmp)/2, 20);
 
 	}
