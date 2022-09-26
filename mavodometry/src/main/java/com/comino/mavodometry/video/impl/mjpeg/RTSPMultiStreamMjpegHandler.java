@@ -230,23 +230,29 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				try {
 
 					if(RTPsocket.isClosed() || transfers == null || streams == null) {
-						Thread.sleep(100);
+						Thread.sleep(66);
 						return;
 					}
 					
 
 					queue = transfers.get(streams[0]);
+					
+					if(queue == null) {
+						sendNoVideo();
+						Thread.sleep(66);
+						continue;
+					}
 
 					try {
-						if(queue == null || (input = queue.poll(250, TimeUnit.MILLISECONDS)) == null) {
+						if((input = queue.poll(60, TimeUnit.MILLISECONDS)) == null) {
 							sendNoVideo();
-							Thread.sleep(50);
 							continue;
 						} 
 					}
 					catch(InterruptedException e) {
 						System.out.println(" Queue timeout");
 						sendNoVideo();
+						Thread.sleep(66);
 						continue;
 					}
 
@@ -271,12 +277,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						overlayThumbnail(transfers.get(streams[1]));
 					}
 					
-					dt_ms = System.currentTimeMillis()-last_image_tms;
-					if(dt_ms < MAX_VIDEO_RATE_MS)
-						continue;
-					last_image_tms = System.currentTimeMillis();
-					
-					fps = ((fps * 59) + ((float)(1000f / dt_ms ))) / 60f;
 
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 					quality = quality > MAX_VIDEO_QUALITY ? MAX_VIDEO_QUALITY : quality;
@@ -329,10 +329,12 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				overlayThumbnail(transfers.get(streams[1]));
 			}
 			
-			if(listeners.size()>0) {
-				for(IOverlayListener listener : listeners)
-					listener.processOverlay(ctx, streams[0], DataModel.getSynchronizedPX4Time_us());
-			}
+			// Overlay not possible as time sync does not work
+			
+//			if(listeners.size()>0) {
+//				for(IOverlayListener listener : listeners)
+//					listener.processOverlay(ctx, streams[0], DataModel.getSynchronizedPX4Time_us());
+//			}
 			
 			ctx.drawString("No video available", 20 , 50);
 			tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
