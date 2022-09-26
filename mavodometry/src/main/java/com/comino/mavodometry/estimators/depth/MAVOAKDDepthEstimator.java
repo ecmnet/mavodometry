@@ -99,7 +99,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 
 	private final DecimalFormat fdistance  = new DecimalFormat("Obst: #0.0m / ");
-	private final DecimalFormat faltitude  = new DecimalFormat("##+0.0m;##-0.0m");
+	private final DecimalFormat faltitude  = new DecimalFormat(" ##0.0m;-##0.0m");
 
 	private final WorkQueue wq = WorkQueue.getInstance();
 	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
@@ -134,7 +134,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		this.width  = width;
 		this.height = height;
-		
+
 		this.map = map;
 
 		this.depth_colored = new Planar<GrayU8>(GrayU8.class,width,height,3);
@@ -216,16 +216,17 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		if(stream.contains("DEPTH") && Float.isFinite(model.slam.dm)) {
 
 			final int ln = 5;
-			
+
 			ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
 			ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
 			ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
 
 		}
 
-		final String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(model.slam.oz);
-		ctx.drawString(tmp, width - ctx.getFontMetrics().stringWidth(tmp)-80, 20);
-
+		if(Float.isFinite(model.slam.dm)) {
+			final String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(model.slam.oz);
+			ctx.drawString(tmp, width - ctx.getFontMetrics().stringWidth(tmp)-80, 20);
+		}
 	}
 
 

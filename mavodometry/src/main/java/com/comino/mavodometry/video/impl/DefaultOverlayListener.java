@@ -33,16 +33,13 @@
 
 package com.comino.mavodometry.video.impl;
 
-import java.awt.BasicStroke;
 import java.awt.Color;
 import java.awt.Graphics2D;
-import java.awt.Stroke;
 import java.text.DecimalFormat;
 
 import org.mavlink.messages.MAV_SEVERITY;
 
 import com.comino.mavcom.model.DataModel;
-import com.comino.mavcom.model.segment.Status;
 import com.comino.mavodometry.video.IOverlayListener;
 
 public class DefaultOverlayListener implements IOverlayListener {
@@ -50,11 +47,12 @@ public class DefaultOverlayListener implements IOverlayListener {
 
 	private DataModel model;
 
-	private final Color	bgColor_header     = new Color(95, 158, 160,130);
+	private final Color	bgColor_header     = new Color(95, 158, 160,140);
 	private final Color	bgColor_message    = new Color(95, 158, 160,190);
-	
 
-	private final DecimalFormat ftime      = new DecimalFormat("##0.0s");
+
+	private final DecimalFormat fsecond    = new DecimalFormat("00.0");
+	private final DecimalFormat fminute    = new DecimalFormat("00:");
 	private final DecimalFormat faltitude  = new DecimalFormat("#0.0m;#0.0-m");
 
 	private int width;
@@ -78,7 +76,7 @@ public class DefaultOverlayListener implements IOverlayListener {
 
 	@Override
 	public void processOverlay(Graphics2D ctx, String stream_name, long tms) {
-		
+
 
 		ctx.setColor(bgColor_header);
 		ctx.fillRect(5, 5, width-10, 21);
@@ -88,24 +86,20 @@ public class DefaultOverlayListener implements IOverlayListener {
 
 		ctx.drawLine(100, height2, width2-20, height2); ctx.drawLine(width2+20, height2, width-100, height2);
 		ctx.drawLine(width2, 100, width2, height2-20); ctx.drawLine(width2, height2+20, width2, height-100);
-		
 
-		if(!Float.isNaN(model.sys.t_armed_ms) && model.sys.isStatus(Status.MSP_ARMED)) {
-			ctx.drawString(ftime.format(model.sys.t_armed_ms/1000f), 23, 20);
-		}
-
-		ctx.drawString(faltitude.format(model.state.l_z), 55, 20);
+		ctx.drawString(fminute.format(model.sys.t_armed_ms/60000)+fsecond.format(model.sys.t_armed_ms/1000f%60), 23, 20);
+		ctx.drawString(faltitude.format(model.state.l_z), 65, 20);
 
 		tmp = model.sys.getModeString();
 		ctx.drawString(tmp, width - ctx.getFontMetrics().stringWidth(tmp)-20, 20);
 
 		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG,tms)) {
-			
+
 			ctx.setColor(bgColor_message);
 			ctx.fillRect(5, height-24, width-10, 19);
 			ctx.setColor(Color.white);
 			ctx.drawString(model.msg.text, 15, height-11);
-			
+
 		} else {
 
 			// resize operator
@@ -114,8 +108,8 @@ public class DefaultOverlayListener implements IOverlayListener {
 			ctx.drawLine(width-ln,height-25,width-ln,height-ln);
 
 		}
-		
-		
+
+
 
 		// close operator
 		ctx.drawLine(7,12,14,19);

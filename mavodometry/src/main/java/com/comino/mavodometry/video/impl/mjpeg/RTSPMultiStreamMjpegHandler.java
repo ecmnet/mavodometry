@@ -329,7 +329,12 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				overlayThumbnail(transfers.get(streams[1]));
 			}
 			
-			ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
+			if(listeners.size()>0) {
+				for(IOverlayListener listener : listeners)
+					listener.processOverlay(ctx, streams[0], DataModel.getSynchronizedPX4Time_us());
+			}
+			
+			ctx.drawString("No video available", 20 , 50);
 			tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
 			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 
