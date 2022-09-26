@@ -351,7 +351,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				RTPsocket.send(senddp);
 			}
 
-			final long wait = 62_000_000 - (System.nanoTime()-last_image_tms);
+			final long wait = 62_500_000 - (System.nanoTime()-last_image_tms);
 			if(wait > 0)
 				LockSupport.parkNanos(wait);
 
