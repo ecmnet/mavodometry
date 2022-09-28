@@ -16,17 +16,27 @@
 	</properties>
 
 	<repositories>
+	<!--
 		<repository>
 			<id>in-project</id>
 			<name>In Project Repo</name>
-			<url>file://lib</url>
+			<url>file:///lib</url>
 		</repository>
-        <repository>
-            <id>oss.sonatype.org-snapshot</id>
-            <url>https://oss.sonatype.org/content/repositories/snapshots</url>
-            <releases><enabled>true</enabled></releases>
-            <snapshots><enabled>true</enabled></snapshots>
-        </repository>
+     -->
+		<repository>
+			<id>oss.sonatype.org-snapshot</id>
+			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
+			<releases>
+				<enabled>true</enabled>
+			</releases>
+			<snapshots>
+				<enabled>true</enabled>
+			</snapshots>
+		</repository>
+		<repository>
+			<id>openmicroscopy.org</id>
+			<url>https://artifacts.openmicroscopy.org/artifactory/ome.releases</url>
+		</repository>
 	</repositories>
 
 	<dependencies>
@@ -46,6 +56,8 @@
 			<artifactId>mavcom</artifactId>
 			<version>0.0.1</version>
 		</dependency>
+		
+
 		<dependency>
 			<groupId>com.comino</groupId>
 			<artifactId>mavmap</artifactId>
@@ -56,26 +68,26 @@
 			<artifactId>mavgazebo</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-<!--
+		<!--
         <dependency>
 			<groupId>com.comino</groupId>
 			<artifactId>mavgazebo</artifactId>
 			<version>0.0.1</version>
 		</dependency>
--->
+       -->
 		<dependency>
 			<groupId>org.jcodec</groupId>
 			<artifactId>jcodec</artifactId>
 			<version>0.1.9</version>
 		</dependency>
-
+		
 		<dependency>
 			<groupId>turbojpeg</groupId>
 			<artifactId>turbojpeg</artifactId>
 			<version>0.0.1</version>
 		</dependency>
 
-        <!--
+		<!--
 		<dependency>
 			<groupId>org.boofcv</groupId>
 			<artifactId>boofcv-javacv</artifactId>
@@ -131,7 +143,7 @@
 					<groupId>org.bytedeco</groupId>
 					<artifactId>leptonica</artifactId>
 				</exclusion>
-                <exclusion>
+				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>openblas</artifactId>
 				</exclusion>
@@ -171,13 +183,13 @@
 					<groupId>org.bytedeco</groupId>
 					<artifactId>videoinput</artifactId>
 				</exclusion>
-			
 
-                <exclusion>
+
+				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>ffmpeg</artifactId>
 				</exclusion>
-				
+
 
 			</exclusions>
 		</dependency>
@@ -186,7 +198,7 @@
 			<artifactId>javacv-platform</artifactId>
 			<version>1.5.8-SNAPSHOT</version>
 			<exclusions>
-                <exclusion>
+				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>openblas-platform</artifactId>
 				</exclusion>
@@ -227,7 +239,7 @@
 					<artifactId>artoolkitplus-platform</artifactId>
 				</exclusion>
 
-                <exclusion>
+				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>ffmpeg-platform</artifactId>
 				</exclusion>
