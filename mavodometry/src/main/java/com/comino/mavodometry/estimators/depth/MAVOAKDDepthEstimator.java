@@ -224,7 +224,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				else
 					ctx.drawString("-", 15, 18);
 				ctx.setFont(small);
-				ctx.drawString("obst.distance",15,29);
+				ctx.drawString("distance",15,29);
 
 				ctx.drawLine(90,8,90,29);
 				ctx.setFont(big);
@@ -233,7 +233,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				else
 					ctx.drawString("-", 95, 18);
 				ctx.setFont(small);
-				ctx.drawString("obst.altitude",95,29);
+				ctx.drawString("altitude",95,29);
 			}
 
 		}

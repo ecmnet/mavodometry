@@ -53,7 +53,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
-	private static final int		LOW_VIDEO_QUALITY     = 30;
+	private static final int		LOW_VIDEO_QUALITY     = 40;
 
 	private static final int        THUMBNAIL_WIDTH        = 64*2;
 	private static final int        THUMBNAIL_HEIGHT       = 48*2;
@@ -261,11 +261,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					}
 					
 					dt_ms = System.nanoTime()-last_image_tms;
-					last_image_tms = System.nanoTime();
 					if(dt_ms < MAX_VIDEO_RATE_MS) {
-						Thread.sleep(20);
 						continue;
 					}
+					last_image_tms = System.nanoTime();
 
 					no_video = false;
 					imagenb++;
@@ -285,8 +284,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					if(streams.length > 1) {
 						overlayThumbnail(transfers.get(streams[1]));
 					}
-
-					
 
 					fps = ((fps * 59) + ((float)(1000f / dt_ms ))) / 60f;
 
