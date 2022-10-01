@@ -35,14 +35,9 @@ package com.comino.mavodometry.estimators.depth;
 
 import static boofcv.factory.distort.LensDistortionFactory.narrow;
 
-import java.awt.Graphics;
-import java.text.DecimalFormat;
-import java.util.HashMap;
-import java.util.Map;
+import java.awt.Graphics2D;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-
-import org.apache.commons.math3.util.Precision;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
@@ -55,6 +50,7 @@ import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.libdepthai.StreamDepthAIOakD;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.comino.mavodometry.video.impl.AbstractOverlayListener;
 import com.comino.mavutils.workqueue.WorkQueue;
 
 import boofcv.struct.distort.Point2Transform2_F64;
@@ -94,12 +90,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private final Vector3D_F64          offset_body		= new Vector3D_F64();
 
 	private long   						tms 			= 0;
-	private int                         width           = 0;
-	private int                         height          = 0;
-
-
-	private final DecimalFormat fdistance  = new DecimalFormat("Obst: #0.0m / ");
-	private final DecimalFormat faltitude  = new DecimalFormat(" ##0.0m;-##0.0m");
 
 	private final WorkQueue wq = WorkQueue.getInstance();
 	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
@@ -132,21 +122,13 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			e.printStackTrace();
 		}
 
-		this.width  = width;
-		this.height = height;
-
 		this.map = map;
 
 		this.depth_colored = new Planar<GrayU8>(GrayU8.class,width,height,3);
 
 
 		if(stream!=null) {
-			stream.registerOverlayListener((ctx,n,tms) -> {
-				if(enableStream) {
-					overlayFeatures(ctx,n,tms);
-
-				}
-			});
+			stream.registerOverlayListener(new OverlayListener(model));
 		}
 
 		oakd.registerCallback(new IDepthCallback() {
@@ -199,33 +181,61 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		this.enableStream = enable;
 	}
 
-	private void overlayFeatures(Graphics ctx, String stream, long tms) {
 
-		if(!enableStream)
-			return;
+	/*
+	 * Overlay for nearest obstacle
+	 */
+	private class OverlayListener extends AbstractOverlayListener {
 
-		drawMinDist(ctx, stream, (int)nearest_body.observation.x, (int)nearest_body.observation.y);
+		public OverlayListener(DataModel model) {
+			super(model);
+		}
 
-	}
+		@Override
+		public void processOverlay(Graphics2D ctx, String stream_name, long tms_usec) {
+			if(!enableStream)
+				return;
 
-	private void drawMinDist(Graphics ctx, String stream,int x0, int y0) {
-
-		if((x0==0 && y0 == 0))
-			return;
-
-		if(stream.contains("DEPTH") && Float.isFinite(model.slam.dm)) {
-
-			final int ln = 5;
-
-			ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
-			ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
-			ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
+			drawMinDist(ctx, stream_name, (int)nearest_body.observation.x, (int)nearest_body.observation.y);
 
 		}
 
-		if(Float.isFinite(model.slam.dm)) {
-			final String tmp = fdistance.format(model.slam.dm)+" "+faltitude.format(model.slam.oz);
-			ctx.drawString(tmp, width - ctx.getFontMetrics().stringWidth(tmp)-80, 20);
+		private void drawMinDist(Graphics2D ctx, String stream,int x0, int y0) {
+
+			if(stream.contains("DEPTH")) {
+
+				if((x0==0 && y0 == 0))
+					return;
+
+				if(Float.isFinite(model.slam.dm)) {
+
+					final int ln = 5;
+
+					ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
+					ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
+					ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
+
+				}
+
+				ctx.drawLine(10,8,10,29);
+				ctx.setFont(big);
+				if(Float.isFinite(model.slam.dm))
+					ctx.drawString(faltitude.format(model.slam.dm), 15, 18);
+				else
+					ctx.drawString("-", 15, 18);
+				ctx.setFont(small);
+				ctx.drawString("obst.distance",15,29);
+
+				ctx.drawLine(90,8,90,29);
+				ctx.setFont(big);
+				if(Float.isFinite(model.slam.dm))
+					ctx.drawString(faltitude.format(model.slam.oz), 95, 18);
+				else
+					ctx.drawString("-", 95, 18);
+				ctx.setFont(small);
+				ctx.drawString("obst.altitude",95,29);
+			}
+
 		}
 	}
 
@@ -353,3 +363,4 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	}
 
 }
+

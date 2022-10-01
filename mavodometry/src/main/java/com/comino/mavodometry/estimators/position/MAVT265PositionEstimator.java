@@ -1,45 +1,8 @@
 package com.comino.mavodometry.estimators.position;
 
 import java.awt.BasicStroke;
-
-/****************************************************************************
- *
- *   Copyright (c) 2020,2022 Eike Mansfeld ecm@gmx.de. All rights reserved.
- *
- * Redistribution and use in source and binary forms, with or without
- * modification, are permitted provided that the following conditions
- * are met:
- *
- * 1. Redistributions of source code must retain the above copyright
- *    notice, this list of conditions and the following disclaimer.
- * 2. Redistributions in binary form must reproduce the above copyright
- *    notice, this list of conditions and the following disclaimer in
- *    the documentation and/or other materials provided with the
- *    distribution.
- * 3. Neither the name of the copyright holder nor the names of its
- *    contributors may be used to endorse or promote products derived
- *    from this software without specific prior written permission.
- *
- * THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS
- * "AS IS" AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT
- * LIMITED TO, THE IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS
- * FOR A PARTICULAR PURPOSE ARE DISCLAIMED. IN NO EVENT SHALL THE
- * COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR ANY DIRECT, INDIRECT,
- * INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES (INCLUDING,
- * BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES; LOSS
- * OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED
- * AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT
- * LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN
- * ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
- * POSSIBILITY OF SUCH DAMAGE.
- *
- ****************************************************************************/
-
-import java.awt.Color;
-import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
-import java.text.DecimalFormat;
 
 import org.ejml.data.DMatrixRMaj;
 import org.ejml.dense.row.CommonOps_DDRM;
@@ -69,6 +32,7 @@ import com.comino.mavcom.utils.MSPCovariance;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.librealsense.t265.boofcv.StreamRealSenseT265PoseCV;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.comino.mavodometry.video.impl.AbstractOverlayListener;
 import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
 import com.comino.mavutils.workqueue.WorkQueueException;
@@ -137,9 +101,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	// MAVLink messages
 	private final msg_msp_vision               msg = new msg_msp_vision(2,1);
 	private final msg_odometry                 odo = new msg_odometry(1,1);
-	
-	private final Stroke  fine             = new BasicStroke(1);
-	private final Stroke  thick            = new BasicStroke(2);
+
 
 	// Controls
 	private StreamRealSenseT265PoseCV t265;
@@ -207,13 +169,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private FiducialDetector<GrayU8> detector = null;
 	private FiducialStability        stability = new FiducialStability();
 
-	// Stream data
-	private int   width4;
-
-	private final DecimalFormat flocked2  = new DecimalFormat("LockAlt: #0.00m");
-	private final DecimalFormat flocked1 = new DecimalFormat("LockAlt: #0.00m");
-	private String stmp;
-
 	private GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;               
 
@@ -235,8 +190,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		model.vision.clear();
 		model.vision.setStatus(Vision.ENABLED, config.getBoolProperty(MSPParams.PUBLISH_ODOMETRY, "true"));
 		model.sys.setAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK,config.getBoolProperty(MSPParams.T265_PRECISION_LOCK, "true"));
-
-		this.width4  = width / 4;
 
 		// Subimage-Offsets for fiducial img
 		this.fiducial_x_offs = (width - FIDUCIAL_WIDTH )   / 2;
@@ -553,10 +506,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			model.debug.z = (float)(Math.abs(cov_a.determine(model.attitude.p, att.getPitch(), false) / model.attitude.p));
 
 			// 1. Vision velocity vs. lpos velocity covariance check
-            //	   but only if lpos_s is valid
-			
+			//	   but only if lpos_s is valid
+
 			if(model.sys.isStatus(Status.MSP_LPOS_VALID)) {
-				
+
 				cov_s_f = (float)Math.abs(cov_s.determine(ned_s_norm, lpos_s_norm, false) / lpos_s_norm);
 
 				model.debug.x = cov_s_f;
@@ -569,10 +522,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					init("CovVel");	
 
 					publishMSPFlags(tms);
-					
+
 					if(stream!=null && enableStream) 
 						stream.addToStream("DOWN",img, model, tms);
-					
+
 					return;  
 				}
 			}
@@ -588,15 +541,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				model.vision.setStatus(Vision.SPEED_VALID, false);
 				model.vision.setStatus(Vision.POS_VALID, false);
 				model.vision.setStatus(Vision.EXPERIMENTAL, true);
-				
+
 				publishMSPVision(ned,ned_s,body_a,precision_lock,tms);
-				
+
 				if(stream!=null && enableStream) 
 					stream.addToStream("DOWN",img, model, tms);
 
 				if(++error_count > MAX_COUNT_ERRORS) 
 					init("SpeedDev");
-				
+
 				return;
 			}
 
@@ -729,12 +682,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 
 		if(stream != null && t265!=null){
-			stream.registerOverlayListener((ctx,n,tms) -> {
-				if(enableStream && n.contains("DOWN"))
-					overlayFeatures(ctx, tms);
-			});
+			stream.registerOverlayListener(new OverlayListener(model));
 		}
-
 
 		if(t265.getMount() == StreamRealSenseT265PoseCV.POS_FOREWARD)
 			System.out.println("T265 sensor initialized with mounting offset "+offset+" mounted forewards");
@@ -781,56 +730,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		t265.stop();
 		is_initialized = false;
 	}
-
-
-	private void overlayFeatures(Graphics2D ctx, long tms) {
-
-		ctx.setColor(Color.white);
-
-		if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK)) {
-
-			drawFiducialArea(ctx,fiducial_x_offs,fiducial_y_offs,fiducial_x_offs+FIDUCIAL_WIDTH,fiducial_y_offs+FIDUCIAL_HEIGHT);
-
-			if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {	
-				int fx = (int)fiducial_cen.x + fiducial_x_offs;
-				int fy = (int)fiducial_cen.y + fiducial_y_offs;
-				ctx.drawLine(fx-10,fy,fx+10,fy);
-				ctx.drawLine(fx,fy-10,fx,fy+10);
-			} 
-		}
-
-
-		if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED) && Double.isFinite(precision_lock.z)) {
-			if(precision_lock.z > 1)
-				stmp = flocked1.format(-precision_lock.z);
-			else
-				stmp = flocked2.format(-precision_lock.z);	
-			ctx.drawString(stmp, width4*2 - ctx.getFontMetrics().stringWidth(stmp)/2, 20);
-		}
-	}
-
-	private void drawFiducialArea(Graphics2D ctx, int x0, int y0, int x1, int y1) {
-
-		final int ln = 20;
-		
-		ctx.setStroke(thick);
-
-		ctx.drawLine(x0,y0,x0+ln,y0);
-		ctx.drawLine(x0,y0,x0,y0+ln);
-
-		ctx.drawLine(x0,y1,x0,y1-ln);
-		ctx.drawLine(x0,y1,x0+ln,y1);
-
-		ctx.drawLine(x1,y0,x1-ln,y0);
-		ctx.drawLine(x1,y0,x1,y0+ln);
-
-		ctx.drawLine(x1,y1,x1-ln,y1);
-		ctx.drawLine(x1,y1,x1,y1-ln);
-		
-		ctx.setStroke(fine);
-
-	}
-
 
 	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, int frame_child,float cov_vel, long tms) {
 
@@ -940,6 +839,78 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		cov[18] = 0; cov[19] = 0; 
 		cov[20] = 0;
 
+	}
+
+	/*
+	 * Overlay for nearest obstacle
+	 */
+	private class OverlayListener extends AbstractOverlayListener {
+
+		private final Stroke  fine             = new BasicStroke(1);
+		private final Stroke  thick            = new BasicStroke(2);
+
+		public OverlayListener(DataModel model) {
+			super(model);
+		}
+
+		@Override
+		public void processOverlay(Graphics2D ctx, String stream_name, long tms_usec) {
+			if(!enableStream)
+				return;
+
+			if(stream_name.contains("DOWN")) {
+
+				if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK))
+					drawFiducialArea(ctx,fiducial_x_offs,fiducial_y_offs,fiducial_x_offs+FIDUCIAL_WIDTH,fiducial_y_offs+FIDUCIAL_HEIGHT);
+
+				if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {	
+					ctx.setStroke(thick);
+					int fx = (int)fiducial_cen.x + fiducial_x_offs;
+					int fy = (int)fiducial_cen.y + fiducial_y_offs;
+					ctx.drawLine(fx-10,fy,fx+10,fy);
+					ctx.drawLine(fx,fy-10,fx,fy+10);
+					ctx.setStroke(fine);
+				} 
+				
+				ctx.drawLine(10,8,10,29);
+				ctx.setFont(big);
+				ctx.drawString("LOCKED", 15, 18);
+				ctx.setFont(small);
+				ctx.drawString("landing",15,29);
+				
+				ctx.drawLine(80,8,80,29);
+				ctx.setFont(big);
+				if(Double.isFinite(precision_lock.z) && model.vision.isStatus(Vision.FIDUCIAL_LOCKED))
+					ctx.drawString(faltitude.format(precision_lock.z), 85, 18);
+				else
+					ctx.drawString("-", 85, 18);
+				ctx.setFont(small);
+				ctx.drawString("altitude",85,29);
+
+			}
+		}
+
+		private void drawFiducialArea(Graphics2D ctx, int x0, int y0, int x1, int y1) {
+
+			final int ln = 20;
+
+			ctx.setStroke(thick);
+
+			ctx.drawLine(x0,y0,x0+ln,y0);
+			ctx.drawLine(x0,y0,x0,y0+ln);
+
+			ctx.drawLine(x0,y1,x0,y1-ln);
+			ctx.drawLine(x0,y1,x0+ln,y1);
+
+			ctx.drawLine(x1,y0,x1-ln,y0);
+			ctx.drawLine(x1,y0,x1,y0+ln);
+
+			ctx.drawLine(x1,y1,x1-ln,y1);
+			ctx.drawLine(x1,y1,x1,y1-ln);
+
+			ctx.setStroke(fine);
+
+		}
 	}
 
 	private class FiducialHandler implements Runnable {
