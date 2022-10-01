@@ -860,34 +860,37 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			if(stream_name.contains("DOWN")) {
 
-				if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK))
+				if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK)) {
 					drawFiducialArea(ctx,fiducial_x_offs,fiducial_y_offs,fiducial_x_offs+FIDUCIAL_WIDTH,fiducial_y_offs+FIDUCIAL_HEIGHT);
 
-				if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {	
-					ctx.setStroke(thick);
-					int fx = (int)fiducial_cen.x + fiducial_x_offs;
-					int fy = (int)fiducial_cen.y + fiducial_y_offs;
-					ctx.drawLine(fx-10,fy,fx+10,fy);
-					ctx.drawLine(fx,fy-10,fx,fy+10);
-					ctx.setStroke(fine);
-				} 
-				
-				ctx.drawLine(80,8,80,29);
-				ctx.setFont(big);
-				if(Double.isFinite(precision_lock.z) && model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {
-					ctx.drawString(faltitude.format(precision_lock.z), 85, 18);
-					ctx.setFont(big);
-					ctx.drawString("LOCKED", 15, 18);
-				}
-				else {
-					ctx.drawString("-", 85, 18);
-					ctx.setFont(small);
-					ctx.drawString("landing",15,29);
-					
-				}
-				ctx.setFont(small);
-				ctx.drawString("altitude",85,29);
+					if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {	
+						ctx.setStroke(thick);
+						int fx = (int)fiducial_cen.x + fiducial_x_offs;
+						int fy = (int)fiducial_cen.y + fiducial_y_offs;
+						ctx.drawLine(fx-10,fy,fx+10,fy);
+						ctx.drawLine(fx,fy-10,fx,fy+10);
+						ctx.setStroke(fine);
+					} 
 
+					ctx.drawLine(80,8,80,29);
+					if(Double.isFinite(precision_lock.z) && model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {
+						ctx.setFont(big);
+						ctx.drawString(faltitude.format(precision_lock.z), 85, 18);
+						ctx.drawString("LOCKED", 15, 18);
+					}
+
+					ctx.drawLine(10,8,10,29);
+					ctx.setFont(small);
+					ctx.drawString("altitude",85,29);
+					ctx.drawString("precision",15,29);
+				}
+
+			} else {
+//				ctx.drawLine(10,8,10,29);
+//				ctx.setFont(big);
+//				ctx.drawString("DISABLED", 15, 18);
+//				ctx.setFont(small);
+//				ctx.drawString("precision",15,29);
 			}
 		}
 
