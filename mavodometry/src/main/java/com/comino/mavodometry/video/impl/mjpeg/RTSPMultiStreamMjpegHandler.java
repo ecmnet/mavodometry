@@ -3,6 +3,7 @@ package com.comino.mavodometry.video.impl.mjpeg;
 import java.awt.Color;
 import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
@@ -133,7 +134,9 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		this.image_thumb = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 
 		this.ctx = image.createGraphics();
-		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 10));
+		this.ctx.setRenderingHint(
+		        RenderingHints.KEY_TEXT_ANTIALIASING,
+		        RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
 
 		this.buffer      = new byte[width*height*6];
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
@@ -234,13 +237,13 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					if(RTPsocket.isClosed() || transfers == null || streams == null) {
 						Thread.sleep(100);
-						return;
-					}
-
-					if(transfers.isEmpty()) {
-						sendNoVideo();
 						continue;
 					}
+
+//					if(transfers.isEmpty()) {
+//						sendNoVideo();
+//						continue;
+//					}
 
 
 					queue = transfers.get(streams[0]);
@@ -259,8 +262,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					no_video = false;
 					imagenb++;
-
-
 
 					if(input instanceof Planar) {
 						ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);

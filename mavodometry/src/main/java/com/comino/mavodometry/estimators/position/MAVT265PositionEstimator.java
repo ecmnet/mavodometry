@@ -872,18 +872,19 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					ctx.setStroke(fine);
 				} 
 				
-				ctx.drawLine(10,8,10,29);
-				ctx.setFont(big);
-				ctx.drawString("LOCKED", 15, 18);
-				ctx.setFont(small);
-				ctx.drawString("landing",15,29);
-				
 				ctx.drawLine(80,8,80,29);
 				ctx.setFont(big);
-				if(Double.isFinite(precision_lock.z) && model.vision.isStatus(Vision.FIDUCIAL_LOCKED))
+				if(Double.isFinite(precision_lock.z) && model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {
 					ctx.drawString(faltitude.format(precision_lock.z), 85, 18);
-				else
+					ctx.setFont(big);
+					ctx.drawString("LOCKED", 15, 18);
+				}
+				else {
 					ctx.drawString("-", 85, 18);
+					ctx.setFont(small);
+					ctx.drawString("landing",15,29);
+					
+				}
 				ctx.setFont(small);
 				ctx.drawString("altitude",85,29);
 
