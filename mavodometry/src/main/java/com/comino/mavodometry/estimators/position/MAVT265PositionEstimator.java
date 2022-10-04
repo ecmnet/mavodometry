@@ -490,9 +490,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				reset_count++;
 				model.vision.setStatus(Vision.RESETTING, false);
 			}
+			
+			// XY Norms; do not consider Z speed.
 
-			lpos_s_norm = (float)lpos_s.norm();
-			ned_s_norm  = (float)ned_s.T.norm();
+		//	lpos_s_norm = (float)lpos_s.norm(); 
+			lpos_s_norm = (float)Math.sqrt(lpos_s.x * lpos_s.x + lpos_s.y * lpos_s.y);
+		//	ned_s_norm  = (float)ned_s.T.norm();
+			ned_s_norm  = (float)Math.sqrt(ned_s.T.x * ned_s.T.x + ned_s.T.y * ned_s.T.y);
 
 			// Validity checks for vision
 
