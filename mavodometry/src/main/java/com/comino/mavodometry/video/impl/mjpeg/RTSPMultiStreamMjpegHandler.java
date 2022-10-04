@@ -53,7 +53,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
-	private static final int		LOW_VIDEO_QUALITY     = 40;
+	private static final int		LOW_VIDEO_QUALITY     = 20;
 
 	private static final int        THUMBNAIL_WIDTH        = 64*2;
 	private static final int        THUMBNAIL_HEIGHT       = 48*2;
@@ -124,7 +124,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 
 	public RTSPMultiStreamMjpegHandler(int width, int height, DataModel model) {
-		
+
 		System.setProperty("awt.useSystemAAFontSettings","lcd");
 
 		this.model = model;
@@ -135,8 +135,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		this.ctx = image.createGraphics();
 		this.ctx.setRenderingHint(
-		        RenderingHints.KEY_TEXT_ANTIALIASING,
-		        RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+				RenderingHints.KEY_TEXT_ANTIALIASING,
+				RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
 
 		this.buffer      = new byte[width*height*6];
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
@@ -230,7 +230,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 			no_video = false;
 
 			System.out.println("Video streaming started ");
+
 			tms_start = System.currentTimeMillis();
+			last_image_tms = 0;
+
 			while(is_running) {
 
 				try {
@@ -240,10 +243,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						continue;
 					}
 
-//					if(transfers.isEmpty()) {
-//						sendNoVideo();
-//						continue;
-//					}
+					//					if(transfers.isEmpty()) {
+					//						sendNoVideo();
+					//						continue;
+					//					}
 
 
 					queue = transfers.get(streams[0]);
@@ -259,7 +262,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						sendNoVideo();
 						continue;
 					}
-					
+
 					dt_ms = System.nanoTime()-last_image_tms;
 					if(dt_ms < MAX_VIDEO_RATE_MS) {
 						continue;
