@@ -48,8 +48,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-	private static final long       MAX_VIDEO_RATE_MS      = 40_000_000;
-	private static final float      DEFAULT_VIDEO_RATE_FPS = 15.1f;
+	private static final long       DEFAULT_VIDEO_RATE_NS  = 66_000_000;
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
@@ -78,7 +77,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 
 	private long       last_image_tms    = 0;
-	private float      fps = 0;
 	private boolean    is_running = false;
 
 	private T          input;
@@ -141,7 +139,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		this.buffer      = new byte[width*height*6];
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
 
-		last_image_tms = System.currentTimeMillis();
+		last_image_tms = model.sys.t_boot_ms;
 
 
 
@@ -174,7 +172,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	}
 
 	public float getFps() {
-		return fps;
+		return 1_000_000 / DEFAULT_VIDEO_RATE_NS;
 	}
 
 	public void enableStream(String stream_name) {
@@ -183,8 +181,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	@Override
 	public void  addToStream(String source, T in, DataModel model, long tms) {
-
-		BlockingQueue<T>  queue = transfers.get(source);
+		
+		BlockingQueue<T> queue = transfers.get(source);
 		if(queue==null) {
 			queue = new ArrayBlockingQueue<T>(1);
 			transfers.put(source, queue);
@@ -199,13 +197,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		this.listeners.add(listener);			
 	}
 
-
 	private class Receiver implements Runnable {
 
 		private final int          width;
 		private final int          height;
-
-		private long  tms_start = 0;
 
 		private final Point2D_I32  p0;
 		private final Point2D_I32  p1;
@@ -225,13 +220,12 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		@SuppressWarnings("unchecked")
 		public void run() {
 
-			long dt_ms = 0; fps = DEFAULT_VIDEO_RATE_FPS;
+			long dt_ns = 0; 
 
 			no_video = false;
 
 			System.out.println("Video streaming started ");
 
-			tms_start = System.currentTimeMillis();
 			last_image_tms = 0;
 
 			while(is_running) {
@@ -243,27 +237,26 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						continue;
 					}
 
-					//					if(transfers.isEmpty()) {
-					//						sendNoVideo();
-					//						continue;
-					//					}
-
+					dt_ns = System.nanoTime();
 
 					queue = transfers.get(streams[0]);
 
 					try {
-						if(queue == null || (input = queue.poll(250, TimeUnit.MILLISECONDS)) == null) {
-							sendNoVideo();
-							continue;
-						} 
+//						if(queue == null || (input = queue.poll(250, TimeUnit.MILLISECONDS)) == null) {
+//							sendNoVideo(dt_ns);
+//							continue;
+//						} 
+						
+						if(queue != null && !queue.isEmpty())
+							input = queue.poll(250, TimeUnit.MILLISECONDS);
+						
 					}
 					catch(InterruptedException e) {
 						System.out.println(" Queue timeout");
-						sendNoVideo();
+						sendNoVideo(dt_ns);
 						continue;
 					}
-
-					last_image_tms = System.nanoTime();
+					
 
 					no_video = false;
 					imagenb++;
@@ -284,8 +277,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						overlayThumbnail(transfers.get(streams[1]));
 					}
 
-					fps = ((fps * 59) + ((float)(1000f / dt_ms ))) / 60f;
-
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 					quality = quality > MAX_VIDEO_QUALITY ? MAX_VIDEO_QUALITY : quality;
 
@@ -301,8 +292,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					}
 
 
-					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(model.sys.t_boot_ms), buffer, tj.getCompressedSize());
-					//    	RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
+					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)model.sys.t_boot_ms, buffer, tj.getCompressedSize());
 					int packet_length = rtp_packet.getpacket(packet_bits);
 
 					//send the packet as a DatagramPacket over the UDP socket 
@@ -310,15 +300,18 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
 						RTPsocket.send(senddp);
 					}
+					
+					// Ensure 15Hz video
+					dt_ns = System.nanoTime() - dt_ns;
+					LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
 
-
-					//		rtp_packet.printheader();
+				
 
 				}
 				catch(Exception ex) {
 					System.err.println(ex.getMessage());
 					try {
-						sendNoVideo();
+						sendNoVideo(dt_ns);
 					} catch(Exception k) { }
 					continue;
 				}
@@ -327,7 +320,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		}
 
-		private void sendNoVideo() throws IOException {
+		private void sendNoVideo(long dt_ns) throws IOException {
 			if(!no_video) {
 				if(no_video_handler!= null)
 					no_video_handler.trigger();
@@ -346,7 +339,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 			ctx.drawString("No video available", 10 , 50);
 			tj.compress(buffer, TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
-			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
+			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(model.sys.t_boot_ms), buffer, tj.getCompressedSize());
 
 			int packet_length = rtp_packet.getpacket(packet_bits);
 
@@ -356,10 +349,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				RTPsocket.send(senddp);
 			}
 
-			final long wait = 62_500_000 - (System.nanoTime()-last_image_tms);
-			if(wait > 0)
-				LockSupport.parkNanos(wait);
-
+			dt_ns = System.nanoTime() - dt_ns;
+			LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
 			last_image_tms = System.nanoTime();
 		}
 
@@ -631,7 +622,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	}	
 
 	public String toString() {
-		return "Frames: "+imagenb+" => "+fps+"fps => Quality: "+quality;
+		return "Frames: "+imagenb+" => Quality: "+quality;
 	}
 
 
