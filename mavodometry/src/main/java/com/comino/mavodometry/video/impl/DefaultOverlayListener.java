@@ -77,7 +77,7 @@ public class DefaultOverlayListener extends AbstractOverlayListener implements I
 		ctx.drawLine(10,UPPER_BOUND,10, LOWER_BOUND);
 		ctx.drawString(fminute.format(model.sys.t_armed_ms/60000)+fsecond.format(model.sys.t_armed_ms/1000f%60), 15 , TEXT_BOUND);
 		ctx.setFont(small);
-		ctx.drawString("secs",15,LOWER_BOUND);
+		ctx.drawString("armed",15,LOWER_BOUND);
 
 		// altitude (currently LPOS-Z)
 		ctx.drawLine(70,UPPER_BOUND,70, LOWER_BOUND);

@@ -1,6 +1,7 @@
 package com.comino.mavodometry.estimators.position;
 
 import java.awt.BasicStroke;
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.awt.Stroke;
 
@@ -852,6 +853,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		private final Stroke  fine             = new BasicStroke(1);
 		private final Stroke  thick            = new BasicStroke(2);
+		private final Stroke  marker           = new BasicStroke(4);
 
 		public OverlayListener(DataModel model) {
 			super(model);
@@ -867,16 +869,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK)) {
 					drawFiducialArea(ctx,fiducial_x_offs,fiducial_y_offs,fiducial_x_offs+FIDUCIAL_WIDTH,fiducial_y_offs+FIDUCIAL_HEIGHT);
 
-					if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {	
-						ctx.setStroke(thick);
-						int fx = (int)fiducial_cen.x + fiducial_x_offs;
-						int fy = (int)fiducial_cen.y + fiducial_y_offs;
-						ctx.drawLine(fx-10,fy,fx+10,fy);
-						ctx.drawLine(fx,fy-10,fx,fy+10);
-						ctx.setStroke(fine);
-					} 
+					if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED) && !model.vision.isStatus(Vision.RESETTING)) 
+						drawFiducialTarget(ctx,fiducial_cen.x + fiducial_x_offs,fiducial_cen.y + fiducial_y_offs,0);
 
 					ctx.drawLine(80,8,80,29);
+
 					if(Double.isFinite(precision_lock.z) && model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {
 						ctx.setFont(big);
 						ctx.drawString(faltitude.format(precision_lock.z), 85, 18);
@@ -896,6 +893,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 //				ctx.setFont(small);
 //				ctx.drawString("precision",15,29);
 			}
+		}
+		
+		private void drawFiducialTarget(Graphics2D ctx,double x, double y, double rotation) {
+			ctx.setStroke(marker);
+			ctx.setColor(Color.ORANGE);
+			ctx.drawLine((int)x-10,(int)y,(int)x+10,(int)y);
+			ctx.drawLine((int)x,(int)y-10,(int)x,(int)y+10);
+			ctx.setStroke(fine);
+			ctx.setColor(Color.WHITE);
 		}
 
 		private void drawFiducialArea(Graphics2D ctx, int x0, int y0, int x1, int y1) {
@@ -995,8 +1001,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 						//								System.out.println(drift);
 						//							driftEstimator.clear();
 						//						}
-
-						// TODO: Check consistency of lock with LIDAR data or altitude above ground
 
 						model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
 						locking_tms = System.currentTimeMillis();

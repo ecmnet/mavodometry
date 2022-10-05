@@ -263,10 +263,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						continue;
 					}
 
-					dt_ms = System.nanoTime()-last_image_tms;
-					if(dt_ms < MAX_VIDEO_RATE_MS) {
-						continue;
-					}
 					last_image_tms = System.nanoTime();
 
 					no_video = false;
@@ -305,7 +301,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					}
 
 
-					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(System.currentTimeMillis()-tms_start), buffer, tj.getCompressedSize());
+					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(model.sys.t_boot_ms), buffer, tj.getCompressedSize());
 					//    	RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
 					int packet_length = rtp_packet.getpacket(packet_bits);
 
