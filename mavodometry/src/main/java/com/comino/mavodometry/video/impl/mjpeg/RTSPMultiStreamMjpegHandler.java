@@ -537,7 +537,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					//Initiate TCP connection with the client for the RTSP session
 					ServerSocket listenSocket = new ServerSocket(RTSPport);
-					listenSocket.setSoTimeout(500);
 					RTSPsocket = listenSocket.accept();
 					listenSocket.close();
 
@@ -569,7 +568,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 							try {
 								RTPsocket = new DatagramSocket();
 								RTPsocket.setSendBufferSize(512*1024);
-								RTPsocket.setSoTimeout(500);
 								RTPsocket.setTrafficClass(0x08);
 							} catch (SocketException e) {
 								e.printStackTrace();
