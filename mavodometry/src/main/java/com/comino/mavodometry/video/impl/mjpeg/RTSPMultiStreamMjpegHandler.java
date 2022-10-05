@@ -36,6 +36,7 @@ import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.video.INoVideoListener;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.comino.mavutils.legacy.ExecutorService;
 import com.comino.mavutils.rtps.RTPpacket;
 
 import boofcv.io.image.ConvertBufferedImage;
@@ -181,7 +182,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	@Override
 	public void  addToStream(String source, T in, DataModel model, long tms) {
-		
+
 		BlockingQueue<T> queue = transfers.get(source);
 		if(queue==null) {
 			queue = new ArrayBlockingQueue<T>(1);
@@ -243,21 +244,21 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					queue = transfers.get(streams[0]);
 
 					try {
-//						if(queue == null || (input = queue.poll(250, TimeUnit.MILLISECONDS)) == null) {
-//							sendNoVideo(dt_ns);
-//							continue;
-//						} 
-						
+						//						if(queue == null || (input = queue.poll(250, TimeUnit.MILLISECONDS)) == null) {
+						//							sendNoVideo(dt_ns);
+						//							continue;
+						//						} 
+
 						if(queue != null && !queue.isEmpty())
 							input = queue.poll(250, TimeUnit.MILLISECONDS);
-						
+
 					}
 					catch(InterruptedException e) {
 						System.out.println(" Queue timeout");
 						sendNoVideo(dt_ns, t_boot);
 						continue;
 					}
-					
+
 
 					no_video = false;
 					imagenb++;
@@ -301,14 +302,13 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
 						RTPsocket.send(senddp);
 					}
-					
+
 					// Ensure 15Hz video
 					dt_ns = System.nanoTime() - dt_ns;
 					LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
 
 				}
 				catch(Exception ex) {
-					System.err.println(ex.getMessage());
 					try {
 						sendNoVideo(dt_ns, t_boot);
 					} catch(Exception k) { }
@@ -326,10 +326,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				no_video = true;
 			}
 			ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-
-			if(streams!=null && streams.length > 1 && !transfers.isEmpty()) {
-				overlayThumbnail(transfers.get(streams[1]));
-			}
 
 			if(listeners.size()>0) {
 				for(IOverlayListener listener : listeners)
@@ -391,7 +387,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		try {
 			//parse request line and extract the request_type:
 			String RequestLine = RTSPBufferedReader.readLine();
+			if(RequestLine==null)
+				return 0;
 
+			
 			System.out.println("RTSP Server - Received from Client:");
 			System.out.println(RequestLine);
 
@@ -438,36 +437,42 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				RTSPid = tokens.nextToken();
 			}
 		} catch(Exception ex) {
-			close();
+			is_running = false;
 		}
 
 		return(request_type);
 	}
 
-	public void close() {
+	private void close() {
+		
+		ExecutorService.get().execute(() -> {
+			
+			
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) { }
+			
+			if(state==INIT)
+				return;
+			done = false;
+			state = INIT;
 
-		if(is_running)
-			System.out.println("Closing video stream");
+			//		rtcpReceiver.stopRcv();
 
-		//		rtcpReceiver.stopRcv();
+			try {
+				RTSPBufferedReader.close();
+				RTSPBufferedWriter.close();
+				RTSPsocket.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
 
-		try {
-			RTSPBufferedReader.close();
-			RTSPBufferedWriter.close();
-			RTSPsocket.close();
-		} catch (IOException e) {
-			e.printStackTrace();
-		}
+			RTPsocket.close();
+			imagenb = 0;
 
-		RTPsocket.close();
-		imagenb = 0;
+			System.out.println("Video stream closed");
 
-		done = false;
-		state = INIT;
-
-		try {
-			Thread.sleep(200);
-		} catch (InterruptedException e) { }
+		});
 
 	}
 
@@ -532,6 +537,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					//Initiate TCP connection with the client for the RTSP session
 					ServerSocket listenSocket = new ServerSocket(RTSPport);
+					listenSocket.setSoTimeout(500);
 					RTSPsocket = listenSocket.accept();
 					listenSocket.close();
 
@@ -563,6 +569,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 							try {
 								RTPsocket = new DatagramSocket();
 								RTPsocket.setSendBufferSize(512*1024);
+								RTPsocket.setSoTimeout(500);
 								RTPsocket.setTrafficClass(0x08);
 							} catch (SocketException e) {
 								e.printStackTrace();
