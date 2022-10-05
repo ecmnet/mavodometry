@@ -48,7 +48,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-	private static final long       DEFAULT_VIDEO_RATE_NS  = 66_000_000;
+	private static final long       DEFAULT_VIDEO_RATE_NS  = 66_400_000;
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
@@ -220,7 +220,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		@SuppressWarnings("unchecked")
 		public void run() {
 
-			long dt_ns = 0; 
+			long dt_ns = 0;  int t_boot = 0;
 
 			no_video = false;
 
@@ -238,6 +238,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					}
 
 					dt_ns = System.nanoTime();
+					t_boot = (int)model.sys.t_boot_ms;
 
 					queue = transfers.get(streams[0]);
 
@@ -253,7 +254,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					}
 					catch(InterruptedException e) {
 						System.out.println(" Queue timeout");
-						sendNoVideo(dt_ns);
+						sendNoVideo(dt_ns, t_boot);
 						continue;
 					}
 					
@@ -292,7 +293,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					}
 
 
-					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)model.sys.t_boot_ms, buffer, tj.getCompressedSize());
+					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, t_boot, buffer, tj.getCompressedSize());
 					int packet_length = rtp_packet.getpacket(packet_bits);
 
 					//send the packet as a DatagramPacket over the UDP socket 
@@ -305,13 +306,11 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					dt_ns = System.nanoTime() - dt_ns;
 					LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
 
-				
-
 				}
 				catch(Exception ex) {
 					System.err.println(ex.getMessage());
 					try {
-						sendNoVideo(dt_ns);
+						sendNoVideo(dt_ns, t_boot);
 					} catch(Exception k) { }
 					continue;
 				}
@@ -320,7 +319,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		}
 
-		private void sendNoVideo(long dt_ns) throws IOException {
+		private void sendNoVideo(long dt_ns, int t_boot) throws IOException {
 			if(!no_video) {
 				if(no_video_handler!= null)
 					no_video_handler.trigger();
@@ -339,7 +338,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 			ctx.drawString("No video available", 10 , 50);
 			tj.compress(buffer, TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
-			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(model.sys.t_boot_ms), buffer, tj.getCompressedSize());
+			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, t_boot, buffer, tj.getCompressedSize());
 
 			int packet_length = rtp_packet.getpacket(packet_bits);
 
