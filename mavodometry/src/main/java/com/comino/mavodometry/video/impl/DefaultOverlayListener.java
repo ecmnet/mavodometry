@@ -90,6 +90,7 @@ public class DefaultOverlayListener extends AbstractOverlayListener implements I
 		ctx.drawLine(120,UPPER_BOUND,120,LOWER_BOUND);
 		ctx.setFont(big);
 		if(model.sys.isStatus(Status.MSP_READY_FOR_FLIGHT)) {
+			
 			ctx.drawString(model.sys.getModeString(),125, TEXT_BOUND);
 			ctx.setFont(small);
 			ctx.drawString("mode",125,LOWER_BOUND);
