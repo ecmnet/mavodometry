@@ -661,7 +661,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 			if(server.is_running)
 				System.out.println(server.toString());
 
-
 		}
 
 
