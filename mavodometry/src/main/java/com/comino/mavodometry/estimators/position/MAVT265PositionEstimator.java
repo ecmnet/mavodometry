@@ -66,7 +66,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final int         FIDUCIAL_ID            	= 284;
 	private static final float       FIDUCIAL_SIZE          	= 0.168f;
 	private static final int         FIDUCIAL_RATE_SCAN     	= 500;
-	private static final int         FIDUCIAL_RATE_ACTIVE   	= 200;
+	private static final int         FIDUCIAL_RATE_ACTIVE   	= 100;
 
 	private static final int         FIDUCIAL_HEIGHT     		= 360;
 	private static final int         FIDUCIAL_WIDTH     		= 360;
@@ -186,7 +186,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 		super(control);
 
-		wq     = WorkQueue.getInstance();
+		wq = WorkQueue.getInstance();
 
 		model.vision.clear();
 		model.vision.setStatus(Vision.ENABLED, config.getBoolProperty(MSPParams.PUBLISH_ODOMETRY, "true"));
@@ -364,7 +364,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				if(t265.isVideoEnabled() && !wq.isInQueue("LP",fiducial_worker)) {
 					System.out.println("T265 starting fiducial worker...");
-					fiducial_worker = wq.addCyclicTask("LP", FIDUCIAL_RATE_SCAN, new FiducialHandler());
+					fiducial_worker = wq.addCyclicTask("NP", FIDUCIAL_RATE_SCAN, new FiducialHandler());
 				} 
 
 				precision_lock.setTo(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
@@ -702,7 +702,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 	public void init(String s) {
-		if(t265!=null && ( lpos_s_norm < MAX_ALLOWED_SPEED_FOR_INIT || !model.sys.isStatus(Status.MSP_LPOS_VALID))) {
+		if(t265!=null && ( lpos_s_norm < MAX_ALLOWED_SPEED_FOR_INIT || !model.sys.isStatus(Status.MSP_LPOS_VALID)) 
+				&& !control.isSimulation()) {
 			tms_reset = System.currentTimeMillis();
 			quality = 0; 
 			ned_s.reset(); body_s.reset(); body_a.reset();
@@ -886,13 +887,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					ctx.drawString("precision",15,29);
 				}
 
-			} else {
-//				ctx.drawLine(10,8,10,29);
-//				ctx.setFont(big);
-//				ctx.drawString("DISABLED", 15, 18);
-//				ctx.setFont(small);
-//				ctx.drawString("precision",15,29);
-			}
+			} 
 		}
 		
 		private void drawFiducialTarget(Graphics2D ctx,double x, double y, double rotation) {
@@ -928,6 +923,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 	private class FiducialHandler implements Runnable {
+		
 
 		//		private final DriftEstimator driftEstimator = new DriftEstimator(5.0);
 		//		private final Vector4D_F64   drift           = new Vector4D_F64();
@@ -995,13 +991,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 								MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
 
 						model.vision.setPrecisionOffset(precision_lock);
-
-						//						if(!driftEstimator.add(precision_lock)) {
-						//							if(driftEstimator.estimate(drift))
-						//								System.out.println(drift);
-						//							driftEstimator.clear();
-						//						}
-
+						
 						model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
 						locking_tms = System.currentTimeMillis();
 					}
@@ -1016,9 +1006,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Adjust fiducial scan rate
 			try {
 				if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED))
-					wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_ACTIVE);
+					wq.changeCycle("NP", fiducial_worker, FIDUCIAL_RATE_ACTIVE);
 				else
-					wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_SCAN);
+					wq.changeCycle("NP", fiducial_worker, FIDUCIAL_RATE_SCAN);
 			} catch(WorkQueueException e) {
 				writeLogMessage(new LogMessage("[vio] "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 			}
