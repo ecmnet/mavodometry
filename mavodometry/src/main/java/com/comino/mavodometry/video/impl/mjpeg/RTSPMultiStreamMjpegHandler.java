@@ -251,6 +251,9 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 						if(queue != null && !queue.isEmpty())
 							input = queue.poll(250, TimeUnit.MILLISECONDS);
+						else
+							ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
+						
 
 					}
 					catch(InterruptedException e) {
@@ -262,6 +265,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					no_video = false;
 					imagenb++;
+					
 
 					if(input instanceof Planar) {
 						ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
@@ -271,8 +275,9 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 
 					if(listeners.size()>0) {
-						for(IOverlayListener listener : listeners)
+						for(IOverlayListener listener : listeners) {
 							listener.processOverlay(ctx, streams[0], DataModel.getSynchronizedPX4Time_us());
+						}
 					}
 
 					if(streams.length > 1) {
@@ -376,6 +381,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		}
 
 		public void enableStream(String stream_name) {
+			System.out.println(stream_name);
 			this.streams = stream_name.split("\\+");
 		}
 
