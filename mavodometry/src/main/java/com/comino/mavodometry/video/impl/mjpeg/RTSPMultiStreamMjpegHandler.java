@@ -249,35 +249,34 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						//							continue;
 						//						} 
 
-						if(queue != null && !queue.isEmpty())
+						if(queue != null && !queue.isEmpty()) {
 							input = queue.poll(250, TimeUnit.MILLISECONDS);
-						else
+
+							no_video = false;
+							imagenb++;
+
+
+							if(input instanceof Planar) {
+								ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
+							}
+							else if(input instanceof GrayU8)
+								ConvertBufferedImage.convertTo((GrayU8)input, image, true);
+
+						} else
 							ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-						
+
+
+						if(listeners.size()>0) {
+							for(IOverlayListener listener : listeners) {
+								listener.processOverlay(ctx, streams[0], DataModel.getSynchronizedPX4Time_us());
+							}
+						}
 
 					}
 					catch(InterruptedException e) {
 						System.out.println(" Queue timeout");
 						sendNoVideo(dt_ns, t_boot);
 						continue;
-					}
-
-
-					no_video = false;
-					imagenb++;
-					
-
-					if(input instanceof Planar) {
-						ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
-					}
-					else if(input instanceof GrayU8)
-						ConvertBufferedImage.convertTo((GrayU8)input, image, true);
-
-
-					if(listeners.size()>0) {
-						for(IOverlayListener listener : listeners) {
-							listener.processOverlay(ctx, streams[0], DataModel.getSynchronizedPX4Time_us());
-						}
 					}
 
 					if(streams.length > 1) {
@@ -381,7 +380,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		}
 
 		public void enableStream(String stream_name) {
-			System.out.println(stream_name);
 			this.streams = stream_name.split("\\+");
 		}
 
@@ -396,7 +394,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 			if(RequestLine==null)
 				return 0;
 
-			
+
 			System.out.println("RTSP Server - Received from Client:");
 			System.out.println(RequestLine);
 
@@ -450,14 +448,14 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	}
 
 	private void close() {
-		
+
 		ExecutorService.get().execute(() -> {
-			
-			
+
+
 			try {
 				Thread.sleep(100);
 			} catch (InterruptedException e) { }
-			
+
 			if(state==INIT)
 				return;
 			done = false;
