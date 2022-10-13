@@ -17,6 +17,7 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.time.Instant;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -77,7 +78,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	private final Graphics2D             ctx;
 
 
-	private long       last_image_tms    = 0;
 	private boolean    is_running = false;
 
 	private T          input;
@@ -139,10 +139,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		this.buffer      = new byte[width*height*6];
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
-
-		last_image_tms = model.sys.t_boot_ms;
-
-
 
 		//	rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
 
@@ -221,13 +217,11 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		@SuppressWarnings("unchecked")
 		public void run() {
 
-			long dt_ns = 0;  int t_boot = 0;
+			long dt_ns = 0;  int tms = 0;
 
 			no_video = false;
-
+			
 			System.out.println("Video streaming started ");
-
-			last_image_tms = 0;
 
 			while(is_running) {
 
@@ -239,7 +233,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					}
 
 					dt_ns = System.nanoTime();
-					t_boot = (int)model.sys.t_boot_ms;
+					tms = (int)(DataModel.getSynchronizedPX4Time_us() - DataModel.getBootTime());
 
 					queue = transfers.get(streams[0]);
 
@@ -250,7 +244,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						//						} 
 
 						if(queue != null && !queue.isEmpty()) {
-							input = queue.poll(250, TimeUnit.MILLISECONDS);
+							input = queue.poll(100, TimeUnit.MILLISECONDS);
 
 							no_video = false;
 							imagenb++;
@@ -262,21 +256,18 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 							else if(input instanceof GrayU8)
 								ConvertBufferedImage.convertTo((GrayU8)input, image, true);
 
-						} else
-							ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
+						} 
 
 
 						if(listeners.size()>0) {
 							for(IOverlayListener listener : listeners) {
-								listener.processOverlay(ctx, streams[0], DataModel.getSynchronizedPX4Time_us());
+								listener.processOverlay(ctx, streams[0], tms);
 							}
 						}
 
 					}
 					catch(InterruptedException e) {
-						System.out.println(" Queue timeout");
-						sendNoVideo(dt_ns, t_boot);
-						continue;
+						ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
 					}
 
 					if(streams.length > 1) {
@@ -298,7 +289,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					}
 
 
-					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, t_boot, buffer, tj.getCompressedSize());
+					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, tms, buffer, tj.getCompressedSize());
 					int packet_length = rtp_packet.getpacket(packet_bits);
 
 					//send the packet as a DatagramPacket over the UDP socket 
@@ -314,7 +305,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				}
 				catch(Exception ex) {
 					try {
-						sendNoVideo(dt_ns, t_boot);
+						sendNoVideo(dt_ns, tms);
 					} catch(Exception k) { }
 					continue;
 				}
@@ -350,7 +341,6 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 			dt_ns = System.nanoTime() - dt_ns;
 			LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
-			last_image_tms = System.nanoTime();
 		}
 
 		private void overlayThumbnail(BlockingQueue<T> q) {

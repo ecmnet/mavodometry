@@ -128,7 +128,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 
 		if(stream!=null) {
-			stream.registerOverlayListener(new OverlayListener(model));
+			stream.registerOverlayListener(new DepthOverlayListener(model));
 		}
 
 		oakd.registerCallback(new IDepthCallback() {
@@ -185,14 +185,15 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	/*
 	 * Overlay for nearest obstacle
 	 */
-	private class OverlayListener extends AbstractOverlayListener {
+	private class DepthOverlayListener extends AbstractOverlayListener {
 
-		public OverlayListener(DataModel model) {
+		public DepthOverlayListener(DataModel model) {
 			super(model);
 		}
 
 		@Override
 		public void processOverlay(Graphics2D ctx, String stream_name, long tms_usec) {
+		
 			if(!enableStream)
 				return;
 

@@ -889,7 +889,7 @@ public class MAVT265PositionEstimatorRatio extends MAVAbstractEstimator {
 						model.vision.setPrecisionOffset(precision_lock);
 
 
-						model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
+				//		model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
 						locking_tms = System.currentTimeMillis();
 					}
 				} 

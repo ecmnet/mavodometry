@@ -687,7 +687,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 
 		if(stream != null && t265!=null){
-			stream.registerOverlayListener(new OverlayListener(model));
+			stream.registerOverlayListener(new PositionOverlayListener(model));
 		}
 
 		if(t265.getMount() == StreamRealSenseT265PoseCV.POS_FOREWARD)
@@ -850,13 +850,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	/*
 	 * Overlay for nearest obstacle
 	 */
-	private class OverlayListener extends AbstractOverlayListener {
+	private class PositionOverlayListener extends AbstractOverlayListener {
 
 		private final Stroke  fine             = new BasicStroke(1);
 		private final Stroke  thick            = new BasicStroke(2);
 		private final Stroke  marker           = new BasicStroke(4);
 
-		public OverlayListener(DataModel model) {
+		public PositionOverlayListener(DataModel model) {
 			super(model);
 		}
 
@@ -865,7 +865,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			if(!enableStream)
 				return;
 
-			if(stream_name.contains("DOWN")) {
+			if(stream_name.equals("DOWN")) {
 
 				if(model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK)) {
 					drawFiducialArea(ctx,fiducial_x_offs,fiducial_y_offs,fiducial_x_offs+FIDUCIAL_WIDTH,fiducial_y_offs+FIDUCIAL_HEIGHT);
@@ -925,9 +925,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private class FiducialHandler implements Runnable {
 		
 
-		//		private final DriftEstimator driftEstimator = new DriftEstimator(5.0);
-		//		private final Vector4D_F64   drift           = new Vector4D_F64();
-
 		@Override
 		public void run() {
 
@@ -966,8 +963,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				if(is_fiducial) {
 
-					// TODO: Drift speed estimation !!
-
 					if(detector.getFiducialToCamera(fiducial_idx, to_tmp)) {
 
 						detector.computeStability(fiducial_idx, 0.25f, stability);
@@ -987,7 +982,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 						// Add fiducial offset (left eye camera in body frame)
 						fiducial_att.setFromMatrix(targetToSensor.R, EulerType.XYZ);
 
-						precision_lock.setTo(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,precision_ned.T.z,
+						precision_lock.setTo(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,lpos.T.z - precision_ned.T.z,
 								MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
 
 						model.vision.setPrecisionOffset(precision_lock);
@@ -998,7 +993,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				} 
 
 			} catch(Exception e ) {
-				System.out.println(e.getMessage());
+				writeLogMessage(new LogMessage("[vio] "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 				precision_lock.setTo(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
 			}

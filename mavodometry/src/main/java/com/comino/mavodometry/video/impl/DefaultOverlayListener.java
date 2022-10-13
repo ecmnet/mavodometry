@@ -104,7 +104,7 @@ public class DefaultOverlayListener extends AbstractOverlayListener implements I
 		ctx.setFont(big);
 
 		ctx.drawLine(200,UPPER_BOUND,200, LOWER_BOUND);
-		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG,tms)) {
+		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG,DataModel.getSynchronizedPX4Time_us())) {
 			ctx.drawString(model.msg.text, 205, TEXT_BOUND);
 			ctx.setFont(small);
 			ctx.drawString(LogMessage.severity_texts[model.msg.severity].toLowerCase(),205,LOWER_BOUND);
