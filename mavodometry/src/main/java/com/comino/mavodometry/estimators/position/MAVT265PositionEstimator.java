@@ -46,6 +46,7 @@ import boofcv.factory.fiducial.FactoryFiducial;
 import boofcv.factory.filter.binary.ConfigThreshold;
 import boofcv.factory.filter.binary.ThresholdType;
 import boofcv.struct.calib.CameraKannalaBrandt;
+import boofcv.struct.calib.CameraPinhole;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 import georegression.geometry.ConvertRotation3D_F64;
@@ -67,9 +68,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final float       FIDUCIAL_SIZE          	= 0.168f;
 	private static final int         FIDUCIAL_RATE_SCAN     	= 500;
 	private static final int         FIDUCIAL_RATE_ACTIVE   	= 100;
-
-	private static final int         FIDUCIAL_HEIGHT     		= 360;
-	private static final int         FIDUCIAL_WIDTH     		= 360;
+	private static final int         FIDUCIAL_HEIGHT     		= 400;
+	private static final int         FIDUCIAL_WIDTH     		= 400;
+	private static final int         FIDUCIAL_SCALE   		    = 2;
 
 	private static final float       MAX_VEL_TESTRATIO          = 0.4f;
 	private static final int     	 MAX_COUNT_ERRORS           = 5;
@@ -85,7 +86,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final double      OFFSET_Z 					=   0.00;
 
 	private static final double      FIDUCIAL_OFFSET_X 			=  -0.08;
-	private static final double      FIDUCIAL_OFFSET_Y 			=   0.05;
+	private static final double      FIDUCIAL_OFFSET_Y 			=  -0.05;
 	private static final double      FIDUCIAL_OFFSET_Z 			=   0.00;
 
 	//	// Covariances
@@ -167,10 +168,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private int           error_count = 0;
 	private int           reset_count = 0;
 
-	private FiducialDetector<GrayU8> detector = null;
-	private FiducialStability        stability = new FiducialStability();
-
-	private GrayU8 fiducial = new GrayU8(1,1);
+	private final GrayU8 fiducial = new GrayU8(1,1);
 	private int fiducial_worker;               
 
 	private MSPCovariance                  cov_s = new MSPCovariance(5);
@@ -292,8 +290,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 						writeLogMessage(new LogMessage("[vio] PrecisionLock enabled", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
 				});
 
-		detector = FactoryFiducial.squareBinary(new ConfigFiducialBinary(fiducial_size), ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
-
 		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
 		t265.registerCallback((tms, confidence, p, s, a, img) ->  {
 
@@ -358,14 +354,15 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					if(model!=null) {
 						model.set(FIDUCIAL_WIDTH,FIDUCIAL_HEIGHT);
 						lensDistortion = new LensDistortionPinhole(model);
-						detector.setLensDistortion(lensDistortion,FIDUCIAL_WIDTH, FIDUCIAL_HEIGHT);
+						
+						if(t265.isVideoEnabled() && !wq.isInQueue("LP",fiducial_worker)) {
+							System.out.println("T265 starting fiducial worker...");
+							fiducial_worker = wq.addCyclicTask("NP", FIDUCIAL_RATE_SCAN, 
+									new FiducialHandler(fiducial_size,lensDistortion,FIDUCIAL_WIDTH, FIDUCIAL_HEIGHT));
+						} 
+
 					}
 				}
-
-				if(t265.isVideoEnabled() && !wq.isInQueue("LP",fiducial_worker)) {
-					System.out.println("T265 starting fiducial worker...");
-					fiducial_worker = wq.addCyclicTask("NP", FIDUCIAL_RATE_SCAN, new FiducialHandler());
-				} 
 
 				precision_lock.setTo(Double.NaN,Double.NaN,Double.NaN, Double.NaN);
 				model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
@@ -924,6 +921,31 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	private class FiducialHandler implements Runnable {
 		
+		private final FiducialDetector<GrayU8>  detector;
+		private final FiducialStability        stability = new FiducialStability();
+		private final GrayU8                      image  = new GrayU8(1,1);
+		
+		public FiducialHandler(float size, LensDistortionPinhole distortion, int width, int height) {
+			
+			image.reshape(width/FIDUCIAL_SCALE, height/FIDUCIAL_SCALE);
+			
+			ConfigFiducialBinary fiducialConfig = new ConfigFiducialBinary(size);
+			fiducialConfig.ambiguousThreshold = 0.9;
+			detector = FactoryFiducial.squareBinary(fiducialConfig, ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
+			CameraPinhole ins = distortion.getIntrinsic();
+			
+			ins.cx = ins.cx/FIDUCIAL_SCALE;
+			ins.cy = ins.cy/FIDUCIAL_SCALE;
+			ins.fx = ins.fx/FIDUCIAL_SCALE;
+			ins.fy = ins.fy/FIDUCIAL_SCALE;
+			ins.width  = image.width;
+			ins.height = image.height;
+			
+			detector.setLensDistortion(distortion,image.width, image.height);
+			
+			
+		}
+		
 
 		@Override
 		public void run() {
@@ -941,13 +963,25 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			}
 
 			try {
+				//long tms0 = System.nanoTime();
+				int p=0;
+				for(int y=0; y< fiducial.height; y = y + FIDUCIAL_SCALE) {
+					for(int x=0; x< fiducial.width; x = x + FIDUCIAL_SCALE) {
+						image.data[p++] = (byte)fiducial.get(x, y);
+					}
+				}
 
 				//TODO: Enhance Image
 				//				ImageStatistics.histogram(gray,0, histogram);
 				//				EnhanceImageOps.equalize(histogram, transform);
 				//				EnhanceImageOps.applyTransform(gray, transform, adjusted);
 
-				detector.detect(fiducial);
+				
+				detector.detect(image);
+				//System.out.println((System.nanoTime()-tms0)/1000);
+				
+				if(detector.hasMessage())
+					System.err.println(detector.getMessage(0));
 
 				if(detector.totalFound()>0 && detector.is3D()) {
 					for(int i = 0; i < detector.totalFound();i++ ) {
@@ -966,12 +1000,14 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					if(detector.getFiducialToCamera(fiducial_idx, to_tmp)) {
 
 						detector.computeStability(fiducial_idx, 0.25f, stability);
+						
 
 						// rotate into YX axis (Sensor orientation)
 						to_tmp.concat(to_rotz90, targetToSensor);
 
 						targetToSensor.T.z = - targetToSensor.T.z;
 						detector.getCenter(fiducial_idx, fiducial_cen);
+						fiducial_cen.scale(FIDUCIAL_SCALE);
 
 						targetToSensor.T.plusIP(fiducial_offset);
 
