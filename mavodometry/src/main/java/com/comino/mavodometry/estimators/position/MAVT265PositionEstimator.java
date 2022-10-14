@@ -85,8 +85,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	private static final double      OFFSET_Y 					=   0.00;
 	private static final double      OFFSET_Z 					=   0.00;
 
-	private static final double      FIDUCIAL_OFFSET_X 			=  -0.08;
-	private static final double      FIDUCIAL_OFFSET_Y 			=  -0.05;
+	private static final double      FIDUCIAL_OFFSET_X 			=  -0.04;
+	private static final double      FIDUCIAL_OFFSET_Y 			=  +0.05;
 	private static final double      FIDUCIAL_OFFSET_Z 			=   0.00;
 
 	//	// Covariances
