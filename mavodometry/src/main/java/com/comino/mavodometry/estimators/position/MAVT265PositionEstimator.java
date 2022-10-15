@@ -607,10 +607,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			error_count = 0;
 
-			// Fiducial detection
-			model.vision.setStatus(Vision.FIDUCIAL_ENABLED, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
-			if(img!=null) 
-				img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs, fiducial);
 
 			// Publishing data
 
@@ -669,6 +665,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				break;
 
 			}
+			
+			// Fiducial detection
+						model.vision.setStatus(Vision.FIDUCIAL_ENABLED, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
+						if(img!=null) 
+							img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs, fiducial);
 
 			// Transfer to local model
 			model.vision.setAttitude(att);

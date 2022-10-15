@@ -220,7 +220,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 			long dt_ns = 0;  int tms = 0;
 
 			no_video = false;
-			
+
 			System.out.println("Video streaming started ");
 
 			while(is_running) {
@@ -256,13 +256,15 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 							else if(input instanceof GrayU8)
 								ConvertBufferedImage.convertTo((GrayU8)input, image, true);
 
-						} 
 
 
-						if(listeners.size()>0) {
-							for(IOverlayListener listener : listeners) {
-								listener.processOverlay(ctx, streams[0], tms);
+
+							if(listeners.size()>0) {
+								for(IOverlayListener listener : listeners) {
+									listener.processOverlay(ctx, streams[0], tms);
+								}
 							}
+
 						}
 
 					}
@@ -371,6 +373,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		public void enableStream(String stream_name) {
 			this.streams = stream_name.split("\\+");
+			
 		}
 
 	}
