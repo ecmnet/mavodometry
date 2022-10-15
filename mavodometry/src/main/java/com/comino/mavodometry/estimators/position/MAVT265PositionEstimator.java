@@ -875,13 +875,13 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 					if(Double.isFinite(precision_lock.z) && model.vision.isStatus(Vision.FIDUCIAL_LOCKED)) {
 						ctx.setFont(big);
-						ctx.drawString(faltitude.format(precision_lock.z), 85, 18);
+						ctx.drawString(faltitude.format(MSP3DUtils.distance3D(lpos.T, precision_lock)), 85, 18);
 						ctx.drawString("LOCKED", 15, 18);
 					}
 
 					ctx.drawLine(10,8,10,29);
 					ctx.setFont(small);
-					ctx.drawString("altitude",85,29);
+					ctx.drawString("distance",85,29);
 					ctx.drawString("precision",15,29);
 				}
 

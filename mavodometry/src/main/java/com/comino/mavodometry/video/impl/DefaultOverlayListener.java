@@ -82,7 +82,10 @@ public class DefaultOverlayListener extends AbstractOverlayListener implements I
 		// altitude (currently LPOS-Z)
 		ctx.drawLine(70,UPPER_BOUND,70, LOWER_BOUND);
 		ctx.setFont(big);
-		ctx.drawString(faltitude.format(model.state.l_z), 75, TEXT_BOUND);
+		if(Float.isInfinite(model.hud.ar))
+		  ctx.drawString(faltitude.format(model.hud.ar), 75, TEXT_BOUND);
+		else
+		  ctx.drawString("-", 75, TEXT_BOUND);
 		ctx.setFont(small);
 		ctx.drawString("altitude",75,LOWER_BOUND);
 
