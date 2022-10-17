@@ -236,33 +236,35 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
 			@Override
 			public void received(Object o) {
-				msg_msp_command cmd = (msg_msp_command)o;
-				switch(cmd.command) {
-				case MSP_CMD.MSP_CMD_VISION:
+				try {
+					msg_msp_command cmd = (msg_msp_command)o;
+					switch(cmd.command) {
+					case MSP_CMD.MSP_CMD_VISION:
 
-					switch((int)cmd.param1) {
-					case MSP_COMPONENT_CTRL.ENABLE:
-						if(!model.vision.isStatus(Vision.ENABLED)) {
-							init("enable");
-							model.vision.setStatus(Vision.ENABLED, true);
-						}
-						config.updateProperty(MSPParams.PUBLISH_ODOMETRY, "true");
-						break;
-					case MSP_COMPONENT_CTRL.DISABLE:
-						model.vision.setStatus(Vision.ENABLED, false);
-						config.updateProperty(MSPParams.PUBLISH_ODOMETRY, "false");
-						break;
-					case MSP_COMPONENT_CTRL.RESET:
-						if(t265!=null) {
-							if(!t265.isRunning())
-								start();
-							else
-								init("reset");
+						switch((int)cmd.param1) {
+						case MSP_COMPONENT_CTRL.ENABLE:
+							if(!model.vision.isStatus(Vision.ENABLED)) {
+								init("enable");
+								model.vision.setStatus(Vision.ENABLED, true);
+							}
+							config.updateProperty(MSPParams.PUBLISH_ODOMETRY, "true");
+							break;
+						case MSP_COMPONENT_CTRL.DISABLE:
+							model.vision.setStatus(Vision.ENABLED, false);
+							config.updateProperty(MSPParams.PUBLISH_ODOMETRY, "false");
+							break;
+						case MSP_COMPONENT_CTRL.RESET:
+							if(t265!=null) {
+								if(!t265.isRunning())
+									start();
+								else
+									init("reset");
+							}
+							break;
 						}
 						break;
 					}
-					break;
-				}
+				} catch(Exception e) { }
 			}
 		});
 
@@ -354,7 +356,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					if(model!=null) {
 						model.set(FIDUCIAL_WIDTH,FIDUCIAL_HEIGHT);
 						lensDistortion = new LensDistortionPinhole(model);
-						
+
 						if(t265.isVideoEnabled() && !wq.isInQueue("LP",fiducial_worker)) {
 							System.out.println("T265 starting fiducial worker...");
 							fiducial_worker = wq.addCyclicTask("NP", FIDUCIAL_RATE_SCAN, 
@@ -488,12 +490,12 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				reset_count++;
 				model.vision.setStatus(Vision.RESETTING, false);
 			}
-			
+
 			// XY Norms; do not consider Z speed.
 
-		//	lpos_s_norm = (float)lpos_s.norm(); 
+			//	lpos_s_norm = (float)lpos_s.norm(); 
 			lpos_s_norm = (float)Math.sqrt(lpos_s.x * lpos_s.x + lpos_s.y * lpos_s.y);
-		//	ned_s_norm  = (float)ned_s.T.norm();
+			//	ned_s_norm  = (float)ned_s.T.norm();
 			ned_s_norm  = (float)Math.sqrt(ned_s.T.x * ned_s.T.x + ned_s.T.y * ned_s.T.y);
 
 			// Validity checks for vision
@@ -665,11 +667,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				break;
 
 			}
-			
+
 			// Fiducial detection
-						model.vision.setStatus(Vision.FIDUCIAL_ENABLED, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
-						if(img!=null) 
-							img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs, fiducial);
+			model.vision.setStatus(Vision.FIDUCIAL_ENABLED, model.sys.isAutopilotMode(MSP_AUTOCONTROL_MODE.PRECISION_LOCK));
+			if(img!=null) 
+				img.bands[0].subimage(fiducial_x_offs, fiducial_y_offs, width-fiducial_x_offs, height-fiducial_y_offs, fiducial);
 
 			// Transfer to local model
 			model.vision.setAttitude(att);
@@ -715,9 +717,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		}
 	}
 
-	public void start() {
+	public void start() throws Exception {
 		if(t265==null)
-			return;
+			throw new Exception("No T265 device available");
 
 		is_initialized = false;
 		t265.start();
@@ -887,7 +889,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 			} 
 		}
-		
+
 		private void drawFiducialTarget(Graphics2D ctx,double x, double y, double rotation) {
 			ctx.setStroke(marker);
 			ctx.setColor(Color.ORANGE);
@@ -921,32 +923,32 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 	}
 
 	private class FiducialHandler implements Runnable {
-		
+
 		private final FiducialDetector<GrayU8>  detector;
 		private final FiducialStability        stability = new FiducialStability();
 		private final GrayU8                      image  = new GrayU8(1,1);
-		
+
 		public FiducialHandler(float size, LensDistortionPinhole distortion, int width, int height) {
-			
+
 			image.reshape(width/FIDUCIAL_SCALE, height/FIDUCIAL_SCALE);
-			
+
 			ConfigFiducialBinary fiducialConfig = new ConfigFiducialBinary(size);
 			fiducialConfig.ambiguousThreshold = 0.9;
 			detector = FactoryFiducial.squareBinary(fiducialConfig, ConfigThreshold.local(ThresholdType.LOCAL_MEAN, 25), GrayU8.class);
 			CameraPinhole ins = distortion.getIntrinsic();
-			
+
 			ins.cx = ins.cx/FIDUCIAL_SCALE;
 			ins.cy = ins.cy/FIDUCIAL_SCALE;
 			ins.fx = ins.fx/FIDUCIAL_SCALE;
 			ins.fy = ins.fy/FIDUCIAL_SCALE;
 			ins.width  = image.width;
 			ins.height = image.height;
-			
+
 			detector.setLensDistortion(distortion,image.width, image.height);
-			
-			
+
+
 		}
-		
+
 
 		@Override
 		public void run() {
@@ -977,10 +979,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 				//				EnhanceImageOps.equalize(histogram, transform);
 				//				EnhanceImageOps.applyTransform(gray, transform, adjusted);
 
-				
+
 				detector.detect(image);
 				//System.out.println((System.nanoTime()-tms0)/1000);
-				
+
 				if(detector.hasMessage())
 					System.err.println(detector.getMessage(0));
 
@@ -1001,7 +1003,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 					if(detector.getFiducialToCamera(fiducial_idx, to_tmp)) {
 
 						detector.computeStability(fiducial_idx, 0.25f, stability);
-						
+
 
 						// rotate into YX axis (Sensor orientation)
 						to_tmp.concat(to_rotz90, targetToSensor);
@@ -1023,7 +1025,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 								MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
 
 						model.vision.setPrecisionOffset(precision_lock);
-						
+
 						model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
 						locking_tms = System.currentTimeMillis();
 					}
