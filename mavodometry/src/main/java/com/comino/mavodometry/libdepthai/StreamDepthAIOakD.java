@@ -77,7 +77,7 @@ import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
 
-public class StreamDepthAIOakD {
+public class StreamDepthAIOakD implements IStreamDepthAIOakD {
 
 	private final static UsbSpeed  USE_USB2         = UsbSpeed.HIGH;
 	//	private final static UsbSpeed  USE_USB2         = UsbSpeed.SUPER_PLUS;
@@ -95,7 +95,7 @@ public class StreamDepthAIOakD {
 	private static final int      MONO_FRAME       = 1;
 	private static final int      DEPTH_FRAME      = 2;
 
-	private static StreamDepthAIOakD instance;
+	private static IStreamDepthAIOakD instance;
 
 	private final    List<IDepthCallback> listeners;
 	private final    Planar<GrayU8>       rgb;
@@ -122,7 +122,7 @@ public class StreamDepthAIOakD {
 
 	private boolean rgb_mode = false;
 
-	public static StreamDepthAIOakD getInstance(int width, int height) throws Exception {
+	public static IStreamDepthAIOakD getInstance(int width, int height) throws Exception {
 
 		if(instance==null) {
 			instance = new StreamDepthAIOakD(width,height);
@@ -141,12 +141,14 @@ public class StreamDepthAIOakD {
 
 	}
 
-	public StreamDepthAIOakD registerCallback(IDepthCallback listener) {
+	@Override
+	public IStreamDepthAIOakD registerCallback(IDepthCallback listener) {
 		listeners.add(listener);
 		return this;
 	}
 
 
+	@Override
 	public void start() throws Exception {
 
 		is_running = true;
@@ -211,32 +213,39 @@ public class StreamDepthAIOakD {
 
 	}
 
+	@Override
 	public void stop() {
 		is_running = false;
 		if(device != null)
 			device.close();
 	}
 
+	@Override
 	public void setRGBMode(boolean rgb) {
 		this.rgb_mode  = rgb;
 	}
 
+	@Override
 	public long getFrameCount() {
 		return frameCount;
 	}
 
+	@Override
 	public long getRGBTms() {
 		return rgb_tms;
 	}
 
+	@Override
 	public long getDepthTms() {
 		return depth_tms;
 	}
 
+	@Override
 	public boolean isRunning() {
 		return is_running;
 	}
 
+	@Override
 	public CameraPinholeBrown getIntrinsics() {
 		return intrinsics;
 	}
@@ -407,7 +416,7 @@ public class StreamDepthAIOakD {
 
 		BufferedImage im = new BufferedImage(640, 480, BufferedImage.TYPE_3BYTE_BGR);
 
-		StreamDepthAIOakD oakd;
+		IStreamDepthAIOakD oakd;
 		try {
 			oakd = StreamDepthAIOakD.getInstance(im.getWidth(), im.getHeight());
 			oakd.registerCallback((image,np,t1,t2) -> {

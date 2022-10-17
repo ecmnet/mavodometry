@@ -82,7 +82,7 @@ import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
 
 
-public class StreamNNDepthAIOakD {
+public class StreamNNDepthAIOakD implements IStreamDepthAIOakD {
 
 	private final static UsbSpeed  USE_USB2        = UsbSpeed.SUPER;
 	private final static int      DEPTH_CONFIDENCE = 100;
@@ -129,12 +129,12 @@ public class StreamNNDepthAIOakD {
 	private DataOutputQueue queue; 
 	private DataOutputQueue nn; 
 
-	private boolean rgb_mode = false;
+	private boolean rgb_mode = true;
 
 	private OAKDImageCallback imageCallback;
 	private OAKDNNCallback    nnCallback;
 
-	public static StreamNNDepthAIOakD getInstance(int width, int height) throws Exception {
+	public static IStreamDepthAIOakD getInstance(int width, int height) throws Exception {
 
 		if(instance==null) {
 			instance = new StreamNNDepthAIOakD(width,height, null, 0, 0);
@@ -444,7 +444,7 @@ public class StreamNNDepthAIOakD {
 
 		BufferedImage im = new BufferedImage(640, 480, BufferedImage.TYPE_3BYTE_BGR);
 
-		StreamNNDepthAIOakD oakd;
+		IStreamDepthAIOakD oakd;
 		try {
 			oakd = StreamNNDepthAIOakD.getInstance(im.getWidth(), im.getHeight());
 			oakd.registerCallback((image,np,t1,t2) -> {

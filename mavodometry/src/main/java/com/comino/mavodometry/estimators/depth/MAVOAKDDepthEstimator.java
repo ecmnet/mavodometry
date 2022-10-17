@@ -48,7 +48,9 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavodometry.libdepthai.IStreamDepthAIOakD;
 import com.comino.mavodometry.libdepthai.StreamDepthAIOakD;
+import com.comino.mavodometry.libdepthai.StreamNNDepthAIOakD;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavodometry.video.impl.AbstractOverlayListener;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -80,7 +82,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private final static int              DEPTH_SCALE   = 2; 
 	private final static int 			  DEPTH_OFFSET  = 10;
 
-	private StreamDepthAIOakD			oakd 			= null;
+	private IStreamDepthAIOakD			oakd 			= null;
 
 	private boolean 					enableStream  	= false;
 	private Point2Transform2_F64 		p2n      		= null;
@@ -114,8 +116,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		System.out.println("OAK-D Mounting offset: "+offset_body);
 
 		try {
-			this.oakd   = StreamDepthAIOakD.getInstance(width, height);
-			//		this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+		this.oakd   = StreamDepthAIOakD.getInstance(width, height);
+	//	this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
 			this.oakd.setRGBMode(true);
 			//	this.oakd.setRGBMode(false);
 		} catch (Exception e) {
