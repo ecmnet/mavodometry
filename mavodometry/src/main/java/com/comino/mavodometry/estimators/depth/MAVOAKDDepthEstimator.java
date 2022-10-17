@@ -227,14 +227,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				ctx.setFont(small);
 				ctx.drawString("distance",15,29);
 
-				ctx.drawLine(90,8,90,29);
-				ctx.setFont(big);
-				if(Float.isFinite(model.slam.dm))
-					ctx.drawString(faltitude.format(model.slam.oz), 95, 18);
-				else
-					ctx.drawString("-", 95, 18);
-				ctx.setFont(small);
-				ctx.drawString("altitude",95,29);
 			}
 
 		}

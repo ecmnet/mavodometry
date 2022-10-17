@@ -270,6 +270,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					}
 					catch(InterruptedException e) {
 						ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
+						ctx.drawString("No video available", 10 , 50);
 					}
 
 					if(streams.length > 1) {
