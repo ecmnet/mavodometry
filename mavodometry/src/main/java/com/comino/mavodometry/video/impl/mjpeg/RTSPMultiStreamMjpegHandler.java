@@ -111,7 +111,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	private final byte[] buffer;
 	private final byte[] packet_bits;
 
-	private boolean no_video;
+	private long last_image_tms=0;
+	private boolean no_video = false;
 	private int quality = 0;
 
 	private final Receiver receiver;
@@ -219,7 +220,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 			long dt_ns = 0;  int tms = 0;
 
-			no_video = false;
+			last_image_tms = System.currentTimeMillis();
 
 			System.out.println("Video streaming started ");
 
@@ -238,39 +239,35 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					queue = transfers.get(streams[0]);
 
 					try {
-						//						if(queue == null || (input = queue.poll(250, TimeUnit.MILLISECONDS)) == null) {
-						//							sendNoVideo(dt_ns);
-						//							continue;
-						//						} 
-
 						if(queue != null && !queue.isEmpty()) {
 							input = queue.poll(100, TimeUnit.MILLISECONDS);
-
 							no_video = false;
-							imagenb++;
+                            last_image_tms = System.currentTimeMillis();
+                            
+                            if(input instanceof Planar) {
+    							ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
+    						}
+    						else if(input instanceof GrayU8)
+    							ConvertBufferedImage.convertTo((GrayU8)input, image, true);
+                            
+                            if(listeners.size()>0) {
+    							for(IOverlayListener listener : listeners) {
+    								listener.processOverlay(ctx, streams[0], tms);
+    							}
+    						}
+							
 
-
-							if(input instanceof Planar) {
-								ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
-							}
-							else if(input instanceof GrayU8)
-								ConvertBufferedImage.convertTo((GrayU8)input, image, true);
-
-
-
-
-							if(listeners.size()>0) {
-								for(IOverlayListener listener : listeners) {
-									listener.processOverlay(ctx, streams[0], tms);
-								}
-							}
-
+						} else {
+							if((System.currentTimeMillis() - last_image_tms) > 500)
+								noVideo(tms);
 						}
+						
+						imagenb++;
 
+						
 					}
 					catch(InterruptedException e) {
-						ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-						ctx.drawString("No video available", 10 , 50);
+						
 					}
 
 					if(streams.length > 1) {
@@ -307,9 +304,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 				}
 				catch(Exception ex) {
-					try {
-						sendNoVideo(dt_ns, tms);
-					} catch(Exception k) { }
+					noVideo(tms);
 					continue;
 				}
 			}
@@ -317,33 +312,23 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 		}
 
-		private void sendNoVideo(long dt_ns, int t_boot) throws IOException {
+		private void noVideo(long tms)  {
 			if(!no_video) {
 				if(no_video_handler!= null)
 					no_video_handler.trigger();
 				no_video = true;
 			}
+			
 			ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-
-			if(listeners.size()>0) {
-				for(IOverlayListener listener : listeners)
-					listener.processOverlay(ctx, streams[0], DataModel.getSynchronizedPX4Time_us());
-			}
-
 			ctx.drawString("No video available", 10 , 50);
-			tj.compress(buffer, TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
-			RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, t_boot, buffer, tj.getCompressedSize());
-
-			int packet_length = rtp_packet.getpacket(packet_bits);
-
-			//send the packet as a DatagramPacket over the UDP socket 
-			if(!RTPsocket.isClosed()) {
-				senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
-				RTPsocket.send(senddp);
+			
+			
+			if(listeners.size()>0) {
+				for(IOverlayListener listener : listeners) {
+					listener.processOverlay(ctx, streams[0], tms);
+				}
 			}
-
-			dt_ns = System.nanoTime() - dt_ns;
-			LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
+			
 		}
 
 		private void overlayThumbnail(BlockingQueue<T> q) {
