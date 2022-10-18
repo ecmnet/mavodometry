@@ -209,6 +209,11 @@ public class StreamDepthAIOakD implements IStreamDepthAIOakD {
 			throw new Exception("No OAKD camera found");
 
 	}
+	
+	@Override
+	public boolean isInference() {
+		return false;
+	}
 
 	@Override
 	public void stop() {
@@ -429,6 +434,7 @@ public class StreamDepthAIOakD implements IStreamDepthAIOakD {
 			Thread.sleep(1000);
 		}
 	}
+
 
 
 }

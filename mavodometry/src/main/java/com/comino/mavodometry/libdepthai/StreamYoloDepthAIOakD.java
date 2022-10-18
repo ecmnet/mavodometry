@@ -296,6 +296,11 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 	public boolean isRunning() {
 		return is_running;
 	}
+	
+	@Override
+	public boolean isInference() {
+		return true;
+	}
 
 	public CameraPinholeBrown getIntrinsics() {
 		return intrinsics;

@@ -112,18 +112,21 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		this.stream = stream;
 
-
 		// read offset settings
 		offset_body.x = config.getFloatProperty(MSPParams.OAKD_OFFSET_X, String.valueOf(OFFSET_X));
 		offset_body.y = config.getFloatProperty(MSPParams.OAKD_OFFSET_Y, String.valueOf(OFFSET_Y));
 		offset_body.z = config.getFloatProperty(MSPParams.OAKD_OFFSET_Z, String.valueOf(OFFSET_Z));
 		System.out.println("OAK-D Mounting offset: "+offset_body);
+		
+		boolean yolo_enabled = config.getBoolProperty(MSPParams.OAKD_YOLO_ENABLED, String.valueOf(true));
 
 		try {
 			//	this.oakd   = StreamDepthAIOakD.getInstance(width, height);
 			//	this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
-			
-			this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"models/yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+			if(yolo_enabled)
+			  this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"models/yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+			else
+			  this.oakd   = StreamDepthAIOakD.getInstance(width, height);
 			
 			this.oakd.setRGBMode(true);
 		} catch (Exception e) {
@@ -136,7 +139,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		if(stream!=null) {
 			stream.registerOverlayListener(new DepthOverlayListener(model));
-			stream.registerOverlayListener(new YoloOverlayListener(model));
+			if(oakd.isInference())
+			  stream.registerOverlayListener(new YoloOverlayListener(model));
 		}
 
 		oakd.registerCallback(new IDepthCallback<List<YoloDetection>>() {

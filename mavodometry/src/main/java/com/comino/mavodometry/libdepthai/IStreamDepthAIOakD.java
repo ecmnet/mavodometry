@@ -6,7 +6,7 @@ import boofcv.struct.calib.CameraPinholeBrown;
 
 public interface IStreamDepthAIOakD {
 
-	IStreamDepthAIOakD registerCallback(IDepthCallback listener);
+	IStreamDepthAIOakD registerCallback(IDepthCallback<?> listener);
 
 	void start() throws Exception;
 
@@ -21,6 +21,8 @@ public interface IStreamDepthAIOakD {
 	long getDepthTms();
 
 	boolean isRunning();
+	
+	boolean isInference();
 
 	CameraPinholeBrown getIntrinsics();
 
