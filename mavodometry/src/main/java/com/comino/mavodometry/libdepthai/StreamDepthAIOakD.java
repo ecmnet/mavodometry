@@ -190,7 +190,7 @@ public class StreamDepthAIOakD implements IStreamDepthAIOakD {
 
 							if(listeners.size()>0 ) {
 								for(IDepthCallback listener : listeners)
-									listener.process(rgb, depth, rgb_tms, depth_tms);
+									listener.process(rgb, depth, null, rgb_tms, depth_tms);
 							}
 
 							Thread.sleep(3);
@@ -207,9 +207,6 @@ public class StreamDepthAIOakD implements IStreamDepthAIOakD {
 		callback = new CombineOAKDCallback();
 		if(!is_running)
 			throw new Exception("No OAKD camera found");
-
-
-
 
 	}
 
@@ -419,7 +416,7 @@ public class StreamDepthAIOakD implements IStreamDepthAIOakD {
 		IStreamDepthAIOakD oakd;
 		try {
 			oakd = StreamDepthAIOakD.getInstance(im.getWidth(), im.getHeight());
-			oakd.registerCallback((image,np,t1,t2) -> {
+			oakd.registerCallback((image,np,d,t1,t2) -> {
 				System.out.println(oakd.getFrameCount()+" "+oakd.getRGBTms()+" "+oakd.getDepthTms());
 				//	ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)image), im, true);
 			});

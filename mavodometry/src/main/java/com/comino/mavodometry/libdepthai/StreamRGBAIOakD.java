@@ -127,7 +127,7 @@ public class StreamRGBAIOakD {
 
 					if(listeners.size()>0 ) {
 						for(IDepthCallback listener : listeners)
-							listener.process(rgb, null, rgb_tms, rgb_tms);
+							listener.process(rgb, null, null,rgb_tms, rgb_tms);
 					}
 
 				} catch (InterruptedException e) { }
@@ -239,7 +239,7 @@ public class StreamRGBAIOakD {
 		StreamRGBAIOakD oakd;
 		try {
 			oakd = StreamRGBAIOakD.getInstance(im.getWidth(), im.getHeight());
-			oakd.registerCallback((image,np,t1,t2) -> {
+			oakd.registerCallback((image,np,d,t1,t2) -> {
 				System.out.println(oakd.getFrameCount()+" "+oakd.getRGBTms()+" ");
 				//	ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)image), im, true);
 			});

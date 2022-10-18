@@ -279,7 +279,7 @@ public class StreamRealSenseD4xxDepthCV extends RealsenseDeviceCV {
 
 					if(listeners.size()>0 && is_initialized) {
 						for(IDepthCallback listener : listeners)
-							listener.process(rgb, depth, tms_rgb, tms_depth);
+							listener.process(rgb, depth, null, tms_rgb, tms_depth);
 					}
 
 

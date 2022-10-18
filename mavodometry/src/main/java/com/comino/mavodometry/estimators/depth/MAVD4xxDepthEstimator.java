@@ -39,6 +39,9 @@ import java.awt.Graphics;
 import java.awt.image.BufferedImage;
 import java.awt.image.WritableRaster;
 import java.text.DecimalFormat;
+import java.util.List;
+
+import javax.lang.model.type.NullType;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
@@ -50,6 +53,7 @@ import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.ITargetListener;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavodometry.estimators.inference.YoloDetection;
 import com.comino.mavodometry.librealsense.d455.boofcv.StreamRealSenseD4xxDepthCV;
 import com.comino.mavodometry.librealsense.utils.RealSenseInfo;
 import com.comino.mavodometry.video.IVisualStreamHandler;
@@ -161,7 +165,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 			});
 		}
 
-		realsense.registerCallback(new IDepthCallback() {
+		realsense.registerCallback(new IDepthCallback<NullType>() {
 
 			//			int y0=0; int x; int y; int depth_z; int raw_z;
 			//
@@ -178,7 +182,7 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 			//			int quality = 0;
 
 			@Override
-			public void process(Planar<GrayU8> rgb, GrayU16 depth, long timeRgb, long timeDepth) {
+			public void process(Planar<GrayU8> rgb, GrayU16 depth, NullType unused,long timeRgb, long timeDepth) {
 
 				frame_count++;	
 				//quality = 0;

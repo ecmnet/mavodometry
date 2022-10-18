@@ -44,6 +44,7 @@ import java.util.concurrent.BlockingQueue;
 import org.bytedeco.depthai.ColorCamera;
 import org.bytedeco.depthai.ColorCameraProperties;
 import org.bytedeco.depthai.ColorCameraProperties.ColorOrder;
+import org.bytedeco.depthai.RawStereoDepthConfig.AlgorithmControl.DepthUnit;
 import org.bytedeco.depthai.DataOutputQueue;
 import org.bytedeco.depthai.Device;
 import org.bytedeco.depthai.ImageManip;
@@ -57,6 +58,7 @@ import org.bytedeco.depthai.NeuralNetwork;
 import org.bytedeco.depthai.Path;
 import org.bytedeco.depthai.Pipeline;
 import org.bytedeco.depthai.StereoDepth;
+import org.bytedeco.depthai.StereoDepthConfig;
 import org.bytedeco.depthai.TensorInfo;
 import org.bytedeco.depthai.StereoDepth.PresetMode;
 import org.bytedeco.depthai.StringIntVectorMap;
@@ -216,10 +218,10 @@ public class StreamNNDepthAIOakD implements IStreamDepthAIOakD {
 
 							if(listeners.size()>0 ) {
 								for(IDepthCallback listener : listeners)
-									listener.process(rgb, depth, rgb_tms, depth_tms);
+									listener.process(rgb, depth, null,rgb_tms, depth_tms);
 							}
 
-							Thread.sleep(15);
+							Thread.sleep(3);
 
 						} catch (InterruptedException e) { }
 
@@ -229,13 +231,13 @@ public class StreamNNDepthAIOakD implements IStreamDepthAIOakD {
 
 		buildPipeline();
 
-		queue = device.getOutputQueue("preview", 3, true);
+		queue = device.getOutputQueue("preview", 10, true);
 		queue.deallocate(false);
 		imageCallback = new OAKDImageCallback();
 		queue.addCallback(imageCallback);
 
 		if(use_nn) {
-			nn = device.getOutputQueue("nn", 3, false);
+			nn = device.getOutputQueue("nn", 1, false);
 			nn.deallocate(false);
 			nnCallback = new OAKDNNCallback();
 			nn.addCallback(nnCallback);
@@ -291,17 +293,25 @@ public class StreamNNDepthAIOakD implements IStreamDepthAIOakD {
 		//			colorCam.setBoardSocket(CameraBoardSocket.RGB);
 		colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
 		colorCam.setColorOrder(ColorOrder.RGB);
+		colorCam.setFps(15);
 		colorCam.setInterleaved(false);
 
 		StereoDepth depth = p.createStereoDepth();
-		depth.setDefaultProfilePreset(PresetMode.HIGH_DENSITY);
-		depth.initialConfig().setMedianFilter(MedianFilter.KERNEL_7x7);
+
+		depth.setDefaultProfilePreset(PresetMode.HIGH_ACCURACY);
+		StereoDepthConfig config = depth.initialConfig();
+		
+		config.setMedianFilter(MedianFilter.KERNEL_7x7);
+		config.setConfidenceThreshold(DEPTH_CONFIDENCE);
+		config.setDepthUnit(DepthUnit.MILLIMETER);
+
 		depth.setLeftRightCheck(true);
 		depth.setExtendedDisparity(false);
 		depth.setSubpixel(true);
-		depth.initialConfig().setConfidenceThreshold(DEPTH_CONFIDENCE);
 		depth.setRectification(true);
-		depth.setRectifyEdgeFillColor(0);
+		depth.useHomographyRectification(false);
+		depth.setNumFramesPool(1);
+		depth.setDepthAlign(colorCam.getBoardSocket());
 
 		MonoCamera monoLeft = p.createMonoCamera();
 		monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
@@ -321,7 +331,7 @@ public class StreamNNDepthAIOakD implements IStreamDepthAIOakD {
 			manip.initialConfig().setResize(width_nn, height_nn);
 			NeuralNetwork detectionNetwork = p.createNeuralNetwork();
 
-			String path = StreamNNDepthAIOakD.class.getResource("models/"+nn_name).getPath();
+			String path = StreamNNDepthAIOakD.class.getResource(nn_name).getPath();
 			detectionNetwork.setBlobPath(new Path(path)); 
 			detectionNetwork.setNumInferenceThreads(2);
 			detectionNetwork.input().setBlocking(false);
@@ -376,47 +386,54 @@ public class StreamNNDepthAIOakD implements IStreamDepthAIOakD {
 		public void call() {
 
 			try {
+
 				ImgFrame imgFrame = queue.tryGetImgFrame();
 				if(imgFrame!=null && !imgFrame.isNull() ) {
-
 					switch(imgFrame.getInstanceNum()) {
 					case RGB_FRAME:
 						rgb_tms = System.currentTimeMillis();
-						if(transfer_rgb.isEmpty() && rgb_mode)
-							transfer_rgb.put(imgFrame);
+						if(rgb_mode)
+							transfer_rgb.offer(imgFrame);
 						else
 							imgFrame.close();
 						break;
 					case MONO_FRAME:
 						rgb_tms = System.currentTimeMillis();
-						if(transfer_mono.isEmpty() && !rgb_mode)
-							transfer_mono.put(imgFrame);
+						if(!rgb_mode)
+							transfer_mono.offer(imgFrame);
 						else
-							imgFrame.close();
+							imgFrame.close();  // Shouldn't this be called always??
 						break;
 					case DEPTH_FRAME:
 						depth_tms = System.currentTimeMillis();
-						if(transfer_depth.isEmpty())
-							transfer_depth.put(imgFrame);
-						else
-							imgFrame.close();
+						transfer_depth.offer(imgFrame);
 						break;
 					}
 
 				} 
-
-			} catch (InterruptedException e) {	}
+			} catch (Exception e) {	}
 		}
 	}
 
 	private class OAKDNNCallback extends Callback { 
+		
+		private final TensorInfo info = new TensorInfo();
 
 		public void call() {
 			
-				NNData nnData = nn.tryGetNNData();
-				if(nnData!=null && !nnData.isNull()) {
-					System.out.println(nnData);
-				}
+			ImgDetections det = nn.tryGetImgDetections();
+			if(det!=null) {
+				System.out.println(det.detections().label());
+			}
+			
+//				NNData nnData = nn.tryGetNNData();
+//				if(nnData!=null && !nnData.isNull()) {
+//					System.out.print("...");
+//				//	NNData seg = nn.getNNData();
+//				//	seg.getLayer("output_0", info);
+//				//	System.out.println("Output-Tensor: "+info.dims().get(NN_OUTPUT_CLASSES)+"/"+info.dims().get(NN_OUTPUT_WIDTH)+"/"+info.dims().get(NN_OUTPUT_HEIGHT));
+//					nnData.close();
+//				}
 		}
 	}
 
@@ -438,18 +455,21 @@ public class StreamNNDepthAIOakD implements IStreamDepthAIOakD {
 	}
 
 
+	static long tms;
 	public static void main(String[] args) throws InterruptedException  {
 
 		System.out.println("OAKD-Test");	
+		
+		
 
 		BufferedImage im = new BufferedImage(640, 480, BufferedImage.TYPE_3BYTE_BGR);
 
 		IStreamDepthAIOakD oakd;
 		try {
-			oakd = StreamNNDepthAIOakD.getInstance(im.getWidth(), im.getHeight());
-			oakd.registerCallback((image,np,t1,t2) -> {
-				System.out.println(oakd.getFrameCount()+" "+oakd.getRGBTms()+" "+oakd.getDepthTms());
-				//	ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)image), im, true);
+			oakd = StreamNNDepthAIOakD.getInstance(im.getWidth(), im.getHeight(),"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+			oakd.registerCallback((image,np,d,t1,t2) -> {
+				System.out.println(oakd.getFrameCount()+" "+oakd.getRGBTms()+" "+oakd.getDepthTms()+" "+(1000/(System.currentTimeMillis()-tms)));
+				tms = System.currentTimeMillis();
 			});
 			oakd.start();
 		} catch (Exception e) {

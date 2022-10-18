@@ -7,8 +7,8 @@ import org.mavlink.messages.lquac.msg_optical_flow_rad;
 
 
 import com.comino.mavcom.control.IMAVMSPController;
-import com.comino.mavcom.flow.MessageBus;
-import com.comino.mavcom.flow.ModelSubscriber;
+import com.comino.mavcom.messaging.MessageBus;
+import com.comino.mavcom.messaging.ModelSubscriber;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Flow;
 import com.comino.mavcom.model.segment.Status;

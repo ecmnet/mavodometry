@@ -36,6 +36,7 @@ package com.comino.mavodometry.estimators.depth;
 import static boofcv.factory.distort.LensDistortionFactory.narrow;
 
 import java.awt.Graphics2D;
+import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
@@ -48,9 +49,11 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavodometry.estimators.inference.YoloDetection;
 import com.comino.mavodometry.libdepthai.IStreamDepthAIOakD;
 import com.comino.mavodometry.libdepthai.StreamDepthAIOakD;
 import com.comino.mavodometry.libdepthai.StreamNNDepthAIOakD;
+import com.comino.mavodometry.libdepthai.StreamYoloDepthAIOakD;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavodometry.video.impl.AbstractOverlayListener;
 import com.comino.mavutils.workqueue.WorkQueue;
@@ -95,13 +98,14 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private final WorkQueue wq = WorkQueue.getInstance();
 	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
-	private int depth_worker;
+	private int   depth_worker;
 
 	private final LocalMap3D map;
 	private final IVisualStreamHandler<Planar<GrayU8>> stream;
 
 	private final Planar<GrayU8> depth_colored;
 
+	private List<YoloDetection> detection;
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, LocalMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
@@ -116,10 +120,12 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		System.out.println("OAK-D Mounting offset: "+offset_body);
 
 		try {
-		this.oakd   = StreamDepthAIOakD.getInstance(width, height);
-	//	this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+			//	this.oakd   = StreamDepthAIOakD.getInstance(width, height);
+			//	this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+			
+			this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"models/yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+			
 			this.oakd.setRGBMode(true);
-			//	this.oakd.setRGBMode(false);
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -128,15 +134,15 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		this.depth_colored = new Planar<GrayU8>(GrayU8.class,width,height,3);
 
-
 		if(stream!=null) {
 			stream.registerOverlayListener(new DepthOverlayListener(model));
+			stream.registerOverlayListener(new YoloOverlayListener(model));
 		}
 
-		oakd.registerCallback(new IDepthCallback() {
+		oakd.registerCallback(new IDepthCallback<List<YoloDetection>>() {
 
 			@Override
-			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, long timeRgb, long timeDepth) {
+			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, List<YoloDetection> d, long timeRgb, long timeDepth) {
 
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
 				model.sys.setSensor(Status.MSP_SLAM_AVAILABILITY, true);
@@ -151,6 +157,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					stream.addToStream("RGB",rgb, model, timeRgb);
 					stream.addToStream("DEPTH",depth_colored, model, System.currentTimeMillis());	
 				}
+
+				detection = d;
 
 				model.slam.fps = model.slam.fps * 0.75f + ((float)(1000f / (System.currentTimeMillis()-tms))) * 0.25f;
 				tms = System.currentTimeMillis();			
@@ -184,6 +192,37 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	}
 
 
+	private class YoloOverlayListener extends AbstractOverlayListener {
+
+		public YoloOverlayListener(DataModel model) {
+			super(model);
+		}
+
+		@Override
+		public void processOverlay(Graphics2D ctx, String stream_name, long tms_usec) {
+
+			if(!enableStream || detection == null  || detection.size() == 0)
+				return;
+
+			if(stream_name.contains("RGB")) {
+				ctx.setFont(small);
+				
+				for(YoloDetection n : detection) {
+				  ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
+				  ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
+				}
+				
+				ctx.drawLine(10,8,10,29);
+				ctx.setFont(big);
+				ctx.drawString(String.valueOf(detection.size()),15,18);
+				ctx.setFont(small);
+				ctx.drawString("objects",15,29);
+				
+			}
+		}
+	}
+
+
 	/*
 	 * Overlay for nearest obstacle
 	 */
@@ -195,7 +234,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		@Override
 		public void processOverlay(Graphics2D ctx, String stream_name, long tms_usec) {
-		
+
 			if(!enableStream)
 				return;
 

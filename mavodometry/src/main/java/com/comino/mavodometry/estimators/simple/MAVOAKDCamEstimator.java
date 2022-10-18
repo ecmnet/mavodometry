@@ -2,12 +2,16 @@ package com.comino.mavodometry.estimators.simple;
 
 
 import java.awt.image.BufferedImage;
+import java.util.List;
+
+import javax.lang.model.type.NullType;
 
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
+import com.comino.mavodometry.estimators.inference.YoloDetection;
 import com.comino.mavodometry.libdepthai.StreamRGBAIOakD;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 
@@ -36,10 +40,10 @@ public class MAVOAKDCamEstimator extends MAVAbstractEstimator  {
 			e.printStackTrace();
 		}
 
-		oakd.registerCallback(new IDepthCallback() {
+		oakd.registerCallback(new IDepthCallback<NullType>() {
 
 			@Override
-			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, long timeRgb, long timeDepth) {
+			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, NullType unused,long timeRgb, long timeDepth) {
 				//				frame++;
 				//				System.out.println(frame+": "+timeRgb);
 
