@@ -109,6 +109,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private final Planar<GrayU8>       depth_colored;
 	private       List<YoloDetection>  detection;
+	private final Point2D3D            per_p = new Point2D3D();
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, LocalMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
@@ -125,7 +126,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		try {
 			if(yolo_enabled) {
-		//		this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"yolov6t_coco_416x416.blob", 416,416);
+				//		this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"yolov6t_coco_416x416.blob", 416,416);
 				this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"yolov5n_coco_416x416.blob", 416,416);
 			}
 			else {
@@ -216,10 +217,22 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		@Override
 		public void processOverlay(Graphics2D ctx, String stream_name, long tms_usec) {
 
-			if(!enableStream || detection == null  || detection.size() == 0)
+			if(!enableStream)
 				return;
 
 			if(stream_name.contains("RGB")) {
+
+				if(Double.isFinite(per_p.location.x)) {
+					ctx.drawLine(10,8,10,29);
+					ctx.setFont(big);
+					ctx.drawString(faltitude.format(per_p.location.x),15,18);
+					ctx.setFont(small);
+					ctx.drawString("object distance",15,29);
+				}
+
+				if(detection == null  || detection.size() == 0)
+					return;
+
 				ctx.setFont(small);
 
 				for(YoloDetection n : detection) {
@@ -227,14 +240,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
 				}
 
-				ctx.drawLine(10,8,10,29);
-				ctx.setFont(big);
-				ctx.drawString(String.valueOf(detection.size()),15,18);
-				ctx.setFont(small);
-				if(detection.size()>1)
-				  ctx.drawString("objects",15,29);
-				else
-				  ctx.drawString("object",15,29);
 
 			}
 		}
@@ -303,7 +308,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		private final Point2D3D   tmp_p = new Point2D3D();
 		private final Point2D3D   ned_p = new Point2D3D();
-		
+
 		private long person;
 
 		public DepthHandler() {
@@ -330,34 +335,64 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				model.slam.oy = (float)ned_pt_n.y;
 				model.slam.oz = (float)ned_pt_n.z;		
 
-				transfer_depth.clear();
+
 
 				if(detection != null) {
 					for(YoloDetection n : detection) {
 						// check for persion and estimate the position
 						if(n.id == 0) {
-							if(person==0)
+							determineObjectPosition(n, depth, per_p);
+							if(person==0) {
 								control.writeLogMessage(new LogMessage("[msp] Person in field of view",MAV_SEVERITY.MAV_SEVERITY_WARNING));
+							}
 							person = System.currentTimeMillis();
-							determineObjectPosition(n);
 							break;
 						}	
 					}	
 				}
-				
-				if((System.currentTimeMillis() - person) > 500)
+
+				if((System.currentTimeMillis() - person) > 500) {
 					person = 0;
+					per_p.location.setTo(Double.NaN,Double.NaN,Double.NaN);
+				}
+
+				transfer_depth.clear();
 
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
 		}	
 
-		private void determineObjectPosition(YoloDetection n) {
- 
-			// 1. get Average depth.
-			// 2. Project depth and center of bounding rectangle to LPOS (refer to mapping)
-			// 3. Store person position in model
+		private boolean determineObjectPosition(YoloDetection n, GrayU16 in, Point2D3D p) {
+
+			int x0 = n.xmin+(640-416)/2; int x1 = n.xmax+(640-416)/2;
+			int y0 = n.ymin+(480-416)/2; int y1 = n.ymax+(480-416)/2;
+
+			if(x0 < 0) x0 = 0; if (x1 < 0) x1 = 0; if(x1 > 639) x1 = 639;
+			if(y0 < 0) y0 = 0; if (y1 < 0) y1 = 0; if(y1 > 479) y1 = 479;
+
+			int min_d = 999999; int tmp_d;
+			for(int xs = x0; xs <x1 ;xs++) {
+				for(int ys = y0; ys < y1;ys++) {
+					tmp_d = in.get(xs, ys);
+					if(tmp_d > 0 && tmp_d < min_d) {
+						min_d = tmp_d;
+						p.observation.x  = xs;
+						p.observation.y  = ys;
+					}
+				}
+			}
+
+			if(min_d > 5000 || min_d < 200 )
+				return false;
+
+			p2n.compute(p.observation.x,p.observation.y,norm);
+
+			p.location.x =  min_d * 1e-3;		
+			p.location.y =   p.location.x * norm.x;
+			p.location.z =   p.location.x * norm.y;
+
+			return true;
 
 		}
 
