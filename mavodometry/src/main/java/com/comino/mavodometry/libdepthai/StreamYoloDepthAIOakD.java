@@ -320,7 +320,8 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		colorCam.setPreviewSize(width, height);
 		//			colorCam.setBoardSocket(CameraBoardSocket.RGB);
 		colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
-		colorCam.setColorOrder(ColorOrder.RGB);
+		
+		colorCam.setColorOrder(ColorOrder.BGR); 	// BGR due to NN
 		colorCam.setFps(15);
 		colorCam.setInterleaved(false);
 
@@ -485,9 +486,10 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 
 	private void bufferRgbToMsU8(ByteBuffer input,Planar<GrayU8> output) {	
-		input.get(output.getBand(0).data);
+		// BGR -> RGB
+		input.get(output.getBand(2).data);
 		input.get(output.getBand(1).data);
-		input.get(output.getBand(2).data);	
+		input.get(output.getBand(0).data);	
 	}
 
 
