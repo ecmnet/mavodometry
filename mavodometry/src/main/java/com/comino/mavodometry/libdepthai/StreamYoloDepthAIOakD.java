@@ -44,7 +44,6 @@ import java.util.concurrent.BlockingQueue;
 import org.bytedeco.depthai.ColorCamera;
 import org.bytedeco.depthai.ColorCameraProperties;
 import org.bytedeco.depthai.ColorCameraProperties.ColorOrder;
-import org.bytedeco.depthai.RawStereoDepthConfig.AlgorithmControl.DepthUnit;
 import org.bytedeco.depthai.DataOutputQueue;
 import org.bytedeco.depthai.Device;
 import org.bytedeco.depthai.ImageManip;
@@ -54,16 +53,13 @@ import org.bytedeco.depthai.ImgFrame;
 import org.bytedeco.depthai.IntVector;
 import org.bytedeco.depthai.MonoCamera;
 import org.bytedeco.depthai.MonoCameraProperties;
-import org.bytedeco.depthai.NNData;
-import org.bytedeco.depthai.NeuralNetwork;
 import org.bytedeco.depthai.Path;
 import org.bytedeco.depthai.Pipeline;
+import org.bytedeco.depthai.RawStereoDepthConfig.AlgorithmControl.DepthUnit;
 import org.bytedeco.depthai.StereoDepth;
-import org.bytedeco.depthai.StereoDepthConfig;
-import org.bytedeco.depthai.TensorInfo;
 import org.bytedeco.depthai.StereoDepth.PresetMode;
+import org.bytedeco.depthai.StereoDepthConfig;
 import org.bytedeco.depthai.StringIntVectorMap;
-import org.bytedeco.depthai.StringVector;
 import org.bytedeco.depthai.XLinkOut;
 import org.bytedeco.depthai.YoloDetectionNetwork;
 import org.bytedeco.depthai.global.depthai.CameraBoardSocket;
@@ -78,9 +74,7 @@ import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.estimators.inference.YoloDetection;
 
-import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.calib.CameraPinholeBrown;
-import boofcv.struct.image.GrayF32;
 import boofcv.struct.image.GrayU16;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
@@ -98,11 +92,10 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 	private static StreamYoloDepthAIOakD instance;
 
-	private final    List<IDepthCallback> listeners;
-	private final    Planar<GrayU8>       rgb;
-	private final    GrayU16              depth;
-
-	private final CameraPinholeBrown  intrinsics;
+	private final List<IDepthCallback<List<YoloDetection>>>    listeners;
+	private final Planar<GrayU8>             rgb;
+	private final GrayU16                    depth;
+	private final CameraPinholeBrown         intrinsics;
 
 
 	private long             rgb_tms  = 0;
@@ -154,13 +147,13 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 	public StreamYoloDepthAIOakD(int width, int height, String nn_name, int width_nn, int height_nn) {
 
-		this.listeners  = new ArrayList<IDepthCallback>();
+		this.listeners  = new ArrayList<IDepthCallback<List<YoloDetection>>>();
 		this.rgb        = new Planar<GrayU8>(GrayU8.class,width,height,3);
 		this.depth      = new GrayU16(width,height);
 		this.intrinsics = new CameraPinholeBrown();
 		this.width      = width;
 		this.height     = height;
-		
+
 		if(nn_name!=null) {
 			this.use_nn = true;
 			this.nn_name    = nn_name;
@@ -172,14 +165,15 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 	}
 
-	public StreamYoloDepthAIOakD registerCallback(IDepthCallback listener) {
-		listeners.add(listener);
+	@SuppressWarnings("unchecked")
+	public StreamYoloDepthAIOakD registerCallback(IDepthCallback<?> listener) {
+		listeners.add((IDepthCallback<List<YoloDetection>>) listener);
 		return this;
 	}
 
 
 	public void start() throws Exception {
-		
+
 		ArrayList<YoloDetection> detections = new ArrayList<YoloDetection>();
 
 		is_running = true;
@@ -223,7 +217,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 												ImgDetection o = det.getPointer(i);
 												if(o.confidence()> 0.7) 
 													detections.add(new YoloDetection(o.label(),o.confidence(),
-													   o.xmin(),o.xmax(),o.ymin(),o.ymax()));
+															o.xmin(),o.xmax(),o.ymin(),o.ymax()));
 											}
 										}
 									}
@@ -240,11 +234,11 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 
 							if(listeners.size()>0 ) {
-								for(IDepthCallback listener : listeners)
+								for(IDepthCallback<List<YoloDetection>> listener : listeners)
 									listener.process(rgb, depth, detections, rgb_tms, depth_tms);
 							}
 
-							Thread.sleep(3);
+							Thread.sleep(10);
 
 						} catch (InterruptedException e) { }
 
@@ -296,7 +290,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 	public boolean isRunning() {
 		return is_running;
 	}
-	
+
 	@Override
 	public boolean isInference() {
 		return true;
@@ -320,7 +314,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		colorCam.setPreviewSize(width, height);
 		//			colorCam.setBoardSocket(CameraBoardSocket.RGB);
 		colorCam.setResolution(ColorCameraProperties.SensorResolution.THE_1080_P);
-		
+
 		colorCam.setColorOrder(ColorOrder.BGR); 	// BGR due to NN
 		colorCam.setFps(15);
 		colorCam.setInterleaved(false);
@@ -345,10 +339,12 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		MonoCamera monoLeft = p.createMonoCamera();
 		monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
 		monoLeft.setBoardSocket(CameraBoardSocket.LEFT);
+		monoLeft.setFps(15);
 
 		MonoCamera monoRight = p.createMonoCamera();
 		monoRight.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
 		monoRight.setBoardSocket(CameraBoardSocket.RIGHT);
+		monoRight.setFps(15);
 
 		monoLeft.out().link(depth.left());
 		monoRight.out().link(depth.right());
@@ -357,27 +353,37 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			XLinkOut nnOut = p.createXLinkOut();
 			nnOut.setStreamName("nn");
 			ImageManip manip = p.createImageManip();
-			
+
 			float dx = (width - width_nn)/(2f*width);
 			float dy = (height - height_nn)/(2f*height);
-			
-			manip.initialConfig().setCropRect(dx,dy,1-dx,1-dy);
-			
-			YoloDetectionNetwork detectionNetwork = p.createYoloDetectionNetwork();
-			detectionNetwork.setConfidenceThreshold(0.5f);
-			detectionNetwork.setNumClasses(80);
-			detectionNetwork.setCoordinateSize(4);
-			detectionNetwork.setAnchors(new float[]{10,14, 23,27, 37,58, 81,82, 135,169, 344,319});
-			StringIntVectorMap mask = new StringIntVectorMap();
-			//			BytePointer a = new BytePointer(); a.putString( "side26");
-			mask.put(new BytePointer("side26"), new IntVector(1,2,3));
-			//			BytePointer b = new BytePointer(); a.putString( "side13");
-			mask.put(new BytePointer("side13"), new IntVector(3,4,5));
-			detectionNetwork.setAnchorMasks(mask);
-			detectionNetwork.setIouThreshold(0.5f);
 
-			String path = StreamYoloDepthAIOakD.class.getResource(".").getPath()+nn_name;
-			System.out.println(path);
+			manip.initialConfig().setCropRect(dx,dy,1-dx,1-dy);
+			manip.inputConfig().setBlocking(true);
+			
+
+			YoloDetectionNetwork detectionNetwork = p.createYoloDetectionNetwork();
+
+			detectionNetwork.setConfidenceThreshold(0.3f);
+			detectionNetwork.setNumClasses(80);
+
+			detectionNetwork.setCoordinateSize(4);
+
+			StringIntVectorMap mask = new StringIntVectorMap();
+
+			//
+//			detectionNetwork.setAnchors(new float[]{10,14, 23,27, 37,58, 81,82, 135,169, 344,319});
+//			mask.put(new BytePointer("side26"), new IntVector(0,1,2));
+//			mask.put(new BytePointer("side13"), new IntVector(3,4,5));
+			
+			detectionNetwork.setAnchors(new float[]{10,13, 16,30, 33,23, 30,61, 62,45, 59,119, 116,90, 156,198, 373,326});
+			mask.put(new BytePointer("side52"), new IntVector(0,1,2));
+			mask.put(new BytePointer("side26"), new IntVector(3,4,5));
+			mask.put(new BytePointer("side13"), new IntVector(6,7,8));
+
+			detectionNetwork.setAnchorMasks(mask);
+			detectionNetwork.setIouThreshold(0.3f);
+
+			String path = StreamYoloDepthAIOakD.class.getResource("./models/").getPath()+nn_name;
 			detectionNetwork.setBlobPath(new Path(path));
 			detectionNetwork.setNumInferenceThreads(1);
 			detectionNetwork.input().setBlocking(true);
@@ -498,13 +504,12 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 		System.out.println("OAKD-Test");	
 
-
-
 		BufferedImage im = new BufferedImage(640, 480, BufferedImage.TYPE_3BYTE_BGR);
 
 		IStreamDepthAIOakD oakd;
 		try {
-			oakd = StreamYoloDepthAIOakD.getInstance(im.getWidth(), im.getHeight(),"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+			//		oakd = StreamYoloDepthAIOakD.getInstance(im.getWidth(), im.getHeight(),"models/yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+			oakd = StreamYoloDepthAIOakD.getInstance(im.getWidth(), im.getHeight(),"models/yolov7tiny_coco_416x416.blob", 416,416);
 			oakd.registerCallback((image,np,d,t1,t2) -> {
 				//System.out.println(oakd.getFrameCount()+" "+oakd.getRGBTms()+" "+oakd.getDepthTms()+" "+(1000/(System.currentTimeMillis()-tms)));
 				tms = System.currentTimeMillis();

@@ -40,10 +40,13 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
+import org.mavlink.messages.MAV_SEVERITY;
+
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
+import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.utils.MSP3DUtils;
@@ -98,15 +101,14 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private long   						tms 			= 0;
 
 	private final WorkQueue wq = WorkQueue.getInstance();
-	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
+	private final BlockingQueue<GrayU16>          transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
 	private int   depth_worker;
 
 	private final LocalMap3D map;
 	private final IVisualStreamHandler<Planar<GrayU8>> stream;
 
-	private final Planar<GrayU8> depth_colored;
-
-	private List<YoloDetection> detection;
+	private final Planar<GrayU8>       depth_colored;
+	private       List<YoloDetection>  detection;
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, LocalMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
@@ -118,22 +120,21 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		offset_body.y = config.getFloatProperty(MSPParams.OAKD_OFFSET_Y, String.valueOf(OFFSET_Y));
 		offset_body.z = config.getFloatProperty(MSPParams.OAKD_OFFSET_Z, String.valueOf(OFFSET_Z));
 		System.out.println("OAK-D Mounting offset: "+offset_body);
-		
+
 		boolean yolo_enabled = config.getBoolProperty(MSPParams.OAKD_YOLO_ENABLED, String.valueOf(true));
 
 		try {
-			//	this.oakd   = StreamDepthAIOakD.getInstance(width, height);
-			//	this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
 			if(yolo_enabled) {
-			  this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"models/yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
+		//		this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"yolov6t_coco_416x416.blob", 416,416);
+				this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"yolov5n_coco_416x416.blob", 416,416);
 			}
 			else {
-			  this.oakd   = StreamDepthAIOakD.getInstance(width, height);
+				this.oakd   = StreamDepthAIOakD.getInstance(width, height);
 			}
-			
+
 			model.vision.setStatus(Vision.NN_ENABLED, yolo_enabled);
 			model.sys.setSensor(Status.MSP_AI_AVAILABILITY, model.vision.isStatus(Vision.NN_ENABLED));
-			
+
 			this.oakd.setRGBMode(true);
 		} catch (Exception e) {
 			e.printStackTrace();
@@ -146,13 +147,19 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		if(stream!=null) {
 			stream.registerOverlayListener(new DepthOverlayListener(model));
 			if(oakd.isInference())
-			  stream.registerOverlayListener(new YoloOverlayListener(model));
+				stream.registerOverlayListener(new YoloOverlayListener(model));
 		}
 
 		oakd.registerCallback(new IDepthCallback<List<YoloDetection>>() {
 
 			@Override
 			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, List<YoloDetection> d, long timeRgb, long timeDepth) {
+
+				if((System.currentTimeMillis() - tms) < 20)
+					return;
+
+				model.slam.fps = (model.slam.fps * 0.95f + ((float)(1000f / (System.currentTimeMillis()-tms)) -0.5f) * 0.05f);
+				tms = System.currentTimeMillis();	
 
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
 				model.sys.setSensor(Status.MSP_SLAM_AVAILABILITY, true);
@@ -167,11 +174,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					stream.addToStream("RGB",rgb, model, timeRgb);
 					stream.addToStream("DEPTH",depth_colored, model, System.currentTimeMillis());	
 				}
-				
+
 				detection = d;
 
-				model.slam.fps = model.slam.fps * 0.75f + ((float)(1000f / (System.currentTimeMillis()-tms))) * 0.25f;
-				tms = System.currentTimeMillis();			
 			}
 		});
 
@@ -216,18 +221,21 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			if(stream_name.contains("RGB")) {
 				ctx.setFont(small);
-				
+
 				for(YoloDetection n : detection) {
-				  ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
-				  ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
+					ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
+					ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
 				}
-				
+
 				ctx.drawLine(10,8,10,29);
 				ctx.setFont(big);
 				ctx.drawString(String.valueOf(detection.size()),15,18);
 				ctx.setFont(small);
-				ctx.drawString("objects",15,29);
-				
+				if(detection.size()>1)
+				  ctx.drawString("objects",15,29);
+				else
+				  ctx.drawString("object",15,29);
+
 			}
 		}
 	}
@@ -235,6 +243,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	/*
 	 * Overlay for nearest obstacle
+	 * TODO: Overlay for person detected
 	 */
 	private class DepthOverlayListener extends AbstractOverlayListener {
 
@@ -294,6 +303,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		private final Point2D3D   tmp_p = new Point2D3D();
 		private final Point2D3D   ned_p = new Point2D3D();
+		
+		private long person;
 
 		public DepthHandler() {
 
@@ -309,7 +320,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 				GrayU16 depth = transfer_depth.take();
 
-
 				model.slam.quality = depthMapping(depth);
 
 				GeometryMath_F64.mult(to_ned.R, nearest_body.location, ned_pt_n );
@@ -322,12 +332,34 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 				transfer_depth.clear();
 
+				if(detection != null) {
+					for(YoloDetection n : detection) {
+						// check for persion and estimate the position
+						if(n.id == 0) {
+							if(person==0)
+								control.writeLogMessage(new LogMessage("[msp] Person in field of view",MAV_SEVERITY.MAV_SEVERITY_WARNING));
+							person = System.currentTimeMillis();
+							determineObjectPosition(n);
+							break;
+						}	
+					}	
+				}
+				
+				if((System.currentTimeMillis() - person) > 500)
+					person = 0;
 
 			} catch (InterruptedException e) {
 				e.printStackTrace();
 			}
-
 		}	
+
+		private void determineObjectPosition(YoloDetection n) {
+ 
+			// 1. get Average depth.
+			// 2. Project depth and center of bounding rectangle to LPOS (refer to mapping)
+			// 3. Store person position in model
+
+		}
 
 		// map depth on a 640/DEPTH_SCALE x 480/DEPTH_SCALE basis
 		private int depthMapping(GrayU16 in) {

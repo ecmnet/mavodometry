@@ -3,9 +3,9 @@ package com.comino.mavodometry.estimators.inference;
 public class YoloDetection {
 	
 	private static final String[] labelMap = {
-			"person",         "bicycle",    "car",           "motorbike",     "aeroplane",   "bus",           "train",
-			"truck",          "boat",       "traffic light", "fire hydrant",  "stop sign",   "parking meter", "bench",
-			"bird",           "cat",        "dog",           "horse",         "sheep",       "cow",           "elephant",
+			"Person",         "bicycle",    "Car",           "motorbike",     "Aeroplane",   "bus",           "train",
+			"Truck",          "boat",       "traffic light", "fire hydrant",  "stop sign",   "parking meter", "bench",
+			"Bird",           "Cat",        "Dog",           "Horse",         "Sheep",       "Cow",           "elephant",
 			"bear",           "zebra",      "giraffe",       "backpack",      "umbrella",    "handbag",       "tie",
 			"suitcase",       "frisbee",    "skis",          "snowboard",     "sports ball", "kite",          "baseball bat",
 			"baseball glove", "skateboard", "surfboard",     "tennis racket", "bottle",      "wine glass",    "cup",
