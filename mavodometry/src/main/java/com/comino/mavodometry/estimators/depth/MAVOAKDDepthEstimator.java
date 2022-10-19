@@ -45,6 +45,7 @@ import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.Status;
+import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
@@ -123,10 +124,15 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		try {
 			//	this.oakd   = StreamDepthAIOakD.getInstance(width, height);
 			//	this.oakd   = StreamNNDepthAIOakD.getInstance(width, height,"yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
-			if(yolo_enabled)
+			if(yolo_enabled) {
 			  this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"models/yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
-			else
+			}
+			else {
 			  this.oakd   = StreamDepthAIOakD.getInstance(width, height);
+			}
+			
+			model.vision.setStatus(Vision.NN_ENABLED, yolo_enabled);
+			model.sys.setSensor(Status.MSP_AI_AVAILABILITY, model.vision.isStatus(Vision.NN_ENABLED));
 			
 			this.oakd.setRGBMode(true);
 		} catch (Exception e) {
@@ -161,7 +167,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					stream.addToStream("RGB",rgb, model, timeRgb);
 					stream.addToStream("DEPTH",depth_colored, model, System.currentTimeMillis());	
 				}
-
+				
 				detection = d;
 
 				model.slam.fps = model.slam.fps * 0.75f + ((float)(1000f / (System.currentTimeMillis()-tms))) * 0.25f;
