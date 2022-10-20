@@ -227,7 +227,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					ctx.setFont(big);
 					ctx.drawString(faltitude.format(per_p.location.x),15,18);
 					ctx.setFont(small);
-					ctx.drawString("object distance",15,29);
+					ctx.drawString("distance",15,29);
 				}
 
 				if(detection == null  || detection.size() == 0)
@@ -239,8 +239,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
 					ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
 				}
-
-
+				
 			}
 		}
 	}
