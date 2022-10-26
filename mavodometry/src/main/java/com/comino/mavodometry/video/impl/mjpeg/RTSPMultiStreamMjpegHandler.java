@@ -240,7 +240,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					try {
 						if(queue != null && !queue.isEmpty()) {
-							input = queue.poll(100, TimeUnit.MILLISECONDS);
+							input = queue.poll(300, TimeUnit.MILLISECONDS);
 							no_video = false;
                             last_image_tms = System.currentTimeMillis();
                             
@@ -258,7 +258,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 							
 
 						} else {
-							if((System.currentTimeMillis() - last_image_tms) > 500)
+							if((System.currentTimeMillis() - last_image_tms) > 1000)
 								noVideo(tms);
 						}
 						
@@ -295,7 +295,12 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					//send the packet as a DatagramPacket over the UDP socket 
 					if(!RTPsocket.isClosed() ) { //&& packet_length < 65535) {
 						senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
+						try {
 						RTPsocket.send(senddp);
+						} catch(IOException ioe) {
+							ioe.printStackTrace();
+							is_running = false;
+						}
 					}
 
 					// Ensure 15Hz video
@@ -375,7 +380,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 
 			System.out.println("RTSP Server - Received from Client:");
-			System.out.println(RequestLine);
+			System.out.println("RL"+RequestLine);
 
 			StringTokenizer tokens = new StringTokenizer(RequestLine);
 			String request_type_string = tokens.nextToken();
@@ -394,14 +399,14 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 			//parse the SeqNumLine and extract CSeq field
 			String SeqNumLine = RTSPBufferedReader.readLine();
-			System.out.println(SeqNumLine);
+			System.out.println("SQL"+SeqNumLine);
 			tokens = new StringTokenizer(SeqNumLine);
 			tokens.nextToken();
 			RTSPSeqNb = Integer.parseInt(tokens.nextToken());
 
 			//get LastLine
 			String LastLine = RTSPBufferedReader.readLine();
-			System.out.println(LastLine);
+			System.out.println("LL"+LastLine);
 
 			tokens = new StringTokenizer(LastLine);
 			if (request_type == SETUP) {
@@ -413,6 +418,9 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 			else if (request_type == DESCRIBE) {
 				tokens.nextToken();
 				String describeDataType = tokens.nextToken();
+			}
+			else if (request_type == INIT) {
+				System.out.println("Request type INIT received. Not parsed.");
 			}
 			else {
 				//otherwise LastLine will be the SessionId line

@@ -34,6 +34,7 @@ package com.comino.mavodometry.libdepthai;
  ****************************************************************************/
 
 import java.awt.image.BufferedImage;
+import java.io.File;
 import java.nio.ByteBuffer;
 import java.nio.ShortBuffer;
 import java.util.ArrayList;
@@ -73,6 +74,7 @@ import org.bytedeco.javacpp.PointerScope;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.estimators.inference.YoloDetection;
+import com.comino.mavutils.file.MSPFileUtils;
 
 import boofcv.struct.calib.CameraPinholeBrown;
 import boofcv.struct.image.GrayU16;
@@ -82,7 +84,7 @@ import boofcv.struct.image.Planar;
 
 public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
-	private final static UsbSpeed  USE_USB2        = UsbSpeed.SUPER;
+	private final static UsbSpeed  USE_USB2        = UsbSpeed.HIGH;
 	private final static int      DEPTH_CONFIDENCE = 100;
 
 	private static final int      RGB_FRAME   = 0;
@@ -119,7 +121,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 	private int height_nn;
 
 	private boolean use_nn = false;
-	private String nn_name;
+	private String nn_path;
 
 	private DataOutputQueue queue; 
 	private DataOutputQueue nn; 
@@ -137,15 +139,15 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		return instance;
 	}
 
-	public static StreamYoloDepthAIOakD getInstance(int width, int height, String nn_name, int width_nn, int height_nn) throws Exception {
+	public static StreamYoloDepthAIOakD getInstance(int width, int height, String nn_path, int width_nn, int height_nn) throws Exception {
 
 		if(instance==null) {
-			instance = new StreamYoloDepthAIOakD(width,height, nn_name, width_nn, height_nn);
+			instance = new StreamYoloDepthAIOakD(width,height, nn_path, width_nn, height_nn);
 		}
 		return instance;
 	}
 
-	public StreamYoloDepthAIOakD(int width, int height, String nn_name, int width_nn, int height_nn) {
+	public StreamYoloDepthAIOakD(int width, int height, String nn_path, int width_nn, int height_nn) {
 
 		this.listeners  = new ArrayList<IDepthCallback<List<YoloDetection>>>();
 		this.rgb        = new Planar<GrayU8>(GrayU8.class,width,height,3);
@@ -154,13 +156,12 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		this.width      = width;
 		this.height     = height;
 
-		if(nn_name!=null) {
+		if(nn_path!=null && MSPFileUtils.exists(nn_path)) {
 			this.use_nn = true;
-			this.nn_name    = nn_name;
+			this.nn_path    = nn_path;
 			this.width_nn   = width_nn;
 			this.height_nn  = height_nn;
-			System.out.println("NN enabled using network model:"+nn_name);
-
+			System.out.println("NN enabled using network model:"+nn_path);
 		}
 
 	}
@@ -353,6 +354,8 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			XLinkOut nnOut = p.createXLinkOut();
 			nnOut.setStreamName("nn");
 			ImageManip manip = p.createImageManip();
+			
+			// TODO map 640 pixels to 416 to ensure the total width is used. Keep ratio!
 
 			float dx = (width - width_nn)/(2f*width);
 			float dy = (height - height_nn)/(2f*height);
@@ -383,9 +386,8 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			detectionNetwork.setAnchorMasks(mask);
 			detectionNetwork.setIouThreshold(0.3f);
 
-			String path = StreamYoloDepthAIOakD.class.getResource("./models/").getPath()+nn_name;
-			detectionNetwork.setBlobPath(new Path(path));
-			detectionNetwork.setNumInferenceThreads(1);
+			detectionNetwork.setBlobPath(new Path(nn_path));
+			detectionNetwork.setNumInferenceThreads(2);
 			detectionNetwork.input().setBlocking(true);
 			detectionNetwork.out().link(nnOut.input());
 			manip.out().link(detectionNetwork.input());
@@ -405,6 +407,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			device.deallocate(false);
 			is_running = device.isPipelineRunning();
 		} catch(RuntimeException e) {
+			//e.printStackTrace();
 			is_running = false;
 			return;
 		}

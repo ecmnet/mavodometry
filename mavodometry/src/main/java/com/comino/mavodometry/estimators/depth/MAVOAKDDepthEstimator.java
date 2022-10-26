@@ -45,6 +45,8 @@ import org.mavlink.messages.MAV_SEVERITY;
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
+import com.comino.mavcom.messaging.MessageBus;
+import com.comino.mavcom.messaging.msgs.msp_msg_nn_object;
 import com.comino.mavcom.model.DataModel;
 import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
@@ -60,6 +62,8 @@ import com.comino.mavodometry.libdepthai.StreamNNDepthAIOakD;
 import com.comino.mavodometry.libdepthai.StreamYoloDepthAIOakD;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavodometry.video.impl.AbstractOverlayListener;
+import com.comino.mavutils.MSPMathUtils;
+import com.comino.mavutils.file.MSPFileUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
 
 import boofcv.struct.distort.Point2Transform2_F64;
@@ -100,8 +104,10 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	private long   						tms 			= 0;
 
-	private final WorkQueue wq = WorkQueue.getInstance();
-	private final BlockingQueue<GrayU16>          transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
+	private final WorkQueue  wq  = WorkQueue.getInstance();
+	private final MessageBus bus = MessageBus.getInstance();
+
+	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
 	private int   depth_worker;
 
 	private final LocalMap3D map;
@@ -113,6 +119,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, LocalMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
+		
+		this.per_p.location.setTo(Double.NaN,Double.NaN,Double.NaN);
 
 		this.stream = stream;
 
@@ -123,11 +131,15 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		System.out.println("OAK-D Mounting offset: "+offset_body);
 
 		boolean yolo_enabled = config.getBoolProperty(MSPParams.OAKD_YOLO_ENABLED, String.valueOf(true));
+		System.out.println(MSPFileUtils.getJarContainingFolder(getClass()));
 
 		try {
 			if(yolo_enabled) {
+				String nn_path = MSPFileUtils.getJarContainingFolder(getClass())+"/../networks/yolov5n_coco_416x416.blob";
+				System.out.println("NN Network found "+MSPFileUtils.exists(nn_path));
+				
 				//		this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"yolov6t_coco_416x416.blob", 416,416);
-				this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"yolov5n_coco_416x416.blob", 416,416);
+				this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"nn_path", 416,416);
 			}
 			else {
 				this.oakd   = StreamDepthAIOakD.getInstance(width, height);
@@ -159,7 +171,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				if((System.currentTimeMillis() - tms) < 20)
 					return;
 
-				model.slam.fps = (model.slam.fps * 0.95f + ((float)(1000f / (System.currentTimeMillis()-tms)) -0.5f) * 0.05f);
+				model.slam.fps = (model.slam.fps * 0.75f + ((float)(1000f / (System.currentTimeMillis()-tms)) -0.5f) * 0.25f);
 				tms = System.currentTimeMillis();	
 
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();
@@ -189,7 +201,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			oakd.start();
 			p2n = (narrow(oakd.getIntrinsics())).undistort_F64(true,false);
 
-			Thread.sleep(200);
+			Thread.sleep(500);
 			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
 			System.out.println("Depth worker started");
 
@@ -222,12 +234,21 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			if(stream_name.contains("RGB")) {
 
+				ctx.drawLine(10,8,10,29);
+				ctx.setFont(small);
+				ctx.drawString("yolo",15,29);
+
 				if(Double.isFinite(per_p.location.x)) {
-					ctx.drawLine(10,8,10,29);
+					ctx.drawLine(70,8,70,29);
 					ctx.setFont(big);
-					ctx.drawString(faltitude.format(per_p.location.x),15,18);
+					ctx.drawString(faltitude.format(per_p.location.x),75,18);
+					ctx.drawString("Person",15,18);
 					ctx.setFont(small);
-					ctx.drawString("distance",15,29);
+					ctx.drawString("distance",75,29);
+
+				} else {
+					ctx.setFont(big);
+					ctx.drawString("Active",15,18);
 				}
 
 				if(detection == null  || detection.size() == 0)
@@ -239,7 +260,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
 					ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
 				}
-				
 			}
 		}
 	}
@@ -273,13 +293,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					return;
 
 				if(Float.isFinite(model.slam.dm)) {
-
-					final int ln = 5;
-
-					ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
-					ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
-					ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
-
+                      drawTriangle(ctx,x0,y0);
+				}
+				
+				if(Double.isFinite(per_p.location.x)) {
+					 drawTriangle(ctx,(int)per_p.observation.x, (int)per_p.observation.y);
 				}
 
 				ctx.drawLine(10,8,10,29);
@@ -295,6 +313,13 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		}
 	}
+	
+	private void drawTriangle(Graphics2D ctx, int x0, int y0) {
+		final int ln = 5;
+		ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
+		ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
+		ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
+	}
 
 
 	/*
@@ -308,7 +333,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		private final Point2D3D   tmp_p = new Point2D3D();
 		private final Point2D3D   ned_p = new Point2D3D();
 
-		private long person;
+		private msp_msg_nn_object person = new msp_msg_nn_object();
 
 		public DepthHandler() {
 
@@ -329,29 +354,23 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				GeometryMath_F64.mult(to_ned.R, nearest_body.location, ned_pt_n );
 				ned_pt_n.plusIP(to_ned.T);
 
-				model.slam.dm = (float)nearest_body.location.x; 
-				model.slam.ox = (float)ned_pt_n.x;
-				model.slam.oy = (float)ned_pt_n.y;
-				model.slam.oz = (float)ned_pt_n.z;		
-
-
-
 				if(detection != null) {
 					for(YoloDetection n : detection) {
 						// check for persion and estimate the position
 						if(n.id == 0) {
 							determineObjectPosition(n, depth, per_p);
-							if(person==0) {
+							if(person.tms==0) {
 								control.writeLogMessage(new LogMessage("[msp] Person in field of view",MAV_SEVERITY.MAV_SEVERITY_WARNING));
 							}
-							person = System.currentTimeMillis();
+							person.tms = System.currentTimeMillis();
 							break;
 						}	
 					}	
 				}
 
-				if((System.currentTimeMillis() - person) > 500) {
-					person = 0;
+				if(person.tms > 0 && (System.currentTimeMillis() - person.tms) > 500) {
+					person.tms = 0;
+					bus.publish(person);
 					per_p.location.setTo(Double.NaN,Double.NaN,Double.NaN);
 				}
 
@@ -364,32 +383,42 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		private boolean determineObjectPosition(YoloDetection n, GrayU16 in, Point2D3D p) {
 
-			int x0 = n.xmin+(640-416)/2; int x1 = n.xmax+(640-416)/2;
-			int y0 = n.ymin+(480-416)/2; int y1 = n.ymax+(480-416)/2;
+			int xc = (n.xmax-n.xmin) / 2 + n.xmin - 20; int yc = (n.ymax-n.ymin) / 3 + n.ymin;
 
-			if(x0 < 0) x0 = 0; if (x1 < 0) x1 = 0; if(x1 > 639) x1 = 639;
-			if(y0 < 0) y0 = 0; if (y1 < 0) y1 = 0; if(y1 > 479) y1 = 479;
+			// use multiple measurement points around the center for depth estimation
+			int count = 0; int min_d = 0; int tmp_d = 0;
+			tmp_d = in.get(xc  , yc   ); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
+			tmp_d = in.get(xc+10,yc   ); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
+			tmp_d = in.get(xc-10,yc   ); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
+			tmp_d = in.get(xc  , yc+10); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
+			tmp_d = in.get(xc  , yc-10); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
+			tmp_d = in.get(xc  , yc+20); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
+			tmp_d = in.get(xc  , yc-20); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
 
-			int min_d = 999999; int tmp_d;
-			for(int xs = x0; xs <x1 ;xs++) {
-				for(int ys = y0; ys < y1;ys++) {
-					tmp_d = in.get(xs, ys);
-					if(tmp_d > 0 && tmp_d < min_d) {
-						min_d = tmp_d;
-						p.observation.x  = xs;
-						p.observation.y  = ys;
-					}
-				}
-			}
-
-			if(min_d > 5000 || min_d < 200 )
+			if(count == 0)
 				return false;
+
+			min_d = min_d / count;
+
+			p.observation.x = xc;
+			p.observation.y = yc;
+
+			if(min_d > 6000 || min_d < 200 ) {
+				return false;
+			}
 
 			p2n.compute(p.observation.x,p.observation.y,norm);
 
 			p.location.x =  min_d * 1e-3;		
-			p.location.y =   p.location.x * norm.x;
-			p.location.z =   p.location.x * norm.y;
+			p.location.y =  p.location.x * norm.x;
+			p.location.z =  p.location.x * norm.y;
+
+			GeometryMath_F64.mult(to_ned.R, p.location, person.position );
+			person.tms = System.currentTimeMillis();
+			person.position.plusIP(to_ned.T);
+			person.object_id = 0;
+
+			bus.publish(person);
 
 			return true;
 
