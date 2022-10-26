@@ -360,11 +360,9 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			float dx = (width - width_nn)/(2f*width);
 			float dy = (height - height_nn)/(2f*height);
 
-//			manip.initialConfig().setCropRect(dx,dy,1-dx,1-dy);
+			manip.initialConfig().setCropRect(dx,dy,1-dx,1-dy);
 			manip.inputConfig().setBlocking(true);
-//			manip.initialConfig().setResize(width_nn, 312);
-//			manip.initialConfig().setKeepAspectRatio(true);
-			manip.initialConfig().setResizeThumbnail(width_nn, height_nn);
+//			manip.initialConfig().setResizeThumbnail(width_nn, height_nn);
 
 
 			YoloDetectionNetwork detectionNetwork = p.createYoloDetectionNetwork();
