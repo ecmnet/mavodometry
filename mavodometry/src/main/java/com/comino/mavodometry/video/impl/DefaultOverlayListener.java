@@ -88,40 +88,42 @@ public class DefaultOverlayListener extends AbstractOverlayListener implements I
 		  ctx.drawString("-", 75, TEXT_BOUND);
 		ctx.setFont(small);
 		ctx.drawString("altitude",75,LOWER_BOUND);
+		
+		// battery
+		ctx.drawLine(115,UPPER_BOUND,115,LOWER_BOUND);
+		ctx.setFont(big);
+		if(Float.isFinite(model.battery.b0) )
+		  ctx.drawString(onedecimal.format(model.battery.b0), 120, TEXT_BOUND);
+		else
+		  ctx.drawString("-", 120, TEXT_BOUND);
+		ctx.setFont(small);
+		ctx.drawString("battery",120,LOWER_BOUND);
 
 		// PX4 mode
-		ctx.drawLine(120,UPPER_BOUND,120,LOWER_BOUND);
+		ctx.drawLine(160,UPPER_BOUND,160,LOWER_BOUND);
 		ctx.setFont(big);
 		if(model.sys.isStatus(Status.MSP_READY_FOR_FLIGHT)) {
 			
-			ctx.drawString(model.sys.getModeString(),125, TEXT_BOUND);
+			ctx.drawString(model.sys.getModeString(),165, TEXT_BOUND);
 			ctx.setFont(small);
-			ctx.drawString("mode",125,LOWER_BOUND);
+			ctx.drawString("mode",165,LOWER_BOUND);
 		}
 		else {
-			ctx.drawString("NOT READY",125, TEXT_BOUND);
+			ctx.drawString("NOT READY",165, TEXT_BOUND);
 			ctx.setFont(small);
-			ctx.drawString("status",125,LOWER_BOUND);
+			ctx.drawString("status",165,LOWER_BOUND);
 		}
 		
-		ctx.drawLine(200,UPPER_BOUND,200,LOWER_BOUND);
-		ctx.setFont(big);
-		if(Float.isFinite(model.battery.b0) )
-		  ctx.drawString(onedecimal.format(model.battery.b0), 205, TEXT_BOUND);
-		else
-		  ctx.drawString("-", 205, TEXT_BOUND);
-		ctx.setFont(small);
-		ctx.drawString("battery",205,LOWER_BOUND);
 		
 		ctx.setFont(big);
-		ctx.drawLine(245,UPPER_BOUND,245, LOWER_BOUND);
+		ctx.drawLine(240,UPPER_BOUND,240, LOWER_BOUND);
 		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG,DataModel.getSynchronizedPX4Time_us())) {
-			ctx.drawString(model.msg.text, 250, TEXT_BOUND);
+			ctx.drawString(model.msg.text, 245, TEXT_BOUND);
 			ctx.setFont(small);
-			ctx.drawString(LogMessage.severity_texts[model.msg.severity].toLowerCase(),250,LOWER_BOUND);
+			ctx.drawString(LogMessage.severity_texts[model.msg.severity].toLowerCase(),245,LOWER_BOUND);
 		}  else {
 			ctx.setFont(small);
-			ctx.drawString("info",250,LOWER_BOUND);
+			ctx.drawString("info",245,LOWER_BOUND);
 		}
 
 		// resize operator
