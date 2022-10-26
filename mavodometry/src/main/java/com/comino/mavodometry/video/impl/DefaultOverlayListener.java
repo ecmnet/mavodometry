@@ -83,7 +83,7 @@ public class DefaultOverlayListener extends AbstractOverlayListener implements I
 		ctx.drawLine(70,UPPER_BOUND,70, LOWER_BOUND);
 		ctx.setFont(big);
 		if(Float.isFinite(model.hud.ar))
-		  ctx.drawString(faltitude.format(model.hud.ar), 75, TEXT_BOUND);
+		  ctx.drawString(onedecimal.format(model.hud.ar), 75, TEXT_BOUND);
 		else
 		  ctx.drawString("-", 75, TEXT_BOUND);
 		ctx.setFont(small);
@@ -104,16 +104,24 @@ public class DefaultOverlayListener extends AbstractOverlayListener implements I
 			ctx.drawString("status",125,LOWER_BOUND);
 		}
 		
+		ctx.drawLine(200,UPPER_BOUND,200,LOWER_BOUND);
 		ctx.setFont(big);
-
-		ctx.drawLine(200,UPPER_BOUND,200, LOWER_BOUND);
+		if(Float.isFinite(model.battery.b0) )
+		  ctx.drawString(onedecimal.format(model.battery.b0), 205, TEXT_BOUND);
+		else
+		  ctx.drawString("-", 205, TEXT_BOUND);
+		ctx.setFont(small);
+		ctx.drawString("battery",205,LOWER_BOUND);
+		
+		ctx.setFont(big);
+		ctx.drawLine(245,UPPER_BOUND,245, LOWER_BOUND);
 		if(model.msg.isNew(MAV_SEVERITY.MAV_SEVERITY_DEBUG,DataModel.getSynchronizedPX4Time_us())) {
-			ctx.drawString(model.msg.text, 205, TEXT_BOUND);
+			ctx.drawString(model.msg.text, 250, TEXT_BOUND);
 			ctx.setFont(small);
-			ctx.drawString(LogMessage.severity_texts[model.msg.severity].toLowerCase(),205,LOWER_BOUND);
+			ctx.drawString(LogMessage.severity_texts[model.msg.severity].toLowerCase(),250,LOWER_BOUND);
 		}  else {
 			ctx.setFont(small);
-			ctx.drawString("info",205,LOWER_BOUND);
+			ctx.drawString("info",250,LOWER_BOUND);
 		}
 
 		// resize operator
