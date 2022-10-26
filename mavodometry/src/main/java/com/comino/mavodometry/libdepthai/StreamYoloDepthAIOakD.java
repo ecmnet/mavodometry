@@ -156,12 +156,11 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		this.width      = width;
 		this.height     = height;
 
-		if(nn_path!=null && MSPFileUtils.exists(nn_path)) {
+		if(nn_path!=null) {
 			this.use_nn = true;
 			this.nn_path    = nn_path;
 			this.width_nn   = width_nn;
 			this.height_nn  = height_nn;
-			System.out.println("NN enabled using network model:"+nn_path);
 		}
 
 	}
@@ -356,13 +355,17 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			ImageManip manip = p.createImageManip();
 			
 			// TODO map 640 pixels to 416 to ensure the total width is used. Keep ratio!
+			// Picture should be resizd to 416*312 
 
 			float dx = (width - width_nn)/(2f*width);
 			float dy = (height - height_nn)/(2f*height);
 
-			manip.initialConfig().setCropRect(dx,dy,1-dx,1-dy);
+//			manip.initialConfig().setCropRect(dx,dy,1-dx,1-dy);
 			manip.inputConfig().setBlocking(true);
-			
+//			manip.initialConfig().setResize(width_nn, 312);
+//			manip.initialConfig().setKeepAspectRatio(true);
+			manip.initialConfig().setResizeThumbnail(width_nn, height_nn);
+
 
 			YoloDetectionNetwork detectionNetwork = p.createYoloDetectionNetwork();
 
@@ -385,7 +388,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 			detectionNetwork.setAnchorMasks(mask);
 			detectionNetwork.setIouThreshold(0.3f);
-
+		
 			detectionNetwork.setBlobPath(new Path(nn_path));
 			detectionNetwork.setNumInferenceThreads(2);
 			detectionNetwork.input().setBlocking(true);
