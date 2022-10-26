@@ -241,7 +241,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				if(Double.isFinite(per_p.location.x)) {
 					ctx.drawLine(70,8,70,29);
 					ctx.setFont(big);
-					ctx.drawString(faltitude.format(per_p.location.x),75,18);
+					ctx.drawString(onedecimal.format(per_p.location.x),75,18);
 					ctx.drawString("Person",15,18);
 					ctx.setFont(small);
 					ctx.drawString("distance",75,29);
@@ -303,7 +303,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				ctx.drawLine(10,8,10,29);
 				ctx.setFont(big);
 				if(Float.isFinite(model.slam.dm))
-					ctx.drawString(faltitude.format(model.slam.dm), 15, 18);
+					ctx.drawString(onedecimal.format(model.slam.dm), 15, 18);
 				else
 					ctx.drawString("-", 15, 18);
 				ctx.setFont(small);
@@ -355,20 +355,20 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				ned_pt_n.plusIP(to_ned.T);
 
 				if(detection != null) {
-					synchronized(this) {
-						for(YoloDetection n : detection) {
-							// check for persion and estimate the position
-							if(n.id == 0) {
-								determineObjectPosition(n, depth, per_p);
-								if(person.tms==0) {
-									control.writeLogMessage(new LogMessage("[msp] Person in field of view",MAV_SEVERITY.MAV_SEVERITY_WARNING));
-								}
-								person.tms = System.currentTimeMillis();
-								break;
-							}	
+
+					for(YoloDetection n : detection) {
+						// check for persion and estimate the position
+						if(n.id == 0) {
+							determineObjectPosition(n, depth, per_p);
+							if(person.tms==0) {
+								control.writeLogMessage(new LogMessage("[msp] Person in field of view",MAV_SEVERITY.MAV_SEVERITY_WARNING));
+							}
+							person.tms = System.currentTimeMillis();
+							break;
 						}	
 					}
 				}
+
 
 				if(person.tms > 0 && (System.currentTimeMillis() - person.tms) > 500) {
 					person.tms = 0;
@@ -385,7 +385,16 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		private boolean determineObjectPosition(YoloDetection n, GrayU16 in, Point2D3D p) {
 
+
+
+			// TODO: This is dangerous as another object detected of not detected could be in front
+			//       of the person => wrong depth estimation
+
 			int xc = (n.xmax-n.xmin) / 2 + n.xmin - 20; int yc = (n.ymax-n.ymin) / 3 + n.ymin;
+
+			// if person covers more than a third of the picture => no valid estimation
+			if((n.xmax-n.xmin) > 320)
+				return false;
 
 			// use multiple measurement points around the center for depth estimation
 			int count = 0; int min_d = 0; int tmp_d = 0;
@@ -416,7 +425,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			p.location.z =  p.location.x * norm.y;
 
 			GeometryMath_F64.mult(to_ned.R, p.location, person.position );
-			person.tms = System.currentTimeMillis();
 			person.position.plusIP(to_ned.T);
 			person.object_id = 0;
 

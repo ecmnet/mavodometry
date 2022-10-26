@@ -543,7 +543,9 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					while(!done) {
 						request_type = parseRequest(); //blocking
-						System.err.println(request_type);
+						if(request_type == INIT) {
+							continue;
+						}
 
 						if (request_type == SETUP) {
 							done = true;

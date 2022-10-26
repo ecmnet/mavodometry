@@ -3,16 +3,8 @@ package com.comino.mavodometry.libnano.detetction;
 import java.awt.Color;
 import java.awt.Graphics;
 
-import com.comino.mavodometry.utils.DepthUtils;
-
-import boofcv.alg.distort.LensDistortionNarrowFOV;
-import boofcv.alg.sfm.DepthSparse3D;
 import boofcv.struct.ImageRectangle;
-import boofcv.struct.image.GrayU16;
-import georegression.metric.Intersection2D_I32;
 import georegression.struct.point.Point3D_F64;
-import georegression.struct.point.Vector3D_F64;
-import georegression.struct.se.Se3_F64;
 
 public class NanoObjectIdentity {
 
@@ -46,7 +38,7 @@ public class NanoObjectIdentity {
 		this.confidence = confidence;
 		this.tms        = System.currentTimeMillis();
 
-		this.r.set(x0, y0, x1, y1);
+		this.r.setTo(x0, y0, x1, y1);
 	};
 
 
