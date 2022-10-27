@@ -355,7 +355,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				ned_pt_n.plusIP(to_ned.T);
 
 				if(detection != null) {
-
+                 synchronized(this) {
 					for(YoloDetection n : detection) {
 						// check for persion and estimate the position
 						if(n.id == 0) {
@@ -367,6 +367,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 							break;
 						}	
 					}
+                 }
 				}
 
 
