@@ -25,20 +25,17 @@ public class YoloDetection {
 	public int    ymax=0;
 
 
-	public YoloDetection(int id, float confidence, float xmin, float xmax, float ymin, float ymax) {
+	public YoloDetection(int id, float confidence, float xi, float xa, float yi, float ya) {
 		super();
 		this.id = id;
 		this.confidence = confidence;
 		
-		this.xmin = (int)(xmin * 416) + 112;
-		this.xmax = (int)(xmax * 416) + 112;
-		this.ymin = (int)(ymin * 416) + 32;
-		this.ymax = (int)(ymax * 416) + 32;
+		this.xmin = (int)(xi * 640); 
+		this.xmax = (int)(xa * 640); 
 		
-//		this.xmin = (int)(xmin * 640) ;
-//		this.xmax = (int)(xmax * 640) ;
-//		this.ymin = (int)(ymin * 480) - (int)(52 * (1-ymin)) ;
-//		this.ymax = (int)(ymax * 480) + (int)(52 * (1-ymax)) ;
+		this.ymin = (int)(yi * 480) - 32;
+		this.ymax = (int)(ya * 480) + 32;
+		
 	}
 	
 	public String getLabel() {

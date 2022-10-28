@@ -35,6 +35,7 @@ package com.comino.mavodometry.estimators.depth;
 
 import static boofcv.factory.distort.LensDistortionFactory.narrow;
 
+import java.awt.Color;
 import java.awt.Graphics2D;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -137,12 +138,17 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				String nn_path = MSPFileUtils.getJarContainingFolder(getClass())+"/../networks/yolov5n_coco_416x416.blob";
 				if(MSPFileUtils.exists(nn_path))
 					System.out.println("NN Network found :"+nn_path);
-
+				else {
+					nn_path = MSPFileUtils.getJarContainingFolder(getClass())+"/networks/yolov5n_coco_416x416.blob";
+					if(MSPFileUtils.exists(nn_path))
+						System.out.println("NN Network found :"+nn_path);
+				}
+					
 				//		this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"yolov6t_coco_416x416.blob", 416,416);
 				this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,nn_path, 416,416);
 			}
 			else {
-				this.oakd   = StreamDepthAIOakD.getInstance(width, height);
+				this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,null, 416,416);
 			}
 
 			model.vision.setStatus(Vision.NN_ENABLED, yolo_enabled);
@@ -255,7 +261,19 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					return;
 
 				ctx.setFont(small);
+				
+				for(YoloDetection n : detection) {
+					ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
+					ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
+				}
 
+			}
+			
+			if(stream_name.contains("DEPTH")) {
+				
+				if(detection == null  || detection.size() == 0)
+					return;
+				
 				for(YoloDetection n : detection) {
 					ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
 					ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
@@ -293,11 +311,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					return;
 
 				if(Float.isFinite(model.slam.dm)) {
-					drawTriangle(ctx,x0,y0);
+					drawTriangle(ctx,x0,y0, Color.WHITE);
 				}
 
 				if(Double.isFinite(per_p.location.x)) {
-					drawTriangle(ctx,(int)per_p.observation.x, (int)per_p.observation.y);
+					drawTriangle(ctx,(int)per_p.observation.x, (int)per_p.observation.y,Color.CYAN);
 				}
 
 				ctx.drawLine(10,8,10,29);
@@ -314,11 +332,13 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		}
 	}
 
-	private void drawTriangle(Graphics2D ctx, int x0, int y0) {
+	private void drawTriangle(Graphics2D ctx, int x0, int y0, Color color) {
 		final int ln = 5;
+		ctx.setColor(color);
 		ctx.drawLine(x0-ln,y0-ln,x0+ln,y0-ln);
 		ctx.drawLine(x0-ln,y0-ln,x0,y0+ln);
 		ctx.drawLine(x0,y0+ln,x0+ln,y0-ln);
+		ctx.setColor(Color.WHITE);
 	}
 
 
@@ -358,8 +378,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
                  synchronized(this) {
 					for(YoloDetection n : detection) {
 						// check for persion and estimate the position
-						if(n.id == 0) {
-							determineObjectPosition(n, depth, per_p);
+						if(n.id == 0 && determineObjectPosition(n, depth, per_p)) {
 							if(person.tms==0) {
 								control.writeLogMessage(new LogMessage("[msp] Person in field of view",MAV_SEVERITY.MAV_SEVERITY_WARNING));
 							}
@@ -390,10 +409,12 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			// TODO: This is dangerous as another object detected of not detected could be in front
 			//       of the person => wrong depth estimation
+			
+			// TODO: Scale of depth does not fit RGB => correct here
 
-			int xc = (n.xmax-n.xmin) / 2 + n.xmin - 20; int yc = (n.ymax-n.ymin) / 3 + n.ymin;
+			int xc = (n.xmax-n.xmin) / 2 + n.xmin ; int yc = (n.ymax-n.ymin) / 2 + n.ymin;
 
-			// if person covers more than a third of the picture => no valid estimation
+			// if person covers more than the half of the picture => no valid estimation
 			if((n.xmax-n.xmin) > 320)
 				return false;
 

@@ -56,6 +56,7 @@ import org.bytedeco.depthai.MonoCamera;
 import org.bytedeco.depthai.MonoCameraProperties;
 import org.bytedeco.depthai.Path;
 import org.bytedeco.depthai.Pipeline;
+import org.bytedeco.depthai.RawStereoDepthConfig.AlgorithmControl.DepthAlign;
 import org.bytedeco.depthai.RawStereoDepthConfig.AlgorithmControl.DepthUnit;
 import org.bytedeco.depthai.StereoDepth;
 import org.bytedeco.depthai.StereoDepth.PresetMode;
@@ -334,7 +335,8 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		depth.setRectification(true);
 		depth.useHomographyRectification(false);
 		depth.setNumFramesPool(1);
-		depth.setDepthAlign(colorCam.getBoardSocket());
+		depth.setDepthAlign(DepthAlign.CENTER);
+		depth.setOutputSize(width, height);
 
 		MonoCamera monoLeft = p.createMonoCamera();
 		monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
@@ -357,12 +359,13 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			// TODO map 640 pixels to 416 to ensure the total width is used. Keep ratio!
 			// Picture should be resizd to 416*312 
 
-			float dx = (width - width_nn)/(2f*width);
-			float dy = (height - height_nn)/(2f*height);
-
-			manip.initialConfig().setCropRect(dx,dy,1-dx,1-dy);
+//			float dx = (width - width_nn)/(2f*width);
+//			float dy = (height - height_nn)/(2f*height);
+//
+//			manip.initialConfig().setCropRect(dx,dy,1-dx,1-dy);
+			manip.initialConfig().setResizeThumbnail(width_nn, height_nn);
 			manip.inputConfig().setBlocking(true);
-//			manip.initialConfig().setResizeThumbnail(width_nn, height_nn);
+
 
 
 			YoloDetectionNetwork detectionNetwork = p.createYoloDetectionNetwork();
