@@ -216,9 +216,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 										if(det!=null && !det.isNull()) {
 											for(int i = 0; i < det.capacity();i++) {
 												ImgDetection o = det.getPointer(i);
-												if(o.confidence()> 0.7) 
-													detections.add(new YoloDetection(o.label(),o.confidence(),
-															o.xmin(),o.xmax(),o.ymin(),o.ymax()));
+												detections.add(new YoloDetection(o.label(),o.confidence(),o.xmin(),o.xmax(),o.ymin(),o.ymax()));	
 											}
 										}
 									}

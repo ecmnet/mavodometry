@@ -405,16 +405,12 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		private boolean determineObjectPosition(YoloDetection n, GrayU16 in, Point2D3D p) {
 
-
-
 			// TODO: This is dangerous as another object detected of not detected could be in front
 			//       of the person => wrong depth estimation
-			
-			// TODO: Scale of depth does not fit RGB => correct here
 
 			int xc = (n.xmax-n.xmin) / 2 + n.xmin ; int yc = (n.ymax-n.ymin) / 2 + n.ymin;
 
-			// if person covers more than the half of the picture => no valid estimation
+			// if person covers too much of the picture => no valid estimation
 			if((n.xmax-n.xmin) > 320)
 				return false;
 
@@ -425,8 +421,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			tmp_d = in.get(xc-10,yc   ); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
 			tmp_d = in.get(xc  , yc+10); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
 			tmp_d = in.get(xc  , yc-10); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
-			tmp_d = in.get(xc  , yc+20); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
-			tmp_d = in.get(xc  , yc-20); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
+			tmp_d = in.get(xc  , yc+30); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
+			tmp_d = in.get(xc  , yc-30); if(tmp_d < 6000 && tmp_d > 200) { min_d += tmp_d; count++; }
 
 			if(count == 0)
 				return false;

@@ -27,6 +27,7 @@ public class YoloDetection {
 
 	public YoloDetection(int id, float confidence, float xi, float xa, float yi, float ya) {
 		super();
+		
 		this.id = id;
 		this.confidence = confidence;
 		
