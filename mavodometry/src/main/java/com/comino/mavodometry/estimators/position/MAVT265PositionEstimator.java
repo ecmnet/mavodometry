@@ -516,7 +516,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 				cov_s_f = (float)Math.abs(cov_s.determine(ned_s_norm, lpos_s_norm, false) / lpos_s_norm);
 
-				model.debug.x = cov_s_f;
 
 				if(lpos_s_norm > 0 && lpos_s_norm < 10 && model.est.isFlagSet(EstStatus.HORIZONTAL_ABS_POS_OK) && cov_s_f > 0.2) {
 					model.vision.setStatus(Vision.SPEED_VALID, false);

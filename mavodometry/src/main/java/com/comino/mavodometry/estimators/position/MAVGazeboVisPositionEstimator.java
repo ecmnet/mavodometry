@@ -232,7 +232,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 
 			MSP3DUtils.convertCurrentSpeed(model, lpos_current_s);
 			
-			model.debug.x = (float)cov_s.determine(ned_s.T.norm(), lpos_current_s.norm(), false);
+			
 
 			if(model.sys.isSensorAvailable(Status.MSP_GPS_AVAILABILITY) && 	model.est.velRatio > MAX_VEL_TESTRATIO) {
 

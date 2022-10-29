@@ -132,6 +132,8 @@ public class DefaultOverlayListener extends AbstractOverlayListener implements I
 		ctx.drawLine(width-ln,height-25,width-ln,height-ln);
 
 		ctx.setFont(big);
+		
+		
 
 	}
 

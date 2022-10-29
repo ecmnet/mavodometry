@@ -521,7 +521,7 @@ public class MAVT265PositionEstimatorRatio extends MAVAbstractEstimator {
 
 			// Test vision vs. lpos velocity cov
 			cov_s_f = (float)Math.abs(cov_s.determine(ned_s.T.norm(), lpos_current_s.norm(), false)*10f);
-			model.debug.x = cov_s_f;
+		
 			
 
 			// Velocity testRatio check if enabled, GPS is available but not when GPS glitches reported
