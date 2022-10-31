@@ -240,7 +240,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					try {
 						if(queue != null && !queue.isEmpty()) {
-							input = queue.poll(300, TimeUnit.MILLISECONDS);
+							input = queue.poll(500, TimeUnit.MILLISECONDS);
 							no_video = false;
                             last_image_tms = System.currentTimeMillis();
                             
