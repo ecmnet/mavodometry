@@ -68,13 +68,6 @@
 			<artifactId>mavgazebo</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-		<!--
-        <dependency>
-			<groupId>com.comino</groupId>
-			<artifactId>mavgazebo</artifactId>
-			<version>0.0.1</version>
-		</dependency>
-       -->
 		<dependency>
 			<groupId>org.jcodec</groupId>
 			<artifactId>jcodec</artifactId>
@@ -243,8 +236,6 @@
 					<groupId>org.bytedeco</groupId>
 					<artifactId>ffmpeg-platform</artifactId>
 				</exclusion>
-
-
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>artoolkitplus-platform</artifactId>

@@ -361,9 +361,8 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 //			float dy = (height - height_nn)/(2f*height);
 //
 //			manip.initialConfig().setCropRect(dx,dy,1-dx,1-dy);
-			manip.initialConfig().setResizeThumbnail(width_nn, height_nn);
+    		manip.initialConfig().setResizeThumbnail(width_nn, height_nn);
 			manip.inputConfig().setBlocking(true);
-
 
 
 			YoloDetectionNetwork detectionNetwork = p.createYoloDetectionNetwork();
@@ -390,7 +389,6 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		
 			detectionNetwork.setBlobPath(new Path(nn_path));
 			detectionNetwork.setNumInferenceThreads(2);
-			detectionNetwork.input().setBlocking(true);
 			detectionNetwork.out().link(nnOut.input());
 			manip.out().link(detectionNetwork.input());
 			colorCam.preview().link(manip.inputImage());	
