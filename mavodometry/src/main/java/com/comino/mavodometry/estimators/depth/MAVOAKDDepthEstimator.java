@@ -376,6 +376,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 				if(detection != null) {
                  synchronized(this) {
+                	 // TODO: Put detections in Queue
 					for(YoloDetection n : detection) {
 						// check for persion and estimate the position
 						if(n.id == 0 && determineObjectPosition(n, depth, per_p)) {
