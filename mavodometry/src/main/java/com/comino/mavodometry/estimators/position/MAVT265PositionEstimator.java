@@ -1021,7 +1021,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 						fiducial_att.setFromMatrix(targetToSensor.R, EulerType.XYZ);
 
 						precision_lock.setTo(lpos.T.x-precision_ned.T.x,lpos.T.y-precision_ned.T.y,lpos.T.z - precision_ned.T.z,
-								MSPMathUtils.normAngle((float)fiducial_att.getYaw()-(float)Math.PI+model.attitude.y));
+								MSPMathUtils.normAngle((float)fiducial_att.getYaw()));
 
 						model.vision.setPrecisionOffset(precision_lock);
 
