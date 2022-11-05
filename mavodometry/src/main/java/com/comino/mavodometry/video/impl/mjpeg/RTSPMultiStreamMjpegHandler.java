@@ -334,6 +334,10 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				}
 			}
 			
+			System.err.println("No video");
+			
+			stop();
+			
 		}
 
 		private void overlayThumbnail(BlockingQueue<T> q) {
