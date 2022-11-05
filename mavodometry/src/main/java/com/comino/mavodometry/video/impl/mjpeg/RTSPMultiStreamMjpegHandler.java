@@ -112,6 +112,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	private final byte[] packet_bits;
 
 	private long last_image_tms=0;
+	private long no_video_tms=0;
 	private boolean no_video = false;
 	private int quality = 0;
 
@@ -241,7 +242,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					try {
 						if(queue != null && !queue.isEmpty()) {
 							input = queue.poll(500, TimeUnit.MILLISECONDS);
-							no_video = false;
+							no_video = false; no_video_tms = 0;
                             last_image_tms = System.currentTimeMillis();
                             
                             if(input instanceof Planar) {
@@ -322,6 +323,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				if(no_video_handler!= null)
 					no_video_handler.trigger();
 				no_video = true;
+				no_video_tms = System.currentTimeMillis();
 			}
 			
 			ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
@@ -334,10 +336,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				}
 			}
 			
-			System.err.println("No video");
-			
-			stop();
-			
+			if(no_video_tms > 0 && (System.currentTimeMillis() - no_video_tms)> 2000)
+				stop();	
 		}
 
 		private void overlayThumbnail(BlockingQueue<T> q) {
