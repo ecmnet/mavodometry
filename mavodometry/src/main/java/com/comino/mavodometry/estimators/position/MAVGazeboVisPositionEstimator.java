@@ -11,6 +11,7 @@ import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
 
 import com.comino.gazebo.libvision.boofcv.StreamGazeboVision;
+import com.comino.mavcom.control.IMAVController;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
@@ -73,9 +74,6 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		this.model = control.getCurrentModel();
 		this.vis   = StreamGazeboVision.getInstance(640,480);
 		this.model.vision.setStatus(Vision.ENABLED, vis.isAvailable());
-		
-		if(!vis.isAvailable())
-			return;
 
 		control.registerListener(msg_msp_command.class, new IMAVLinkListener() {
 			@Override
@@ -143,6 +141,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 
 			MSP3DUtils.convertModelToSe3_F64(model, to_ned);
 			CommonOps_DDRM.transpose(to_ned.R, to_body.R);
+			
 
 
 			// Simulate T265 reset cycle
@@ -277,6 +276,8 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 			model.vision.tms = tms * 1000;
 
 			model.vision.fps = vis.getFrameRate();
+			
+			simulateFiducial(model, 3.0f);
 
 		});
 
@@ -350,7 +351,7 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		odo.q[0] = Float.NaN;
 
 		odo.reset_counter = reset_count;
-
+		
 		control.sendMAVLinkMessage(odo);
 
 		model.sys.setSensor(Status.MSP_OPCV_AVAILABILITY, true);
@@ -464,6 +465,49 @@ public class MAVGazeboVisPositionEstimator extends MAVAbstractEstimator  {
 		//
 		//			MSPLogger.getInstance().writeLocalMsg("[msp] Setting reference position",
 		//					MAV_SEVERITY.MAV_SEVERITY_INFO);
+
+	}
+	
+	
+	private void simulateFiducial(DataModel model, float radius) {
+
+
+		if(model.sys.isStatus(Status.MSP_LANDED)) {
+			model.vision.setStatus(Vision.FIDUCIAL_LOCKED, false);
+			msg.px    =  Float.NaN;
+			msg.py    =  Float.NaN;
+			msg.pz    =  Float.NaN;
+			msg.pw    =  Float.NaN;
+			msg.flags =  model.vision.flags;
+			control.sendMAVLinkMessage(msg);
+			return;
+		}
+
+		if(!model.vision.isStatus(Vision.FIDUCIAL_LOCKED) && model.sys.isStatus(Status.MSP_LPOS_VALID) && 
+				!model.sys.isNavState(Status.NAVIGATION_STATE_AUTO_TAKEOFF) ) {
+
+			//			if(control.isSimulation())	
+			//				TestActionFactory.setRandomObstacle();
+
+			model.vision.setStatus(Vision.FIDUCIAL_LOCKED, true);
+			model.vision.setStatus(Vision.FIDUCIAL_ENABLED, true);
+
+			model.vision.px = model.state.l_x + ((float)Math.random()-0.5f)*radius;
+			model.vision.py = model.state.l_y + ((float)Math.random()-0.5f)*radius;
+			model.vision.pz = 0.5f;	
+			model.vision.pw = ((float)Math.random()-0.5f)*12f;
+
+			//model.vision.pw = MSPMathUtils.toRad(135);
+
+			System.out.println("Simulated fiducial rotation: "+MSPMathUtils.fromRad(model.vision.pw));
+
+			msg.px    =  model.vision.px;
+			msg.py    =  model.vision.py;
+			msg.pz    =  model.vision.pz;
+			msg.pw    =  model.vision.pw;
+			msg.flags =  model.vision.flags;
+			control.sendMAVLinkMessage(msg);
+		} 
 
 	}
 

@@ -446,6 +446,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			GeometryMath_F64.mult(to_ned.R, p.location, person.position );
 			person.position.plusIP(to_ned.T);
 			person.object_id = 0;
+			
+			if(control.isSimulation())
+				return true;
 
 			bus.publish(person);
 

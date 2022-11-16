@@ -336,7 +336,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 				}
 			}
 			
-			if(no_video_tms > 0 && (System.currentTimeMillis() - no_video_tms)> 5000)
+			if(no_video_tms > 0 && (System.currentTimeMillis() - no_video_tms)> 10000)
 				stop();	
 		}
 
