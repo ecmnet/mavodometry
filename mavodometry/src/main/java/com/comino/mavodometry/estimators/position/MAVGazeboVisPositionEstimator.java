@@ -11,7 +11,6 @@ import org.mavlink.messages.lquac.msg_msp_vision;
 import org.mavlink.messages.lquac.msg_odometry;
 
 import com.comino.gazebo.libvision.boofcv.StreamGazeboVision;
-import com.comino.mavcom.control.IMAVController;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.mavlink.IMAVLinkListener;
 import com.comino.mavcom.model.DataModel;
@@ -24,7 +23,6 @@ import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavcom.utils.MSPCovariance;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavutils.MSPMathUtils;
-import com.comino.mavutils.workqueue.WorkQueue;
 
 import georegression.geometry.GeometryMath_F64;
 import georegression.struct.point.Vector3D_F64;
