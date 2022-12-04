@@ -506,8 +506,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// debug.y => position covariance between local pos and vision pos vecttor
 			// debug.z => pitch covariance between local pitch and vision pitch
 
-			model.debug.y = (float)Math.abs(cov_p.determine(ned.T.norm(), lpos.T.norm(), true)*100.0f);
-			model.debug.z = (float)(Math.abs(cov_a.determine(model.attitude.p, att.getPitch(), false) / model.attitude.p));
+//			model.debug.y = (float)Math.abs(cov_p.determine(ned.T.norm(), lpos.T.norm(), true)*100.0f);
+//			model.debug.z = (float)(Math.abs(cov_a.determine(model.attitude.p, att.getPitch(), false) / model.attitude.p));
 
 			// 1. Vision velocity vs. lpos velocity covariance check
 			//	   but only if lpos_s is valid
