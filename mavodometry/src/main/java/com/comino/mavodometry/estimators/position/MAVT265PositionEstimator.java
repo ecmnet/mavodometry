@@ -1039,9 +1039,9 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			// Adjust fiducial scan rate
 			try {
 				if(model.vision.isStatus(Vision.FIDUCIAL_LOCKED))
-					wq.changeCycle("NP", fiducial_worker, FIDUCIAL_RATE_ACTIVE);
+					wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_ACTIVE);
 				else
-					wq.changeCycle("NP", fiducial_worker, FIDUCIAL_RATE_SCAN);
+					wq.changeCycle("LP", fiducial_worker, FIDUCIAL_RATE_SCAN);
 			} catch(WorkQueueException e) {
 				writeLogMessage(new LogMessage("[vio] "+e.getMessage(), MAV_SEVERITY.MAV_SEVERITY_DEBUG));
 			}
