@@ -66,8 +66,8 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 	private static final int         FIDUCIAL_ID            	= 284;
 	private static final float       FIDUCIAL_SIZE          	= 0.168f;
-	private static final int         FIDUCIAL_RATE_SCAN     	= 500;
-	private static final int         FIDUCIAL_RATE_ACTIVE   	= 100;
+	private static final int         FIDUCIAL_RATE_SCAN     	= 600;
+	private static final int         FIDUCIAL_RATE_ACTIVE   	= 200;
 	private static final int         FIDUCIAL_HEIGHT     		= 400;
 	private static final int         FIDUCIAL_WIDTH     		= 400;
 	private static final int         FIDUCIAL_SCALE   		    = 2;
