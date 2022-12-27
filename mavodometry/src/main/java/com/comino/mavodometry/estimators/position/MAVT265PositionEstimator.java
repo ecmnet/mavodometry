@@ -359,7 +359,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 						if(t265.isVideoEnabled() && !wq.isInQueue("LP",fiducial_worker)) {
 							System.out.println("T265 starting fiducial worker...");
-							fiducial_worker = wq.addCyclicTask("NP", FIDUCIAL_RATE_SCAN, 
+							fiducial_worker = wq.addCyclicTask("LP", FIDUCIAL_RATE_SCAN, 
 									new FiducialHandler(fiducial_size,lensDistortion,FIDUCIAL_WIDTH, FIDUCIAL_HEIGHT));
 						} 
 
