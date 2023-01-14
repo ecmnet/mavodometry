@@ -244,9 +244,13 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 					}
 
 				}));
-
-		buildPipeline();
-
+		
+	
+		 buildPipeline();
+		 
+		 if(!is_running) 
+			throw new Exception("No OAKD camera found");
+		
 		queue = device.getOutputQueue("preview", 3, true);
 		queue.deallocate(false);
 		imageCallback = new OAKDImageCallback();
@@ -258,9 +262,6 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			nnCallback = new OAKDNNCallback();
 			nn.addCallback(nnCallback);
 		}
-
-		if(!is_running)
-			throw new Exception("No OAKD camera found");
 
 	}
 
@@ -300,6 +301,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 	}
 
 	private void buildPipeline() {
+		
 		final Pipeline p = new Pipeline();
 		p.deallocate(false);
 
@@ -407,7 +409,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			device.deallocate(false);
 			is_running = device.isPipelineRunning();
 		} catch(RuntimeException e) {
-			//e.printStackTrace();
+			System.err.println(e.getMessage());
 			is_running = false;
 			return;
 		}

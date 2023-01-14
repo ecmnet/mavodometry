@@ -143,13 +143,14 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
 
 		//	rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
-
-		try {
-			tj = new TJCompressor();
+		
+	
+		try {			
+			tj = new TJCompressor(image, 0, 0, 0, 0);
 			tj.setSubsamp(TJ.SAMP_420);
-			tj.setSourceImage(image, 0, 0, 0, 0);
+		//	tj.setSourceImage(image, 0, 0, 0, 0);
 			tj.setJPEGQuality(DEFAULT_VIDEO_QUALITY);
-		} catch (TJException e1) {
+		} catch (UnsatisfiedLinkError | Exception e1) {
 			e1.printStackTrace();
 		}
 
