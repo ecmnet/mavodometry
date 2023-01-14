@@ -136,16 +136,20 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		try {
 			if(yolo_enabled) {
 				String nn_path = MSPFileUtils.getJarContainingFolder(getClass())+"/../networks/yolov5n_coco_416x416.blob";
-				if(MSPFileUtils.exists(nn_path))
+				if(MSPFileUtils.exists(nn_path)) {
 					System.out.println("NN Network found :"+nn_path);
+					this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,nn_path, 416,416);
+				}
 				else {
 					nn_path = MSPFileUtils.getJarContainingFolder(getClass())+"/networks/yolov5n_coco_416x416.blob";
-					if(MSPFileUtils.exists(nn_path))
+					if(MSPFileUtils.exists(nn_path)) {
 						System.out.println("NN Network found :"+nn_path);
+						this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,nn_path, 416,416);
+					}
 				}
-					
-				//		this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,"yolov6t_coco_416x416.blob", 416,416);
-				this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,nn_path, 416,416);
+
+				if(oakd==null)
+					this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,null, 416,416);
 			}
 			else {
 				this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,null, 416,416);
@@ -261,19 +265,19 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					return;
 
 				ctx.setFont(small);
-				
+
 				for(YoloDetection n : detection) {
 					ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
 					ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
 				}
 
 			}
-			
+
 			if(stream_name.contains("DEPTH")) {
-				
+
 				if(detection == null  || detection.size() == 0)
 					return;
-				
+
 				for(YoloDetection n : detection) {
 					ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
 					ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
@@ -375,19 +379,16 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				ned_pt_n.plusIP(to_ned.T);
 
 				if(detection != null) {
-                 synchronized(this) {
-                	 // TODO: Put detections in Queue
-					for(YoloDetection n : detection) {
-						// check for persion and estimate the position
-						if(n.id == 0 && determineObjectPosition(n, depth, per_p)) {
-							if(person.tms==0) {
-								control.writeLogMessage(new LogMessage("[msp] Person in field of view",MAV_SEVERITY.MAV_SEVERITY_WARNING));
-							}
-							person.tms = System.currentTimeMillis();
-							break;
-						}	
+					synchronized(this) {
+						// TODO: Put detections in Queue
+						for(YoloDetection n : detection) {
+							// check for persion and estimate the position
+							if(n.id == 0 && determineObjectPosition(n, depth, per_p)) {
+								person.tms = System.currentTimeMillis();
+								break;
+							}	
+						}
 					}
-                 }
 				}
 
 
@@ -446,7 +447,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			GeometryMath_F64.mult(to_ned.R, p.location, person.position );
 			person.position.plusIP(to_ned.T);
 			person.object_id = 0;
-			
+
 			if(control.isSimulation())
 				return true;
 
