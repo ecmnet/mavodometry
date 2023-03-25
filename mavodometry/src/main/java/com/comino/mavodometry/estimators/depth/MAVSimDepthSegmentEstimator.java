@@ -249,9 +249,10 @@ public class MAVSimDepthSegmentEstimator extends MAVAbstractEstimator  {
 			GeometryMath_F64.mult(to_ned.R, nearest_body.location, ned_pt_n );
 			ned_pt_n.plusIP(to_ned.T);
 
-			model.slam.ox = (float)ned_pt_n.x;
-			model.slam.oy = (float)ned_pt_n.y;
-			model.slam.oz = (float)ned_pt_n.z;
+			model.obs.x = (float)ned_pt_n.x;
+			model.obs.y = (float)ned_pt_n.y;
+			model.obs.z = (float)ned_pt_n.z;
+			model.obs.sx = model.obs.sy = model.obs.sz = 1;
 		}	
 
 		private void transferToMap() {

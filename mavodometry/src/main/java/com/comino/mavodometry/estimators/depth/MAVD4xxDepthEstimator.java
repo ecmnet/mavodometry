@@ -370,9 +370,10 @@ public class MAVD4xxDepthEstimator extends MAVAbstractEstimator  {
 				GeometryMath_F64.mult(to_ned.R, body_pt_n, ned_pt_n );
 				ned_pt_n.plusIP(to_ned.T);
 
-				model.slam.ox = (float)ned_pt_n.x;
-				model.slam.oy = (float)ned_pt_n.y;
-				model.slam.oz = (float)ned_pt_n.z;
+				model.obs.x = (float)ned_pt_n.x;
+				model.obs.y = (float)ned_pt_n.y;
+				model.obs.z = (float)ned_pt_n.z;
+				model.obs.sx = model.obs.sy = model.obs.sz = 1;
 
 				//				map.update(to_ned.T, ned_pt_n, 1);
 

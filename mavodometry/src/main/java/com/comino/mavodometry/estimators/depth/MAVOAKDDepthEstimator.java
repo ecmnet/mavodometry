@@ -53,6 +53,7 @@ import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.utils.MSP3DUtils;
+import com.comino.mavmap.map.map3D.impl.octomap.MAVOctoMap3D;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
@@ -111,14 +112,14 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private final BlockingQueue<GrayU16> transfer_depth = new ArrayBlockingQueue<GrayU16>(10);
 	private int   depth_worker;
 
-	private final LocalMap3D map;
+	private final MAVOctoMap3D map;
 	private final IVisualStreamHandler<Planar<GrayU8>> stream;
 
 	private final Planar<GrayU8>       depth_colored;
 	private       List<YoloDetection>  detection;
 	private final Point2D3D            per_p = new Point2D3D();
 
-	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, LocalMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
+	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, MAVOctoMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
 
 		this.per_p.location.setTo(Double.NaN,Double.NaN,Double.NaN);
@@ -476,7 +477,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 							nearest_body.setTo(tmp_p);
 
 						if(control.isSimulation() || !model.sys.isStatus(Status.MSP_LANDED))
-							map.update(to_ned.T,ned_p.location);   // Incremental probability
+						//	map.update(to_ned.T,ned_p.location);   // Incremental probability
 						//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
 
 						quality++;
