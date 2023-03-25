@@ -1,4 +1,6 @@
-<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
 	<modelVersion>4.0.0</modelVersion>
 
 	<groupId>com.comino</groupId>
@@ -8,7 +10,7 @@
 
 	<name>mavodometry</name>
 	<url>http://maven.apache.org</url>
-	
+
 
 	<properties>
 		<project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
@@ -17,6 +19,11 @@
 	</properties>
 
 	<repositories>
+		<repository>
+			<id>in-project</id>
+			<name>In Project Repo</name>
+			<url>file://${project.basedir}/lib</url>
+		</repository>
 		<repository>
 			<id>oss.sonatype.org-snapshot</id>
 			<url>https://oss.sonatype.org/content/repositories/snapshots</url>
@@ -43,49 +50,63 @@
 		<dependency>
 			<groupId>org.boofcv</groupId>
 			<artifactId>boofcv-core</artifactId>
-			<version>0.41</version>
+			<version>0.42</version>
+		</dependency>
+		<dependency>
+			<groupId>org.ejml</groupId>
+			<artifactId>ejml-all</artifactId>
+			<version>0.42</version>
 		</dependency>
 		<dependency>
 			<groupId>com.comino</groupId>
 			<artifactId>mavcom</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>com.comino</groupId>
 			<artifactId>mavmap</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-		
+
 		<dependency>
 			<groupId>org.jcodec</groupId>
 			<artifactId>jcodec</artifactId>
 			<version>0.1.9</version>
 		</dependency>
-	
+
+
 		<dependency>
 			<groupId>turbojpeg</groupId>
 			<artifactId>turbojpeg</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-
+		<!-- 
+		<dependency>
+			<groupId>turbojpeg</groupId>
+		<artifactId>turbojpeg</artifactId>
+			<version>0.0.1</version>
+		<scope>system</scope>
+		<systemPath>/opt/libjpeg-turbo/classes/turbojpeg.jar</systemPath>
+		</dependency>
+-->
 		<!--
 		<dependency>
 			<groupId>org.boofcv</groupId>
-			<artifactId>boofcv-javacv</artifactId>
+		<artifactId>boofcv-javacv</artifactId>
 			<version>0.39.1</version>
-			<exclusions>
+		<exclusions>
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
-					<artifactId>javacpp</artifactId>
+		<artifactId>javacpp</artifactId>
 				</exclusion>
 				<exclusion>
-					<groupId>org.bytedeco</groupId>
+		<groupId>org.bytedeco</groupId>
 					<artifactId>javacv</artifactId>
-				</exclusion>
+		</exclusion>
 				<exclusion>
-					<groupId>org.bytedeco.javacpp-presets</groupId>
-					<artifactId>opencv</artifactId>
+		<groupId>org.bytedeco.javacpp-presets</groupId>
+		<artifactId>opencv</artifactId>
 				</exclusion>
 			</exclusions>
 		</dependency>
@@ -95,16 +116,6 @@
 			<groupId>org.bytedeco</groupId>
 			<artifactId>javacpp</artifactId>
 			<version>1.5.8-SNAPSHOT</version>
-		</dependency>
-		<dependency>
-			<groupId>org.bytedeco</groupId>
-			<artifactId>cuda</artifactId>
-			<version>11.6-8.3-1.5.8-SNAPSHOT</version>
-		</dependency>
-		<dependency>
-			<groupId>org.bytedeco</groupId>
-			<artifactId>cuda-platform</artifactId>
-			<version>11.6-8.3-1.5.8-SNAPSHOT</version>
 		</dependency>
 		<dependency>
 			<groupId>org.bytedeco</groupId>
@@ -233,7 +244,6 @@
 		</dependency>
 
 
-		
 	</dependencies>
 
 
