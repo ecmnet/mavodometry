@@ -54,6 +54,7 @@ import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octomap.MAVOctoMap3D;
+import com.comino.mavmap.map.map3D.impl.octomap.tools.MAVOctoMapTools;
 import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
@@ -78,6 +79,8 @@ import georegression.struct.point.Point2D_F64;
 import georegression.struct.point.Point3D_F64;
 import georegression.struct.point.Vector3D_F64;
 import georegression.struct.se.Se3_F64;
+import us.ihmc.euclid.tuple3D.Point3D;
+import us.ihmc.jOctoMap.pointCloud.PointCloud;
 
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
@@ -90,9 +93,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private static final double      	  OFFSET_Z 		=   0.00;
 
 	private final static float            MIN_DEPTH_M  	= 0.3f;
-	private final static float            MAX_DEPTH_M 	= 5.0f;
+	private final static float            MAX_DEPTH_M 	= 8.0f;
 
-	private final static int              DEPTH_SCALE   = 2; 
+	private final static int              DEPTH_SCALE   = 5; 
 	private final static int 			  DEPTH_OFFSET  = 10;
 
 	private IStreamDepthAIOakD			oakd 			= null;
@@ -357,6 +360,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		private final Point2D3D   tmp_p = new Point2D3D();
 		private final Point2D3D   ned_p = new Point2D3D();
+		
+		private final PointCloud scan = new PointCloud();
 
 		private msp_msg_nn_object person = new msp_msg_nn_object();
 
@@ -462,13 +467,16 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		private int depthMapping(GrayU16 in) {
 
 			int quality = 0; nearest_body.location.x = Double.MAX_VALUE;
+			
+			scan.clear();
 
 			for(int x = DEPTH_OFFSET; x < in.width-DEPTH_OFFSET;x = x + DEPTH_SCALE) {
 				for(int y = 5; y < in.height-5;y = y + DEPTH_SCALE) {
 
 					colorize(x,y,in,depth_colored, 9000);
 
-					if(getSegmentPositionBody(x,y,in,tmp_p)) {
+				if(getSegmentPositionBody(x,y,in,tmp_p)) {
+						
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
 						if( Float.isFinite(model.hud.at) &&
@@ -476,14 +484,16 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 								ned_p.location.z < (-(model.hud.at+0.1f)) ) // consider terrain as ground
 							nearest_body.setTo(tmp_p);
 
-						if(control.isSimulation() || !model.sys.isStatus(Status.MSP_LANDED))
-						//	map.update(to_ned.T,ned_p.location);   // Incremental probability
-						//	  map.update(to_ned.T,ned_p.location,1); // Absolute probability
-
+						if(!model.sys.isStatus(Status.MSP_LANDED)) {
+							MAVOctoMapTools.addToPointCloud(scan, ned_p.location);
+					       //	map.insert(ned_p.location);
+						}
 						quality++;
 					}
 				}
 			}
+			
+			map.getTree().insertPointCloud(scan, new Point3D(to_ned.T.x, to_ned.T.y, -to_ned.T.z));
 
 			if(nearest_body.location.x > MAX_DEPTH_M)
 				nearest_body.location.setTo(Double.NaN,Double.NaN,Double.NaN);
