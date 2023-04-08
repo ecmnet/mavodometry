@@ -41,31 +41,24 @@ import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 
-import org.mavlink.messages.MAV_SEVERITY;
-
 import com.comino.mavcom.config.MSPConfig;
 import com.comino.mavcom.config.MSPParams;
 import com.comino.mavcom.control.IMAVMSPController;
 import com.comino.mavcom.messaging.MessageBus;
 import com.comino.mavcom.messaging.msgs.msp_msg_nn_object;
 import com.comino.mavcom.model.DataModel;
-import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
 import com.comino.mavcom.utils.MSP3DUtils;
 import com.comino.mavmap.map.map3D.impl.octomap.MAVOctoMap3D;
 import com.comino.mavmap.map.map3D.impl.octomap.tools.MAVOctoMapTools;
-import com.comino.mavmap.map.map3D.impl.octree.LocalMap3D;
 import com.comino.mavodometry.callback.IDepthCallback;
 import com.comino.mavodometry.estimators.MAVAbstractEstimator;
 import com.comino.mavodometry.estimators.inference.YoloDetection;
 import com.comino.mavodometry.libdepthai.IStreamDepthAIOakD;
-import com.comino.mavodometry.libdepthai.StreamDepthAIOakD;
-import com.comino.mavodometry.libdepthai.StreamNNDepthAIOakD;
 import com.comino.mavodometry.libdepthai.StreamYoloDepthAIOakD;
 import com.comino.mavodometry.video.IVisualStreamHandler;
 import com.comino.mavodometry.video.impl.AbstractOverlayListener;
-import com.comino.mavutils.MSPMathUtils;
 import com.comino.mavutils.file.MSPFileUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
 
@@ -93,9 +86,9 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private static final double      	  OFFSET_Z 		=   0.00;
 
 	private final static float            MIN_DEPTH_M  	= 0.3f;
-	private final static float            MAX_DEPTH_M 	= 8.0f;
+	private final static float            MAX_DEPTH_M 	= 5.0f;
 
-	private final static int              DEPTH_SCALE   = 5; 
+	private final static int              DEPTH_SCALE   = 4; 
 	private final static int 			  DEPTH_OFFSET  = 10;
 
 	private IStreamDepthAIOakD			oakd 			= null;
@@ -486,7 +479,6 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 						if(!model.sys.isStatus(Status.MSP_LANDED)) {
 							MAVOctoMapTools.addToPointCloud(scan, ned_p.location);
-					       //	map.insert(ned_p.location);
 						}
 						quality++;
 					}
