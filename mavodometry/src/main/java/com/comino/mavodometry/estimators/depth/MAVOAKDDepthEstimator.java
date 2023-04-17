@@ -88,7 +88,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private final static float            MIN_DEPTH_M  	= 0.3f;
 	private final static float            MAX_DEPTH_M 	= 5.0f;
 
-	private final static int              DEPTH_SCALE   = 4; 
+	private final static int              DEPTH_SCALE   = 5; 
 	private final static int 			  DEPTH_OFFSET  = 10;
 
 	private IStreamDepthAIOakD			oakd 			= null;

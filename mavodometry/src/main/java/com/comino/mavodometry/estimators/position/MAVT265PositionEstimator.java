@@ -708,7 +708,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			ned_s.reset(); body_s.reset(); body_a.reset();
 			t265.reset();
 			if(s!=null)
-				writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_WARNING));
+				writeLogMessage(new LogMessage("[vio] T265 reset ["+s+"]", MAV_SEVERITY.MAV_SEVERITY_INFO));
 			model.vision.setStatus(Vision.RESETTING, true);
 			model.vision.setStatus(Vision.POS_VALID, false);
 			model.vision.setStatus(Vision.SPEED_VALID, false);

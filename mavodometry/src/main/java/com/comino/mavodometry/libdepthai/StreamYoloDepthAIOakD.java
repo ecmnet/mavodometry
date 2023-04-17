@@ -401,7 +401,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			colorCam.preview().link(xlinkOut.input());
 		else
 			monoLeft.out().link(xlinkOut.input());
-		depth.depth().link(xlinkOut.input());
+		    depth.depth().link(xlinkOut.input());
 
 		try {
 
@@ -514,9 +514,9 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		IStreamDepthAIOakD oakd;
 		try {
 			//		oakd = StreamYoloDepthAIOakD.getInstance(im.getWidth(), im.getHeight(),"models/yolo-v3-tiny-tf_openvino_2021.4_6shave.blob", 416,416);
-			oakd = StreamYoloDepthAIOakD.getInstance(im.getWidth(), im.getHeight(),"models/yolov7tiny_coco_416x416.blob", 416,416);
+			oakd = StreamYoloDepthAIOakD.getInstance(im.getWidth(), im.getHeight(),null, 416,416);
 			oakd.registerCallback((image,np,d,t1,t2) -> {
-				//System.out.println(oakd.getFrameCount()+" "+oakd.getRGBTms()+" "+oakd.getDepthTms()+" "+(1000/(System.currentTimeMillis()-tms)));
+				System.out.println(oakd.getFrameCount()+" "+oakd.getRGBTms()+" "+oakd.getDepthTms()+" "+(1000/(System.currentTimeMillis()-tms)));
 				tms = System.currentTimeMillis();
 			});
 			oakd.start();
