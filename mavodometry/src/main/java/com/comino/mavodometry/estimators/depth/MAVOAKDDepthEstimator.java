@@ -128,7 +128,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		offset_body.z = config.getFloatProperty(MSPParams.OAKD_OFFSET_Z, String.valueOf(OFFSET_Z));
 		System.out.println("OAK-D Mounting offset: "+offset_body);
 
-		boolean yolo_enabled = config.getBoolProperty(MSPParams.OAKD_YOLO_ENABLED, String.valueOf(true));
+		boolean yolo_enabled = config.getBoolProperty(MSPParams.OAKD_YOLO_ENABLED, String.valueOf(false));
 
 		try {
 			if(yolo_enabled) {
@@ -174,11 +174,11 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			@Override
 			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, List<YoloDetection> d, long timeRgb, long timeDepth) {
-
-				if((System.currentTimeMillis() - tms) < 20)
+//
+				if((System.currentTimeMillis() - tms) < 10)
 					return;
 
-				model.slam.fps = (model.slam.fps * 0.75f + ((float)(1000f / (System.currentTimeMillis()-tms)) -0.5f) * 0.25f);
+				model.slam.fps = (model.slam.fps * 0.95f + ((float)(1000f / (System.currentTimeMillis()-tms)) -0.5f) * 0.05f);
 				tms = System.currentTimeMillis();	
 
 				model.slam.tms = DataModel.getSynchronizedPX4Time_us();

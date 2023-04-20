@@ -230,4 +230,10 @@ public class HttpMJPEGHandler<T> implements HttpHandler, IVisualStreamHandler<T>
 		return "Frames: "+frame_count+" =>\t "+fps+"fps \t Quality: "+quality;
 	}
 
+	@Override
+	public void enableStream(String string) {
+		// TODO Auto-generated method stub
+		
+	}
+
 }

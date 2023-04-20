@@ -45,5 +45,6 @@ public  interface  IVisualStreamHandler<T> {
 	public void registerOverlayListener(IOverlayListener listener);
 	public void registerNoVideoListener(INoVideoListener listener);
 	public float getFps();
+	public void enableStream(String string);
 
 }

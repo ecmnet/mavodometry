@@ -176,14 +176,10 @@
 					<groupId>org.bytedeco</groupId>
 					<artifactId>videoinput</artifactId>
 				</exclusion>
-
-
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>ffmpeg</artifactId>
 				</exclusion>
-
-
 			</exclusions>
 		</dependency>
 		<dependency>
@@ -191,10 +187,6 @@
 			<artifactId>javacv-platform</artifactId>
 			<version>1.5.9-SNAPSHOT</version>
 			<exclusions>
-				<exclusion>
-					<groupId>org.bytedeco</groupId>
-					<artifactId>openblas-platform</artifactId>
-				</exclusion>
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>leptonica-platform</artifactId>

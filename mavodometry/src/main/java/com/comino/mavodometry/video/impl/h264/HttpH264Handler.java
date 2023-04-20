@@ -214,4 +214,10 @@ public class HttpH264Handler<T> implements HttpHandler, IVisualStreamHandler<T> 
 		return 0;
 	}
 
+	@Override
+	public void enableStream(String string) {
+		// TODO Auto-generated method stub
+		
+	}
+
 }

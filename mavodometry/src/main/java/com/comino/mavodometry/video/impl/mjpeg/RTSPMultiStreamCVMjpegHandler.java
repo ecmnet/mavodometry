@@ -1,9 +1,10 @@
 package com.comino.mavodometry.video.impl.mjpeg;
 
 import java.awt.Color;
-import java.awt.Font;
 import java.awt.Graphics2D;
+import java.awt.RenderingHints;
 import java.awt.image.BufferedImage;
+import java.awt.image.DataBufferByte;
 import java.io.BufferedReader;
 import java.io.BufferedWriter;
 import java.io.IOException;
@@ -16,6 +17,8 @@ import java.net.InetAddress;
 import java.net.ServerSocket;
 import java.net.Socket;
 import java.net.SocketException;
+import java.nio.ByteBuffer;
+import java.nio.IntBuffer;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
@@ -25,30 +28,39 @@ import java.util.UUID;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 
-import org.libjpegturbo.turbojpeg.TJ;
-import org.libjpegturbo.turbojpeg.TJCompressor;
-import org.libjpegturbo.turbojpeg.TJException;
+import org.bytedeco.javacpp.BytePointer;
+import org.bytedeco.opencv.global.opencv_imgcodecs;
+import org.bytedeco.opencv.opencv_core.Mat;
+import org.opencv.core.CvType;
 
 import com.comino.mavcom.model.DataModel;
-import com.comino.mavcom.model.segment.Status;
 import com.comino.mavodometry.video.INoVideoListener;
 import com.comino.mavodometry.video.IOverlayListener;
 import com.comino.mavodometry.video.IVisualStreamHandler;
+import com.comino.mavutils.legacy.ExecutorService;
 import com.comino.mavutils.rtps.RTPpacket;
 
 import boofcv.io.image.ConvertBufferedImage;
 import boofcv.struct.image.GrayU8;
 import boofcv.struct.image.Planar;
+import georegression.struct.point.Point2D_I32;
 
-public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
+
+public class RTSPMultiStreamCVMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-//	private static final int 		FRAME_RATE_FPS        = 15;
-	private static final int		DEFAULT_VIDEO_QUALITY = 60;
-	private static final int		MAX_VIDEO_QUALITY     = 70;
-	private static final int		LOW_VIDEO_QUALITY     = 10;
+//	private static final long       DEFAULT_VIDEO_RATE_NS  = 66_400_000;
+	private static final long       DEFAULT_VIDEO_RATE_NS  = 20_000_000;
+
+	private static final int		DEFAULT_VIDEO_QUALITY = 70;
+	private static final int		MAX_VIDEO_QUALITY     = 90;
+	private static final int		LOW_VIDEO_QUALITY     = 20;
+
+	private static final int        THUMBNAIL_WIDTH        = 64*2;
+	private static final int        THUMBNAIL_HEIGHT       = 48*2;
 
 	private static int MJPEG_TYPE = 26; //RTP payload type for MJPEG video
 
@@ -65,12 +77,10 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private final List<IOverlayListener> listeners;
 	private final BufferedImage          image;
+	private final BufferedImage          image_thumb;
 	private final Graphics2D             ctx;
-	
-//	private final int rate = 30 / FRAME_RATE_FPS;
 
-	private long       last_image_tms    = 0;
-	private float      fps = 0;
+
 	private boolean    is_running = false;
 
 	private T          input;
@@ -100,47 +110,54 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 	private boolean done = false;
 
-	private TJCompressor tj;
-	private final byte[] buffer;
+	
+	private ByteBuffer bbuffer;
+	private IntBuffer  params;
+	private Mat        image_mat;
+	
 	private final byte[] packet_bits;
 
-	private boolean no_video;
+	private long last_image_tms=0;
+	private long no_video_tms=0;
+	private boolean no_video = false;
 	private int quality = 0;
 
-	private Receiver receiver = new Receiver();
+	private final Receiver receiver;
 	private DataModel model;
 
 	private INoVideoListener no_video_handler;
 
-	private final BlockingQueue<T> transfer = new ArrayBlockingQueue<T>(10);
-	
-	//private final Map<String,BlockingQueue<T>> transfers = new HashMap<String,BlockingQueue<T>>();
-	
-	private int modulo;
+	private final Map<String,BlockingQueue<T>> transfers = new HashMap<String,BlockingQueue<T>>();
 
-	public RTSPMjpegHandler(int width, int height, DataModel model) {
+
+	public RTSPMultiStreamCVMjpegHandler(int width, int height, DataModel model) {
+
+		System.setProperty("awt.useSystemAAFontSettings","lcd");
 
 		this.model = model;
+		this.receiver = new Receiver(width,height);
 		this.listeners = new ArrayList<IOverlayListener>();
 		this.image = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
-		this.ctx = image.createGraphics();
-		this.ctx.setFont(new Font("SansSerif", Font.PLAIN, 9));
+		this.image_thumb = new BufferedImage(width, height, BufferedImage.TYPE_3BYTE_BGR);
 
-		this.buffer      = new byte[width*height*6];
+		this.ctx = image.createGraphics();
+		this.ctx.setRenderingHint(
+				RenderingHints.KEY_TEXT_ANTIALIASING,
+				RenderingHints.VALUE_TEXT_ANTIALIAS_LCD_HRGB);
+
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
 
-		last_image_tms = System.currentTimeMillis();
-
 		//	rtcpReceiver = new RtcpReceiver(RTCP_PERIOD);
+		
+		image_mat = new Mat(height,width, CvType.CV_8UC3);
 
-		try {
-			tj = new TJCompressor();
-			tj.setSubsamp(TJ.SAMP_420);
-			tj.setSourceImage(image, 0, 0, 0, 0);
-			tj.setJPEGQuality(DEFAULT_VIDEO_QUALITY);
-		} catch (TJException e1) {
-			e1.printStackTrace();
-		}
+		this.bbuffer = ByteBuffer.allocate(RTPpacket.MAX_PAYLOAD);
+		this.params = IntBuffer.wrap( new int[]
+				{ opencv_imgcodecs.IMWRITE_JPEG_QUALITY,50,
+				  opencv_imgcodecs.IMWRITE_JPEG_PROGRESSIVE,1,
+				  opencv_imgcodecs.IMWRITE_JPEG_SAMPLING_FACTOR_420,1
+				} );
+
 
 	}
 
@@ -160,17 +177,24 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	}
 
 	public float getFps() {
-		return fps;
+		return 1_000_000 / DEFAULT_VIDEO_RATE_NS;
+	}
+
+	public void enableStream(String stream_name) {
+		receiver.enableStream(stream_name);
 	}
 
 	@Override
 	public void  addToStream(String source, T in, DataModel model, long tms) {
-		try {
-			if(transfer.remainingCapacity()>0 ) //&& (modulo++ % rate) == 0 )
-				transfer.put(in);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
+
+		BlockingQueue<T> queue = transfers.get(source);
+		if(queue==null) {
+			queue = new ArrayBlockingQueue<T>(1);
+			transfers.put(source, queue);
+			System.out.println(source+" videostream created..");
+			return;
 		}
+		queue.offer(in);
 	}
 
 	@Override
@@ -178,96 +202,173 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 		this.listeners.add(listener);			
 	}
 
-
 	private class Receiver implements Runnable {
+
+		private final int          width;
+		private final int          height;
+
+		private final Point2D_I32  p0;
+		private final Point2D_I32  p1;
+
+		private String[]           streams;
+		private BlockingQueue<T>   queue;
+
+		public Receiver(int width, int height) {
+
+			this.p0 = new Point2D_I32(width-THUMBNAIL_WIDTH-20,height-THUMBNAIL_HEIGHT-20);
+			this.p1 = new Point2D_I32(width-20, height - 20);
+			this.width = width;
+			this.height = height;
+
+		}
 
 		@SuppressWarnings("unchecked")
 		public void run() {
 
-			no_video = false;
+			long dt_ns = 0;  int tms = 0;
+
+			last_image_tms = System.currentTimeMillis();
 
 			System.out.println("Video streaming started ");
+
 			while(is_running) {
 
 				try {
 
-					if(RTPsocket.isClosed())
-						return;
-
-					input = transfer.poll(300, TimeUnit.MILLISECONDS);
-
-
-					if(input == null ) {
-						if(!no_video) {
-							if(no_video_handler!= null)
-								no_video_handler.trigger();
-							no_video = true;
-							ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
-							ctx.drawString("No video available", image.getWidth()/2-40 , image.getHeight()/2);
-							tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
-							RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
-
-							int packet_length = rtp_packet.getpacket(packet_bits);
-
-							//send the packet as a DatagramPacket over the UDP socket 
-							if(!RTPsocket.isClosed()) {
-								senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
-								RTPsocket.send(senddp);
-							}
-						}
+					if(RTPsocket.isClosed() || transfers == null || streams == null) {
+						Thread.sleep(100);
 						continue;
-					} else {
-						no_video = true;
 					}
 
-					imagenb++;
+					dt_ns = System.nanoTime();
+					tms = (int)(DataModel.getSynchronizedPX4Time_us() - DataModel.getBootTime());
 
-					fps = ((fps * 59) + ((float)(1000f / (System.currentTimeMillis()-last_image_tms)))) / 60f;
-					last_image_tms = System.currentTimeMillis();
+					queue = transfers.get(streams[0]);
 
-					if(input instanceof Planar) {
-						ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
+					try {
+						if(queue != null && !queue.isEmpty()) {
+							input = queue.poll(500, TimeUnit.MILLISECONDS);
+							no_video = false; no_video_tms = 0;
+                            last_image_tms = System.currentTimeMillis();
+                            
+                            if(input instanceof Planar) {
+    							ConvertBufferedImage.convertTo_U8(((Planar<GrayU8>)input), image, true);
+    						}
+    						else if(input instanceof GrayU8)
+    							ConvertBufferedImage.convertTo((GrayU8)input, image, true);
+                            
+                            if(listeners.size()>0) {
+    							for(IOverlayListener listener : listeners) {
+    								listener.processOverlay(ctx, streams[0], tms);
+    							}
+    						}
+							
+
+						} else {
+							if((System.currentTimeMillis() - last_image_tms) > 1000)
+								noVideo(tms);
+						}
+						
+						imagenb++;
+
+						
 					}
-					else if(input instanceof GrayU8)
-						ConvertBufferedImage.convertTo((GrayU8)input, image, true);
+					catch(InterruptedException e) {
+						
+					}
 
-
-					if(listeners.size()>0) {
-						for(IOverlayListener listener : listeners)
-							listener.processOverlay(ctx, "none",DataModel.getSynchronizedPX4Time_us());
+					if(streams.length > 1) {
+						overlayThumbnail(transfers.get(streams[1]));
 					}
 
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 					quality = quality > MAX_VIDEO_QUALITY ? MAX_VIDEO_QUALITY : quality;
-
-					tj.setJPEGQuality(quality);
-					tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS);
 					
-					if(tj.getCompressedSize()>RTPpacket.MAX_PAYLOAD) {
-						// reduce tmporarily quality if compressed size is too high
-						tj.setJPEGQuality(quality/2);
-						tj.compress(buffer, TJ.FLAG_PROGRESSIVE | TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS);
-					}
+					params.put(1, quality);
+					
+					image_mat.data(new BytePointer(((DataBufferByte) image.getRaster().getDataBuffer()).getData()));
+					opencv_imgcodecs.imencode(".jpg", image_mat, bbuffer, params);
 
-					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, (int)(imagenb*fps), buffer, tj.getCompressedSize());
+					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, tms, bbuffer.array(), RTPpacket.MAX_PAYLOAD-20);
 					int packet_length = rtp_packet.getpacket(packet_bits);
 
 					//send the packet as a DatagramPacket over the UDP socket 
 					if(!RTPsocket.isClosed() ) { //&& packet_length < 65535) {
 						senddp = new DatagramPacket(packet_bits, packet_length, ClientIPAddr, RTP_dest_port);
+						try {
 						RTPsocket.send(senddp);
+						} catch(IOException ioe) {
+							ioe.printStackTrace();
+							is_running = false;
+						}
 					}
 
-
-					//		rtp_packet.printheader();
+					// Ensure 15Hz video
+					dt_ns = System.nanoTime() - dt_ns;
+					if((DEFAULT_VIDEO_RATE_NS - dt_ns)>1000)
+					  LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
 
 				}
 				catch(Exception ex) {
-					ex.printStackTrace();
+					noVideo(tms);
+					continue;
 				}
 			}
 			close();
 
+		}
+
+		private void noVideo(long tms)  {
+			if(!no_video) {
+				if(no_video_handler!= null)
+					no_video_handler.trigger();
+				no_video = true;
+				no_video_tms = System.currentTimeMillis();
+			}
+			
+			ctx.clearRect(0, 0, image.getWidth(), image.getHeight());
+			ctx.drawString("No video available", 10 , 50);
+			
+			
+			if(listeners.size()>0) {
+				for(IOverlayListener listener : listeners) {
+					listener.processOverlay(ctx, streams[0], tms);
+				}
+			}
+			
+			if(no_video_tms > 0 && (System.currentTimeMillis() - no_video_tms)> 10000)
+				stop();	
+		}
+
+		private void overlayThumbnail(BlockingQueue<T> q) {
+
+			if(q==null)
+				return;
+
+			if(q.isEmpty()) {
+				ctx.drawImage(image_thumb,p0.x,p0.y,p1.x,p1.y,0,0,width,height,null);
+				return;
+			}
+
+			T overlay = null;
+			try {
+				overlay = q.poll(1, TimeUnit.MILLISECONDS);
+			} catch(InterruptedException e) { 
+				ctx.drawImage(image_thumb,p0.x,p0.y,p1.x,p1.y,0,0,width,height,null);
+				return;
+			}
+
+			//      Too slow:
+			//		AverageDownSampleOps.down((Planar<GrayU8>)overlay, ov);
+
+			ConvertBufferedImage.convertTo_U8((Planar<GrayU8>)overlay, image_thumb, true);
+			ctx.drawImage(image_thumb,p0.x,p0.y,p1.x,p1.y,0,0,width,height,null);
+
+		}
+
+		public void enableStream(String stream_name) {
+			this.streams = stream_name.split("\\+");
+			
 		}
 
 	}
@@ -278,9 +379,12 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 		try {
 			//parse request line and extract the request_type:
 			String RequestLine = RTSPBufferedReader.readLine();
+			if(RequestLine==null)
+				return 0;
+
 
 			System.out.println("RTSP Server - Received from Client:");
-			System.out.println(RequestLine);
+			System.out.println("RL"+RequestLine);
 
 			StringTokenizer tokens = new StringTokenizer(RequestLine);
 			String request_type_string = tokens.nextToken();
@@ -299,14 +403,14 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 			//parse the SeqNumLine and extract CSeq field
 			String SeqNumLine = RTSPBufferedReader.readLine();
-			System.out.println(SeqNumLine);
+			System.out.println("SQL"+SeqNumLine);
 			tokens = new StringTokenizer(SeqNumLine);
 			tokens.nextToken();
 			RTSPSeqNb = Integer.parseInt(tokens.nextToken());
 
 			//get LastLine
 			String LastLine = RTSPBufferedReader.readLine();
-			System.out.println(LastLine);
+			System.out.println("LL"+LastLine);
 
 			tokens = new StringTokenizer(LastLine);
 			if (request_type == SETUP) {
@@ -319,43 +423,51 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 				tokens.nextToken();
 				String describeDataType = tokens.nextToken();
 			}
+			else if (request_type == INIT) {
+				System.out.println("Request type INIT received. Not parsed.");
+			}
 			else {
 				//otherwise LastLine will be the SessionId line
 				tokens.nextToken(); //skip Session:
 				RTSPid = tokens.nextToken();
 			}
 		} catch(Exception ex) {
-			close();
+			is_running = false;
 		}
 
 		return(request_type);
 	}
 
-	public void close() {
+	private void close() {
 
-		if(is_running)
-			System.out.println("Closing video stream");
+		ExecutorService.get().execute(() -> {
 
-		//		rtcpReceiver.stopRcv();
 
-		try {
-			RTSPBufferedReader.close();
-			RTSPBufferedWriter.close();
-			RTSPsocket.close();
-		} catch (IOException e) {
-		
-			e.printStackTrace();
-		}
+			try {
+				Thread.sleep(100);
+			} catch (InterruptedException e) { }
 
-		RTPsocket.close();
-		imagenb = 0;
+			if(state==INIT)
+				return;
+			done = false;
+			state = INIT;
 
-		done = false;
-		state = INIT;
+			//		rtcpReceiver.stopRcv();
 
-		try {
-			Thread.sleep(200);
-		} catch (InterruptedException e) { }
+			try {
+				RTSPBufferedReader.close();
+				RTSPBufferedWriter.close();
+				RTSPsocket.close();
+			} catch (IOException e) {
+				e.printStackTrace();
+			}
+
+			RTPsocket.close();
+			imagenb = 0;
+
+			System.out.println("Video stream closed");
+
+		});
 
 	}
 
@@ -435,7 +547,9 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 
 					while(!done) {
 						request_type = parseRequest(); //blocking
-						System.err.println(request_type);
+						if(request_type == INIT) {
+							continue;
+						}
 
 						if (request_type == SETUP) {
 							done = true;
@@ -497,7 +611,6 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 					try {
 						RTSPsocket.close();
 					} catch (IOException e1) {
-					
 						e1.printStackTrace();
 					}
 					e.printStackTrace();
@@ -510,14 +623,15 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 	}	
 
 	public String toString() {
-		return "Frames: "+imagenb+" => "+fps+"fps => Quality: "+quality;
+		return "Frames: "+imagenb+" => Quality: "+quality;
 	}
+
 
 
 	public static void main(String argv[]) throws Exception
 	{
 		//create a Server object
-		RTSPMjpegHandler<Planar<GrayU8>> server = new RTSPMjpegHandler<Planar<GrayU8>>(640,480, new DataModel());
+		RTSPMultiStreamCVMjpegHandler<Planar<GrayU8>> server = new RTSPMultiStreamCVMjpegHandler<Planar<GrayU8>>(640,480, new DataModel());
 
 		Planar<GrayU8> test = new Planar<GrayU8>(GrayU8.class, 640,480,3);
 		DataModel model = new DataModel();
@@ -545,16 +659,9 @@ public class RTSPMjpegHandler<T> implements  IVisualStreamHandler<T>  {
 			if(server.is_running)
 				System.out.println(server.toString());
 
-
 		}
 
 
-	}
-
-	@Override
-	public void enableStream(String string) {
-		// TODO Auto-generated method stub
-		
 	}
 
 

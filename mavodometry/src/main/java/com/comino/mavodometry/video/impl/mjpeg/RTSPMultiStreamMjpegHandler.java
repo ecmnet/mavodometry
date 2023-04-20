@@ -51,6 +51,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	// Note: Relies on https://libjpeg-turbo.org
 
 	private static final long       DEFAULT_VIDEO_RATE_NS  = 66_400_000;
+//	private static final long       DEFAULT_VIDEO_RATE_NS  = 33_400_000;
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
@@ -307,7 +308,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					// Ensure 15Hz video
 					dt_ns = System.nanoTime() - dt_ns;
-					LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
+		    		LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
 
 				}
 				catch(Exception ex) {
