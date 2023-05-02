@@ -40,7 +40,6 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.locks.LockSupport;
 
 import org.bytedeco.depthai.ColorCamera;
 import org.bytedeco.depthai.ColorCameraProperties;
@@ -48,7 +47,6 @@ import org.bytedeco.depthai.ColorCameraProperties.ColorOrder;
 import org.bytedeco.depthai.DataOutputQueue;
 import org.bytedeco.depthai.Device;
 import org.bytedeco.depthai.ImageManip;
-import org.bytedeco.depthai.ImgDetection;
 import org.bytedeco.depthai.ImgDetections;
 import org.bytedeco.depthai.ImgFrame;
 import org.bytedeco.depthai.IntVector;
@@ -56,6 +54,7 @@ import org.bytedeco.depthai.MonoCamera;
 import org.bytedeco.depthai.MonoCameraProperties;
 import org.bytedeco.depthai.Path;
 import org.bytedeco.depthai.Pipeline;
+import org.bytedeco.depthai.RawStereoDepthConfig;
 import org.bytedeco.depthai.RawStereoDepthConfig.AlgorithmControl.DepthAlign;
 import org.bytedeco.depthai.RawStereoDepthConfig.AlgorithmControl.DepthUnit;
 import org.bytedeco.depthai.StereoDepth;
@@ -73,7 +72,6 @@ import org.bytedeco.javacpp.IntPointer;
 import org.bytedeco.javacpp.PointerScope;
 
 import com.comino.mavodometry.callback.IDepthCallback;
-import com.comino.mavodometry.concurrency.OdometryPool;
 import com.comino.mavodometry.estimators.inference.YoloDetection;
 
 import boofcv.struct.calib.CameraPinholeBrown;
@@ -85,12 +83,16 @@ import boofcv.struct.image.Planar;
 public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 	private final static UsbSpeed  USE_USB2         = UsbSpeed.HIGH;
-	private final static int       FPS              = 16;
+	private final static int       FPS              = 20;
+	private final static int       FPS_DEPTH        = 5;
 	private final static int       DEPTH_CONFIDENCE = 100;
 
 	private static final int      RGB_FRAME   = 0;
 	private static final int      MONO_FRAME  = 1;
 	private static final int      DEPTH_FRAME = 2;
+	
+	private static final int      DEPTH_WIDTH   = 640;
+	private static final int      DEPTH_HEIGHT  = 480;
 
 
 	private static StreamYoloDepthAIOakD instance;
@@ -109,9 +111,6 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 	private Device device;
 
-	private final BlockingQueue<ImgFrame> transfer_rgb      = new ArrayBlockingQueue<ImgFrame>(5);
-	private final BlockingQueue<ImgFrame> transfer_mono     = new ArrayBlockingQueue<ImgFrame>(5);
-	private final BlockingQueue<ImgFrame> transfer_depth    = new ArrayBlockingQueue<ImgFrame>(5);
 	private final BlockingQueue<ImgDetections> transfer_det = new ArrayBlockingQueue<ImgDetections>(5);
 
 
@@ -124,12 +123,14 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 	private boolean use_nn = false;
 	private String nn_path;
 
-	private DataOutputQueue queue; 
-	private DataOutputQueue nn; 
+	private DataOutputQueue rgb_queue; 
+	private DataOutputQueue depth_queue; 
+	private DataOutputQueue nn_queue; 
 
 	private boolean rgb_mode = true;
 
 	private OAKDImageCallback imageCallback;
+	private OAKDDepthCallback depthCallback;
 	private OAKDNNCallback    nnCallback;
 
 	public static IStreamDepthAIOakD getInstance(int width, int height) throws Exception {
@@ -152,7 +153,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 		this.listeners  = new ArrayList<IDepthCallback<List<YoloDetection>>>();
 		this.rgb        = new Planar<GrayU8>(GrayU8.class,width,height,3);
-		this.depth      = new GrayU16(width,height);
+		this.depth      = new GrayU16(DEPTH_WIDTH,DEPTH_HEIGHT);
 		this.intrinsics = new CameraPinholeBrown();
 		this.width      = width;
 		this.height     = height;
@@ -178,78 +179,6 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		ArrayList<YoloDetection> detections = new ArrayList<YoloDetection>();
 
 		is_running = true;
-
-		OdometryPool.submit(
-				new Thread(()-> {
-					while(is_running) {
-						
-						if(transfer_rgb.isEmpty() && transfer_mono.isEmpty() && transfer_det.isEmpty()) {
-							LockSupport.parkNanos(20_000_000);
-							continue;
-						}
-
-						try {
-							try (PointerScope scope = new PointerScope()) {	
-								if(!transfer_rgb.isEmpty())	{
-									ImgFrame frame = transfer_rgb.take();
-									if(frame != null && !frame.isNull()) {
-										rgb_tms = System.currentTimeMillis();
-										bufferRgbToMsU8(frame.getData().asByteBuffer(),rgb);
-										frameCount = frame.getSequenceNum();
-									}
-								} 
-							}
-
-							try (PointerScope scope = new PointerScope()) {	
-								if(!transfer_mono.isEmpty())	{
-									ImgFrame frame = transfer_mono.take();
-									if(frame != null && !frame.isNull()) {
-										rgb_tms = System.currentTimeMillis();
-										bufferMonoToMsU8(frame.getData().asByteBuffer(),rgb);
-										frameCount = frame.getSequenceNum();
-									}
-								} 
-							}
-
-							try (PointerScope scope = new PointerScope()) {	
-								if(!transfer_det.isEmpty()) {
-									detections.clear();
-									ImgDetections detects = transfer_det.take();
-									if(detects!=null && !detects.isNull()) {
-
-										ImgDetection det = detects.detections();
-										if(det!=null && !det.isNull()) {
-											for(int i = 0; i < det.capacity();i++) {
-												ImgDetection o = det.getPointer(i);
-												detections.add(new YoloDetection(o.label(),o.confidence(),o.xmin(),o.xmax(),o.ymin(),o.ymax()));	
-											}
-										}
-									}
-								}
-							}
-
-
-							try (PointerScope scope = new PointerScope()) {	
-								ImgFrame frame = transfer_depth.take();
-								if(frame != null && !frame.isNull()) {
-									bufferDepthToU16(frame.getData().asByteBuffer().asShortBuffer(),depth);
-								}
-							}
-
-
-							if(listeners.size()>0 ) {
-								for(IDepthCallback<List<YoloDetection>> listener : listeners)
-									listener.process(rgb, depth, detections, rgb_tms, depth_tms);
-							}
-
-						//	LockSupport.parkNanos(500_000);
-
-
-						} catch (InterruptedException e) {e.printStackTrace(); }
-
-					}
-
-				}));
 		
 	
 		 buildPipeline();
@@ -257,16 +186,21 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		 if(!is_running) 
 			throw new Exception("No OAKD camera found");
 		
-		queue = device.getOutputQueue("preview", 5, true);
-		queue.deallocate(false);
+		rgb_queue = device.getOutputQueue("preview", 1, false);
+		rgb_queue.deallocate(false);
 		imageCallback = new OAKDImageCallback();
-		queue.addCallback(imageCallback);
+		rgb_queue.addCallback(imageCallback);
+		
+		depth_queue = device.getOutputQueue("depth", 1, false);
+		depth_queue.deallocate(false);
+		depthCallback = new OAKDDepthCallback();
+		depth_queue.addCallback(depthCallback);
 
 		if(use_nn) {
-			nn = device.getOutputQueue("nn", 5, false);
-			nn.deallocate(false);
+			nn_queue = device.getOutputQueue("nn", 5, false);
+			nn_queue.deallocate(false);
 			nnCallback = new OAKDNNCallback();
-			nn.addCallback(nnCallback);
+			nn_queue.addCallback(nnCallback);
 		}
 
 	}
@@ -315,6 +249,12 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		XLinkOut xlinkOut = p.createXLinkOut();
 		xlinkOut.deallocate(false);
 		xlinkOut.setStreamName("preview");
+		
+		XLinkOut xlinkDepth = p.createXLinkOut();
+		xlinkDepth.deallocate(false);
+		xlinkDepth.setStreamName("depth");
+		
+		System.out.println("...building RGB pipeline at "+FPS+"Hz");
 
 		ColorCamera colorCam = p.createColorCamera();
 		colorCam.deallocate(false);
@@ -325,7 +265,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		colorCam.setColorOrder(ColorOrder.BGR); 	// BGR due to NN
 		colorCam.setFps(FPS);
 		colorCam.setInterleaved(false);
-		colorCam.setPreviewNumFramesPool(3);
+		colorCam.setPreviewNumFramesPool(1);
 
 		StereoDepth depth = p.createStereoDepth();
 
@@ -335,6 +275,22 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		config.setMedianFilter(MedianFilter.KERNEL_7x7);
 		config.setConfidenceThreshold(DEPTH_CONFIDENCE);
 		config.setDepthUnit(DepthUnit.MILLIMETER);
+		
+		// TODO: Compare effect and test parameters
+		// Parameters set as in RERUN
+		/*
+		RawStereoDepthConfig stereo_config = depth.initialConfig().get();
+		stereo_config.postProcessing().speckleFilter().enable(false);
+		stereo_config.postProcessing().speckleFilter().speckleRange(50);
+		stereo_config.postProcessing().temporalFilter().enable(true);
+		stereo_config.postProcessing().spatialFilter().enable(true);
+		stereo_config.postProcessing().spatialFilter().holeFillingRadius((byte)2);
+		stereo_config.postProcessing().spatialFilter().numIterations(1);
+		stereo_config.postProcessing().thresholdFilter().minRange(400);
+		stereo_config.postProcessing().thresholdFilter().maxRange(20000);
+		stereo_config.postProcessing().decimationFilter().decimationFactor(1);
+		depth.initialConfig().set(stereo_config);
+		*/
 
 		depth.setLeftRightCheck(true);
 		depth.setExtendedDisparity(false);
@@ -343,22 +299,24 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 		depth.useHomographyRectification(false);
 		depth.setNumFramesPool(3);
 		depth.setDepthAlign(DepthAlign.CENTER);
-		depth.setOutputSize(width, height);
+		depth.setOutputSize(DEPTH_WIDTH, DEPTH_HEIGHT);
 
+		System.out.println("...building Stereo pipeline at "+FPS_DEPTH+"Hz");
 		MonoCamera monoLeft = p.createMonoCamera();
 		monoLeft.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
 		monoLeft.setBoardSocket(CameraBoardSocket.LEFT);
-		monoLeft.setFps(FPS);
+		monoLeft.setFps(FPS_DEPTH);
 
 		MonoCamera monoRight = p.createMonoCamera();
 		monoRight.setResolution(MonoCameraProperties.SensorResolution.THE_480_P);
 		monoRight.setBoardSocket(CameraBoardSocket.RIGHT);
-		monoRight.setFps(FPS);
+		monoRight.setFps(FPS_DEPTH);
 
 		monoLeft.out().link(depth.left());
 		monoRight.out().link(depth.right());
 
 		if(use_nn) {
+			System.out.println("...building NN pipeline");
 			XLinkOut nnOut = p.createXLinkOut();
 			nnOut.setStreamName("nn");
 			ImageManip manip = p.createImageManip();
@@ -408,7 +366,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			colorCam.preview().link(xlinkOut.input());
 		else
 			monoLeft.out().link(xlinkOut.input());
-		    depth.depth().link(xlinkOut.input());
+	    depth.depth().link(xlinkDepth.input());
 
 		try {
 
@@ -446,34 +404,58 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 	}
 
 	private class OAKDImageCallback extends Callback { 
+		
+		ArrayList<YoloDetection> detections = new ArrayList<YoloDetection>();
 
 		public void call() {
 
 			try {
 
-				ImgFrame imgFrame = queue.tryGetImgFrame();
+				ImgFrame imgFrame = rgb_queue.tryGetImgFrame();
 				if(imgFrame!=null && !imgFrame.isNull() ) {
 					switch(imgFrame.getInstanceNum()) {
 					case RGB_FRAME:
 						rgb_tms = System.currentTimeMillis();
 						if(rgb_mode)
-							transfer_rgb.offer(imgFrame);
-						else
+							bufferRgbToMsU8(imgFrame.getData().asByteBuffer(),rgb);
+						
 							imgFrame.close();
 						break;
 					case MONO_FRAME:
 						rgb_tms = System.currentTimeMillis();
 						if(!rgb_mode)
-							transfer_mono.offer(imgFrame);
-						else
+							bufferMonoToMsU8(imgFrame.getData().asByteBuffer(),rgb);
+						
 							imgFrame.close();  // Shouldn't this be called always??
 						break;
-					case DEPTH_FRAME:
-						depth_tms = System.currentTimeMillis();
-						transfer_depth.offer(imgFrame);
-						break;
+					}
+					
+					if(listeners.size()>0 ) {
+						for(IDepthCallback<List<YoloDetection>> listener : listeners)
+							listener.process(rgb, depth, detections, rgb_tms, depth_tms);
 					}
 
+				} 
+				
+			} catch (Exception e) {	 e.printStackTrace();}
+		}
+	}
+	
+	private class OAKDDepthCallback extends Callback { 
+
+		public void call() {
+
+			try {
+
+				ImgFrame imgFrame = depth_queue.tryGetImgFrame();
+				if(imgFrame!=null && !imgFrame.isNull() ) {
+					switch(imgFrame.getInstanceNum()) {
+					case DEPTH_FRAME:
+						depth_tms = System.currentTimeMillis();
+						bufferDepthToU16(imgFrame.getData().asByteBuffer().asShortBuffer(),depth);
+						imgFrame.close();
+						break;
+					}
 				} 
 				
 			} catch (Exception e) {	 e.printStackTrace();}
@@ -484,7 +466,7 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 
 		public void call() {
 			try {
-				ImgDetections imgDet = nn.tryGetImgDetections();
+				ImgDetections imgDet = nn_queue.tryGetImgDetections();
 				if(imgDet!=null && !imgDet.isNull()) {
 					if(transfer_det.isEmpty())
 						transfer_det.put(imgDet);
@@ -492,6 +474,8 @@ public class StreamYoloDepthAIOakD implements IStreamDepthAIOakD {
 			} catch (InterruptedException e) {	}
 		}
 	}
+	
+	
 
 	private void bufferDepthToU16(ShortBuffer input , GrayU16 output ) {
 		input.get(output.data);

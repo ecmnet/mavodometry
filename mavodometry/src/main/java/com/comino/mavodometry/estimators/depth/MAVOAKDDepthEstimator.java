@@ -62,6 +62,7 @@ import com.comino.mavodometry.video.impl.AbstractOverlayListener;
 import com.comino.mavutils.file.MSPFileUtils;
 import com.comino.mavutils.workqueue.WorkQueue;
 
+import boofcv.abst.distort.FDistort;
 import boofcv.struct.distort.Point2Transform2_F64;
 import boofcv.struct.geo.Point2D3D;
 import boofcv.struct.image.GrayU16;
@@ -78,7 +79,7 @@ import us.ihmc.jOctoMap.pointCloud.PointCloud;
 
 public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
-	private static final int              DEPTH_RATE    = 100;
+	private static final int              DEPTH_RATE    = 200;
 
 	// mounting offset in m
 	private static final double   	      OFFSET_X 		=  -0.06;
@@ -88,7 +89,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private final static float            MIN_DEPTH_M  	= 0.3f;
 	private final static float            MAX_DEPTH_M 	= 5.0f;
 
-	private final static int              DEPTH_SCALE   = 5; 
+	private final static int              DEPTH_SCALE   = 2; 
 	private final static int 			  DEPTH_OFFSET  = 10;
 
 	private IStreamDepthAIOakD			oakd 			= null;
@@ -109,18 +110,19 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 	private int   depth_worker;
 
 	private final MAVOctoMap3D map;
-	private final IVisualStreamHandler<Planar<GrayU8>> stream;
+	
 
 	private final Planar<GrayU8>       depth_colored;
 	private       List<YoloDetection>  detection;
 	private final Point2D3D            per_p = new Point2D3D();
+	private final DepthHandler         depth_handler;
 
 	public <T> MAVOAKDDepthEstimator(IMAVMSPController control,  MSPConfig config, MAVOctoMap3D map, int width, int height, IVisualStreamHandler<Planar<GrayU8>> stream) {
 		super(control);
 
 		this.per_p.location.setTo(Double.NaN,Double.NaN,Double.NaN);
-
-		this.stream = stream;
+		
+		depth_handler = new DepthHandler(width,height);
 
 		// read offset settings
 		offset_body.x = config.getFloatProperty(MSPParams.OAKD_OFFSET_X, String.valueOf(OFFSET_X));
@@ -132,6 +134,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		try {
 			if(yolo_enabled) {
+				model.vision.setStatus(Vision.NN_ENABLED,true);
 				String nn_path = MSPFileUtils.getJarContainingFolder(getClass())+"/../networks/yolov5n_coco_416x416.blob";
 				if(MSPFileUtils.exists(nn_path)) {
 					System.out.println("NN Network found :"+nn_path);
@@ -149,6 +152,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,null, 416,416);
 			}
 			else {
+				model.vision.setStatus(Vision.NN_ENABLED,false);
 				this.oakd   = StreamYoloDepthAIOakD.getInstance(width, height,null, 416,416);
 			}
 
@@ -174,7 +178,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			@Override
 			public void process(final Planar<GrayU8> rgb, final GrayU16 depth, List<YoloDetection> d, long timeRgb, long timeDepth) {
-//
+				//
 				if((System.currentTimeMillis() - tms) < 10)
 					return;
 
@@ -208,8 +212,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 			oakd.start();
 			p2n = (narrow(oakd.getIntrinsics())).undistort_F64(true,false);
 
-			Thread.sleep(500);
-			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, new DepthHandler());
+			Thread.sleep(100);
+			depth_worker = wq.addCyclicTask("LP",DEPTH_RATE, depth_handler);
 			System.out.println("Depth worker started");
 
 		}
@@ -241,8 +245,12 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			if(stream_name.contains("RGB")) {
 
+				if(detection == null  || detection.size() == 0)
+					return;
+
 				ctx.drawLine(10,8,10,29);
 				ctx.setFont(small);
+
 				ctx.drawString("yolo",15,29);
 
 				if(Double.isFinite(per_p.location.x)) {
@@ -258,6 +266,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					ctx.drawString("Active",15,18);
 				}
 
+
 				if(detection == null  || detection.size() == 0)
 					return;
 
@@ -267,6 +276,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 					ctx.drawRect(n.xmin, n.ymin, n.xmax - n.xmin, n.ymax - n.ymin);
 					ctx.drawString(n.getLabel(),n.xmin, n.ymin-2);
 				}
+
 
 			}
 
@@ -353,13 +363,17 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 		private final Point2D3D   tmp_p = new Point2D3D();
 		private final Point2D3D   ned_p = new Point2D3D();
-		
+
 		private final PointCloud scan = new PointCloud();
 
 		private msp_msg_nn_object person = new msp_msg_nn_object();
+		
+		private int quality;
+		
+		private GrayU16 depth;
 
-		public DepthHandler() {
-
+		public DepthHandler(int width, int height) {
+         
 		}
 
 		@Override
@@ -370,8 +384,8 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 
 			try {
 
-				GrayU16 depth = transfer_depth.take();
-
+				depth = transfer_depth.take();
+				
 				model.slam.quality = depthMapping(depth);
 
 				GeometryMath_F64.mult(to_ned.R, nearest_body.location, ned_pt_n );
@@ -457,34 +471,42 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 		}
 
 		// map depth on a 640/DEPTH_SCALE x 480/DEPTH_SCALE basis
+		//
+		// TODO: Do depth estimation at original resolution  
+		//
 		private int depthMapping(GrayU16 in) {
 
-			int quality = 0; nearest_body.location.x = Double.MAX_VALUE;
-			
+		    quality = 0; nearest_body.location.x = Double.MAX_VALUE;
+
 			scan.clear();
+			
 
 			for(int x = DEPTH_OFFSET; x < in.width-DEPTH_OFFSET;x = x + DEPTH_SCALE) {
 				for(int y = 5; y < in.height-5;y = y + DEPTH_SCALE) {
 
 					colorize(x,y,in,depth_colored, 9000);
 
-				if(getSegmentPositionBody(x,y,in,tmp_p)) {
-						
+					if(getSegmentPositionBody(x,y,in,tmp_p)) {
+
 						GeometryMath_F64.mult(to_ned.R, tmp_p.location, ned_p.location );
 						ned_p.location.plusIP(to_ned.T);
 						if( Float.isFinite(model.hud.at) &&
 								tmp_p.location.x< nearest_body.location.x && 
-								ned_p.location.z < (-(model.hud.at+0.1f)) ) // consider terrain as ground
+								// consider terrain as ground
+								( ned_p.location.z < (-(model.hud.at+0.2f)) || Float.isNaN(model.hud.at)) ) 
 							nearest_body.setTo(tmp_p);
 
-						if(!model.sys.isStatus(Status.MSP_LANDED)) {
+						if(!model.sys.isStatus(Status.MSP_LANDED) && 
+								
+								// consider terrain as ground
+								( ned_p.location.z < (-(model.hud.at+0.2f)) || Float.isNaN(model.hud.at))) {			
 							MAVOctoMapTools.addToPointCloud(scan, ned_p.location);
 						}
 						quality++;
 					}
 				}
 			}
-			
+
 			map.getTree().insertPointCloud(scan, new Point3D(to_ned.T.x, to_ned.T.y, -to_ned.T.z));
 
 			if(nearest_body.location.x > MAX_DEPTH_M)

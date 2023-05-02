@@ -26,6 +26,7 @@ import com.comino.mavcom.model.segment.EstStatus;
 import com.comino.mavcom.model.segment.LogMessage;
 import com.comino.mavcom.model.segment.Status;
 import com.comino.mavcom.model.segment.Vision;
+import com.comino.mavcom.param.PX4Parameters;
 import com.comino.mavcom.status.StatusManager;
 import com.comino.mavcom.struct.Attitude3D_F64;
 import com.comino.mavcom.utils.MSP3DUtils;
@@ -534,9 +535,10 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 			}
 
 			// 2. Vision velocity vs. local speed reported by EKF2 (absolute divergence), 
-			//    but only if lpos_s is valid
+			//    but only if lpos_s and GPOS (via GPS) are valid
 
-			if(model.sys.isStatus(Status.MSP_LPOS_VALID) && ( 
+			if(model.sys.isStatus(Status.MSP_LPOS_VALID) && 
+			   model.sys.isStatus(Status.MSP_GPOS_VALID) && ( 
 					(Math.abs(ned_s.T.x - lpos_s.x) > 0.2) ||
 					(Math.abs(ned_s.T.y - lpos_s.y) > 0.2) ||
 					(Math.abs(ned_s.T.z - lpos_s.z) > 0.2) )
@@ -735,6 +737,11 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		t265.stop();
 		is_initialized = false;
 	}
+	
+//	private boolean hasGPS() {
+//		PX4Parameters params =PX4Parameters.getInstance();
+//    	return params.getParam("SYS_HAS_GPS")!=null && params.getParam("SYS_HAS_GPS").value == 1;
+//    }
 
 	private void publishPX4Odometry(Vector3D_F64 pose, Vector3D_F64 speed, int frame, int frame_child,float cov_vel, long tms) {
 
@@ -1049,5 +1056,6 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 		} 
 
 	}
+	
 
 }
