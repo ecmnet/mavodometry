@@ -13,8 +13,8 @@ public abstract class AbstractOverlayListener implements IOverlayListener {
 	protected static final DecimalFormat fminute    = new DecimalFormat("00:");
 	protected static final DecimalFormat onedecimal = new DecimalFormat("#0.0;#0.0-");
 
-	protected static final Font          big        = new Font ("PT SANS", Font.PLAIN, 13);
-	protected static final Font          small      = new Font ("PT SANS", Font.PLAIN, 9);
+	protected static final Font          big        = new Font ("Lato", Font.PLAIN, 13);
+	protected static final Font          small      = new Font ("Lato", Font.PLAIN, 9);
 
 	protected final DataModel model;
 	
