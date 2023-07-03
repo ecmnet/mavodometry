@@ -52,11 +52,13 @@
 			<artifactId>boofcv-core</artifactId>
 			<version>0.42</version>
 		</dependency>
+		
 		<dependency>
 			<groupId>org.ejml</groupId>
 			<artifactId>ejml-all</artifactId>
 			<version>0.42</version>
 		</dependency>
+		
 		<dependency>
 			<groupId>com.comino</groupId>
 			<artifactId>mavcom</artifactId>
@@ -74,14 +76,13 @@
 			<artifactId>jcodec</artifactId>
 			<version>0.1.9</version>
 		</dependency>
-
-
+		
 		<dependency>
 			<groupId>turbojpeg</groupId>
 			<artifactId>turbojpeg</artifactId>
 			<version>0.0.1</version>
 		</dependency>
-		<!-- 
+<!--
 		<dependency>
 			<groupId>turbojpeg</groupId>
 		<artifactId>turbojpeg</artifactId>
@@ -89,8 +90,7 @@
 		<scope>system</scope>
 		<systemPath>/opt/libjpeg-turbo/classes/turbojpeg.jar</systemPath>
 		</dependency>
--->
-		<!--
+
 		<dependency>
 			<groupId>org.boofcv</groupId>
 		<artifactId>boofcv-javacv</artifactId>
@@ -132,10 +132,12 @@
 			<artifactId>javacv</artifactId>
 			<version>1.5.9-SNAPSHOT</version>
 			<exclusions>
+			
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>leptonica</artifactId>
 				</exclusion>
+		
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>openblas</artifactId>
@@ -187,10 +189,12 @@
 			<artifactId>javacv-platform</artifactId>
 			<version>1.5.9-SNAPSHOT</version>
 			<exclusions>
+			
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>leptonica-platform</artifactId>
 				</exclusion>
+		
 				<exclusion>
 					<groupId>org.bytedeco</groupId>
 					<artifactId>flandmark-platform</artifactId>

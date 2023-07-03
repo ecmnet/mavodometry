@@ -31,6 +31,7 @@ import java.util.concurrent.TimeUnit;
 import java.util.concurrent.locks.LockSupport;
 
 import org.bytedeco.javacpp.BytePointer;
+import org.bytedeco.javacpp.PointerScope;
 import org.bytedeco.opencv.global.opencv_core;
 import org.bytedeco.opencv.global.opencv_imgcodecs;
 import org.bytedeco.opencv.opencv_core.GpuMat;
@@ -60,9 +61,11 @@ public class RTSPMultiStreamCVMjpegHandler<T> implements  IVisualStreamHandler<T
 
 	private static final long       DEFAULT_VIDEO_RATE_NS  = 46_000_000; // on M1
 
-	private static final int		DEFAULT_VIDEO_QUALITY = 70;
-	private static final int		MAX_VIDEO_QUALITY     = 90;
+	private static final int		DEFAULT_VIDEO_QUALITY = 40;
+	private static final int		MAX_VIDEO_QUALITY     = 40;
 	private static final int		LOW_VIDEO_QUALITY     = 20;
+
+	private static final int        CV2_PARAM_QUALITY_INDEX = 0;
 
 	private static final int        THUMBNAIL_WIDTH        = 64*2;
 	private static final int        THUMBNAIL_HEIGHT       = 48*2;
@@ -153,12 +156,13 @@ public class RTSPMultiStreamCVMjpegHandler<T> implements  IVisualStreamHandler<T
 		this.packet_bits = new byte[RTPpacket.MAX_PAYLOAD];
 
 		image_mat  = new Mat(height,width, CvType.CV_8UC3);
+		
 
 		//		image_mat = new Mat(height,width, CvType.CV_8UC3,new BytePointer(((DataBufferByte) image.getRaster().getDataBuffer()).getData()));
 
 		this.bbuffer = ByteBuffer.allocate(RTPpacket.MAX_PAYLOAD);
 		this.params = IntBuffer.wrap( new int[]
-				{ opencv_imgcodecs.IMWRITE_JPEG_QUALITY,50,
+				{       opencv_imgcodecs.IMWRITE_JPEG_QUALITY,50,
 						opencv_imgcodecs.IMWRITE_JPEG_OPTIMIZE,1,
 						opencv_imgcodecs.IMWRITE_JPEG_SAMPLING_FACTOR_420,1
 				} );
@@ -224,7 +228,7 @@ public class RTSPMultiStreamCVMjpegHandler<T> implements  IVisualStreamHandler<T
 
 		private String[]           streams;
 		private BlockingQueue<T>   queue;
-		
+
 		private int                fps;
 
 		public Receiver(int width, int height) {
@@ -243,6 +247,7 @@ public class RTSPMultiStreamCVMjpegHandler<T> implements  IVisualStreamHandler<T
 			last_image_tms = System.currentTimeMillis()-10;
 
 			System.out.println("Video streaming started ");
+			
 
 			while(is_running) {
 
@@ -298,11 +303,14 @@ public class RTSPMultiStreamCVMjpegHandler<T> implements  IVisualStreamHandler<T
 					quality = LOW_VIDEO_QUALITY + (int)((DEFAULT_VIDEO_QUALITY - LOW_VIDEO_QUALITY) * model.sys.wifi_quality);
 					quality = quality > MAX_VIDEO_QUALITY ? MAX_VIDEO_QUALITY : quality;
 
-					params.put(1, quality);
+					params.put(CV2_PARAM_QUALITY_INDEX, quality);
 
-					image_mat.data(new BytePointer(((DataBufferByte) image.getRaster().getDataBuffer()).getData()));
+					try (PointerScope scope = new PointerScope()) {	
 
-					opencv_imgcodecs.imencode(".jpg", image_mat, bbuffer, params);
+						image_mat.data(new BytePointer(((DataBufferByte) image.getRaster().getDataBuffer()).getData()));
+						opencv_imgcodecs.imencode(".jpg", image_mat, bbuffer, params);
+
+					}
 
 					RTPpacket rtp_packet = new RTPpacket(MJPEG_TYPE, imagenb, tms, bbuffer.array(), RTPpacket.MAX_PAYLOAD-20);
 					int packet_length = rtp_packet.getpacket(packet_bits);
@@ -318,8 +326,8 @@ public class RTSPMultiStreamCVMjpegHandler<T> implements  IVisualStreamHandler<T
 						}
 					}
 
-					
-					
+
+
 					dt_ns = System.nanoTime() - dt_ns;
 					this.fps = (int)(1_000_000_000 / dt_ns);
 					if((DEFAULT_VIDEO_RATE_NS - dt_ns)>1000)
@@ -335,7 +343,7 @@ public class RTSPMultiStreamCVMjpegHandler<T> implements  IVisualStreamHandler<T
 			close();
 
 		}
-		
+
 		private int getFPS() {
 			System.err.println(fps);
 			return fps;

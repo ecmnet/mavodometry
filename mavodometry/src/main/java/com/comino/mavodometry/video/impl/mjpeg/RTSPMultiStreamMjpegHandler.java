@@ -31,7 +31,6 @@ import java.util.concurrent.locks.LockSupport;
 
 import org.libjpegturbo.turbojpeg.TJ;
 import org.libjpegturbo.turbojpeg.TJCompressor;
-import org.libjpegturbo.turbojpeg.TJException;
 
 import com.comino.mavcom.control.IMAVController;
 import com.comino.mavcom.model.DataModel;
@@ -53,7 +52,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-	private static final long       DEFAULT_VIDEO_RATE_NS  = 50_000_000; // On Jetson nano
+	private static final long       DEFAULT_VIDEO_RATE_NS  = 40_000_000; // On Jetson nano
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
@@ -149,7 +148,8 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 
 		try {			
-			tj = new TJCompressor(image, 0, 0, 0, 0);
+			tj = new TJCompressor();
+			tj.setSourceImage(image, 0, 0, 0, 0);
 			tj.setSubsamp(TJ.SAMP_420);
 			//	tj.setSourceImage(image, 0, 0, 0, 0);
 			tj.setJPEGQuality(DEFAULT_VIDEO_QUALITY);
@@ -175,6 +175,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 	public void stop() {
 		//		rtcpReceiver.stopRcv();
 		System.out.println("Video stopped");
+		no_video_tms = 0;
 		is_running = false;
 	}
 
@@ -226,7 +227,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 			this.p1 = new Point2D_I32(width-20, height - 20);
 			this.width = width;
 			this.height = height;
-
+			
 		}
 
 		@SuppressWarnings("unchecked")
@@ -234,7 +235,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 			long dt_ns = 0;  int tms = 0; float fps=0;
 
-			last_image_tms = System.currentTimeMillis();
+			last_image_tms = 0;
 
 			System.out.println("Video streaming started ");
 
@@ -294,13 +295,13 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 					//long tms = System.nanoTime();
 					tj.setJPEGQuality(quality);
-					tj.compress(buffer, TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS);
+					tj.compress(buffer, TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
 					//System.out.println((System.nanoTime()-tms)/1e6f);
 
 					if(tj.getCompressedSize()>RTPpacket.MAX_PAYLOAD) {
 						// reduce tmporarily quality if compressed size is too high
 						tj.setJPEGQuality(quality/2);
-						tj.compress(buffer, TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB | TJ.FLAG_LIMITSCANS  );
+						tj.compress(buffer, TJ.FLAG_FASTDCT | TJ.FLAG_FASTUPSAMPLE | TJ.CS_RGB );
 					}
 
 
@@ -318,14 +319,12 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 						}
 					}
 					
-
-
-					// Ensure 15Hz video
 					dt_ns = System.nanoTime() - dt_ns;
 					LockSupport.parkNanos(DEFAULT_VIDEO_RATE_NS - dt_ns);
 
 				}
 				catch(Exception ex) {
+					ex.printStackTrace();
 					noVideo(tms);
 					continue;
 				}
