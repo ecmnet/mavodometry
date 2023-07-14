@@ -772,6 +772,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 
 
 		odo.reset_counter = reset_count;
+		odo.quality = (int)(quality * 100f);
 
 		control.sendMAVLinkMessage(odo);
 

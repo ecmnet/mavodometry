@@ -52,7 +52,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 
 	// Note: Relies on https://libjpeg-turbo.org
 
-	private static final long       DEFAULT_VIDEO_RATE_NS  = 40_000_000; // On Jetson nano
+	private static final long       DEFAULT_VIDEO_RATE_NS  = 33_000_000; // On Jetson nano
 
 	private static final int		DEFAULT_VIDEO_QUALITY = 70;
 	private static final int		MAX_VIDEO_QUALITY     = 90;
@@ -272,14 +272,12 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 								}
 							}
 
-
 						} else {
 							if((System.currentTimeMillis() - last_image_tms) > 1000)
 								noVideo(tms);
 						}
 
 						imagenb++;
-
 
 					}
 					catch(InterruptedException e) {
@@ -329,6 +327,7 @@ public class RTSPMultiStreamMjpegHandler<T> implements  IVisualStreamHandler<T> 
 					continue;
 				}
 			}
+			System.out.println("Stopped");
 			close();
 
 		}

@@ -181,6 +181,7 @@ public class MAVOAKDDepthEstimator extends MAVAbstractEstimator  {
 				//
 				if((System.currentTimeMillis() - tms) < 10)
 					return;
+				
 
 				model.slam.fps = (model.slam.fps * 0.95f + ((float)(1000f / (System.currentTimeMillis()-tms)) -0.5f) * 0.05f);
 				tms = System.currentTimeMillis();	
