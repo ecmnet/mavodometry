@@ -293,7 +293,7 @@ public class MAVT265PositionEstimator extends MAVAbstractEstimator {
 						writeLogMessage(new LogMessage("[vio] PrecisionLock enabled", MAV_SEVERITY.MAV_SEVERITY_NOTICE));
 				});
 
-		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_DOWNWARD_180,width,height);
+		t265 = StreamRealSenseT265PoseCV.getInstance(StreamRealSenseT265PoseCV.POS_FOREWARD,width,height);
 		t265.registerCallback((tms, confidence, p, s, a, img) ->  {
 
 			// Bug in CB; sometimes called twice
